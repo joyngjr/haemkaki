@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 import { PlateletBody, type DoseState } from "@/components/platelet/Platelet";
 import { cn } from "@/lib/utils";
@@ -146,6 +146,11 @@ export type FactorSceneProps = {
   vialsOnHand?: number;
   /** Badge scale. Use "sm" for thumbnails and grids, "md" for a hero card. */
   size?: "sm" | "md";
+  /**
+   * Control docked to the top-right corner of the scene. When set, the stock
+   * pill moves alongside the dose pill on the left so the two never overlap.
+   */
+  action?: ReactNode;
   className?: string;
 };
 
@@ -154,6 +159,7 @@ export function FactorScene({
   stock,
   vialsOnHand,
   size = "md",
+  action,
   className,
 }: FactorSceneProps) {
   const uid = useId();
@@ -235,14 +241,20 @@ export function FactorScene({
           size === "sm" ? "inset-x-2.5 top-2.5" : "inset-x-4 top-4",
         )}
       >
-        {dosePill ? (
-          <span className={pillClass} style={{ color: ambient.text }}>
-            {dosePill}
-          </span>
-        ) : (
-          <span />
-        )}
-        {stockPill ? (
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {dosePill ? (
+            <span className={pillClass} style={{ color: ambient.text }}>
+              {dosePill}
+            </span>
+          ) : null}
+          {action && stockPill ? (
+            <span className={pillClass} style={{ color: ambient.text }}>
+              {stockPill}
+            </span>
+          ) : null}
+        </div>
+        {action ? <div className="pointer-events-auto shrink-0">{action}</div> : null}
+        {!action && stockPill ? (
           <span className={pillClass} style={{ color: ambient.text }}>
             {stockPill}
           </span>

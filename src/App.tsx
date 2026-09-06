@@ -1,5 +1,10 @@
 import { Home } from "@/pages/Home";
+import { ProfileProvider } from "@/state/ProfileProvider";
 
 export default function App() {
-  return <Home />;
+  return (
+    <ProfileProvider>
+      <Home />
+    </ProfileProvider>
+  );
 }
