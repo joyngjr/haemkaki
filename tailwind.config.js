@@ -12,6 +12,15 @@ export default {
           700: "#2f41a8",
         },
       },
+      keyframes: {
+        "platelet-bob": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+      },
+      animation: {
+        "platelet-bob": "platelet-bob 4s ease-in-out infinite",
+      },
     },
   },
   plugins: [],
