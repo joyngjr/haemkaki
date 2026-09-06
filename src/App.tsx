@@ -1,5 +1,5 @@
-import { Welcome } from "@/pages/Welcome";
+import { Home } from "@/pages/Home";
 
 export default function App() {
-  return <Welcome />;
+  return <Home />;
 }
