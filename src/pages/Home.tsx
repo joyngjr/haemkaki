@@ -104,33 +104,31 @@ export function Home() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-sand-50">
-      <main className="mx-auto max-w-md pb-12 sm:px-4">
-        <FactorScene
-          // Somebody with no profile yet still gets a calm room to look at.
-          dose={activeProfile?.dose_state ?? "covered"}
-          stock={activeProfile?.stock_state ?? "wellStocked"}
-          vialsOnHand={activeProfile?.vials_on_hand}
-          action={<ProfileButton profile={activeProfile} onClick={() => setSwitcherOpen(true)} />}
-          // Edge-to-edge on a phone; a floating card once there is room beside it.
-          className="rounded-none rounded-b-[32px] sm:mt-6 sm:rounded-[32px]"
-        />
+    <>
+      <FactorScene
+        // Somebody with no profile yet still gets a calm room to look at.
+        dose={activeProfile?.dose_state ?? "covered"}
+        stock={activeProfile?.stock_state ?? "wellStocked"}
+        vialsOnHand={activeProfile?.vials_on_hand}
+        action={<ProfileButton profile={activeProfile} onClick={() => setSwitcherOpen(true)} />}
+        // Edge-to-edge on a phone; a floating card once there is room beside it.
+        className="rounded-none rounded-b-[32px] sm:mt-6 sm:rounded-[32px]"
+      />
 
-        <div className="px-4">
-          {activeProfile ? (
-            <ProfileCard profile={activeProfile} />
-          ) : (
-            <EmptyCard
-              status={status}
-              error={error}
-              onAdd={() => setSwitcherOpen(true)}
-              onRetry={() => void reload()}
-            />
-          )}
-        </div>
-      </main>
+      <div className="px-4">
+        {activeProfile ? (
+          <ProfileCard profile={activeProfile} />
+        ) : (
+          <EmptyCard
+            status={status}
+            error={error}
+            onAdd={() => setSwitcherOpen(true)}
+            onRetry={() => void reload()}
+          />
+        )}
+      </div>
 
       <ProfileSheet open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
-    </div>
+    </>
   );
 }
