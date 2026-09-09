@@ -42,6 +42,22 @@
 [data-theme="warm"] .shadow-violet-200 {
   --tw-shadow-color: #d8c3a0;
 }
+
+/* Factor Use and Missed Dose should not gain a selected outline. */
+[data-theme="warm"] .z-30 aside > .mt-6 > button:nth-child(2)[aria-pressed="true"],
+[data-theme="warm"] .z-30 aside > .mt-6 > button:nth-child(3)[aria-pressed="true"] {
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: none;
+}
+
+/* Only Regular prophylaxis use gets the mint selected outline. */
+[data-theme="warm"] .z-40 aside > .mt-6 > button:nth-child(2)[aria-pressed="true"],
+[data-theme="warm"] .z-40 aside > .mt-6 > button:nth-child(3)[aria-pressed="true"] {
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: none;
+}
 [data-theme="warm"] .hover\:bg-violet-50:hover {
   background-color: #f4ead8;
 }
