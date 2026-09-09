@@ -36,6 +36,12 @@ export function Tracker() {
   const [savedEntries, setSavedEntries] = useState<Record<string, SavedEntry[]>>({});
 
   const setSelectedDate = (date: Date | null) => {
+    if (date === null && selectedAction === "use" && selectedUseType === "on-demand") {
+      setSelectedAction(null);
+      setSelectedUseType(null);
+      setUseCount("");
+      return;
+    }
     if (date === null && selectedAction === "refill") {
       setSelectedAction(null);
       setRefillCount("");
@@ -77,8 +83,21 @@ export function Tracker() {
     const hasSavedProphylaxis = (savedEntries[toKey(selectedDate)] ?? []).some(
       (entry) => entry.label === "Factor Use" && entry.detail === "Regular prophylaxis use",
     );
-    const button = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim().startsWith("Regular prophylaxis use"));
-    if (button) button.setAttribute("aria-pressed", String(hasSavedProphylaxis));
+    const hasSavedOnDemand = (savedEntries[toKey(selectedDate)] ?? []).some(
+      (entry) => entry.label === "Factor Use" && entry.detail.startsWith("On-demand use"),
+    );
+    const prophylaxisButton = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim().startsWith("Regular prophylaxis use"));
+    const onDemandButton = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim().startsWith("On-demand use"));
+    if (prophylaxisButton) prophylaxisButton.setAttribute("aria-pressed", String(hasSavedProphylaxis));
+    if (onDemandButton) onDemandButton.setAttribute("aria-pressed", String(hasSavedOnDemand));
+  }, [selectedDate, selectedAction, selectedUseType, savedEntries]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedAction !== "use" || selectedUseType !== "on-demand") return;
+    const savedOnDemand = (savedEntries[toKey(selectedDate)] ?? []).find(
+      (entry) => entry.label === "Factor Use" && entry.detail.startsWith("On-demand use"),
+    );
+    setUseCount(savedOnDemand?.detail.match(/\d+/)?.[0] ?? "");
   }, [selectedDate, selectedAction, selectedUseType, savedEntries]);
 
   useEffect(() => {
@@ -154,6 +173,13 @@ export function Tracker() {
     return () => button.removeEventListener("click", commit);
   }, [selectedAction, selectedDate, refillCount]);
 
+  useEffect(() => {
+    const label = selectedAction === "refill" ? "Add vials" : selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up") ? "Track" : null;
+    if (!label) return;
+    const button = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim() === label) as HTMLButtonElement | undefined;
+    if (button) button.disabled = !(Number(selectedAction === "refill" ? refillCount : useCount) > 0);
+  }, [selectedAction, selectedUseType, refillCount, useCount]);
+
   function editEntry(dateKey: string, entry: SavedEntry) {
     if (entry.label === "Factor Refill") {
       setRefillCount(entry.detail.match(/\d+/)?.[0] ?? "");
@@ -161,8 +187,9 @@ export function Tracker() {
       return;
     }
     if (entry.label === "Factor Use") {
-      setSelectedUseType(null);
-      setUseCount("");
+      const isOnDemand = entry.detail.startsWith("On-demand use");
+      setSelectedUseType(isOnDemand ? "on-demand" : null);
+      setUseCount(isOnDemand ? (entry.detail.match(/\d+/)?.[0] ?? "") : "");
       setSelectedAction("use");
       return;
     }

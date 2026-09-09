@@ -52,7 +52,6 @@
 }
 
 /* Only Regular prophylaxis use gets the mint selected outline. */
-[data-theme="warm"] .z-40 aside > .mt-6 > button:nth-child(2)[aria-pressed="true"],
 [data-theme="warm"] .z-40 aside > .mt-6 > button:nth-child(3)[aria-pressed="true"] {
   --tw-ring-offset-shadow: 0 0 #0000;
   --tw-ring-shadow: 0 0 #0000;
