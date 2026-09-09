@@ -68,6 +68,19 @@
   padding: 0;
   font-size: 0.95rem;
 }
-[data-theme="warm"] svg.top-1\/2 {
-  top: calc(50% + 2.25rem);
+[data-theme="warm"] button.fixed.bottom-24 {
+  bottom: auto;
+  top: calc(50% + 17rem);
+}
+@media (max-width: 639px) {
+  [data-theme="warm"] button.fixed.bottom-24 {
+    top: auto;
+    bottom: 6.5rem;
+  }
+}
+@media (min-width: 640px) {
+  [data-theme="warm"] button.fixed.bottom-24 {
+    top: calc(50% + 16rem);
+    bottom: auto !important;
+  }
 }
