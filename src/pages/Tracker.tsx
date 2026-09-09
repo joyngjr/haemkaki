@@ -32,6 +32,7 @@ export function Tracker() {
   const [selectedUseType, setSelectedUseType] = useState<string | null>(null);
   const [missedAnswer, setMissedAnswer] = useState<string | null>(null);
   const [refillCount, setRefillCount] = useState("");
+  const [useCount, setUseCount] = useState("");
   const [savedEntries, setSavedEntries] = useState<Record<string, SavedEntry[]>>({});
 
   const setSelectedDate = (date: Date | null) => {
@@ -44,16 +45,54 @@ export function Tracker() {
   };
 
   useEffect(() => {
-    if (!selectedDate || selectedAction !== "refill" || !refillCount) return;
+    if (!selectedDate || selectedAction !== "use" || !selectedUseType || (selectedUseType !== "prophylaxis" && !useCount)) return;
     const dateKey = toKey(selectedDate);
+    const detail = selectedUseType === "prophylaxis" ? "Regular prophylaxis use" : `${selectedUseType === "on-demand" ? "On-demand use" : "Follow-up use after a bleed"} — ${useCount} vial${useCount === "1" ? "" : "s"}`;
     setSavedEntries((entries) => {
       const current = entries[dateKey] ?? [];
-      const existingIndex = current.findIndex((entry) => entry.label === "Factor Refill");
-      const updatedEntry = { id: existingIndex >= 0 ? current[existingIndex].id : Date.now(), label: "Factor Refill", detail: `${refillCount} vial${refillCount === "1" ? "" : "s"} added` };
-      const next = existingIndex >= 0 ? current.map((entry, index) => index === existingIndex ? updatedEntry : entry) : [...current, updatedEntry];
-      return { ...entries, [dateKey]: next };
+      const withoutPreviousUse = current.filter((entry) => entry.label !== "Factor Use");
+      if (current.length === withoutPreviousUse.length && current.some((entry) => entry.detail === detail)) return entries;
+      return { ...entries, [dateKey]: [...withoutPreviousUse, { id: Date.now(), label: "Factor Use", detail }] };
     });
-  }, [refillCount, selectedAction, selectedDate]);
+  }, [selectedDate, selectedAction, selectedUseType, useCount]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedAction !== "use" || selectedUseType) return;
+    const savedUse = (savedEntries[toKey(selectedDate)] ?? []).find((entry) => entry.label === "Factor Use");
+    if (savedUse) setSelectedUseType(savedUse.detail === "Regular prophylaxis use" ? "prophylaxis" : savedUse.detail === "On-demand use" ? "on-demand" : "follow-up");
+  }, [selectedDate, selectedAction, selectedUseType, savedEntries]);
+
+  useEffect(() => {
+    if (selectedAction !== "use") setSelectedUseType(null);
+  }, [selectedAction]);
+
+  useEffect(() => {
+    if (selectedAction !== "missed") setMissedAnswer(null);
+  }, [selectedAction]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedAction !== "refill") return;
+    const hasRefill = (savedEntries[toKey(selectedDate)] ?? []).some((entry) => entry.label === "Factor Refill");
+    if (!hasRefill) setRefillCount("");
+  }, [savedEntries, selectedDate, selectedAction]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedAction !== "refill") return;
+    const savedRefill = (savedEntries[toKey(selectedDate)] ?? []).find((entry) => entry.label === "Factor Refill");
+    if (savedRefill) setRefillCount(savedRefill.detail.match(/\d+/)?.[0] ?? "");
+  }, [selectedDate, selectedAction, savedEntries]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedAction !== "missed" || !missedAnswer) return;
+    const dateKey = toKey(selectedDate);
+    const detail = missedAnswer === "taken" ? "Taken" : "Skipped";
+    setSavedEntries((entries) => {
+      const current = entries[dateKey] ?? [];
+      const existingIndex = current.findIndex((entry) => entry.label === "Missed Dose");
+      const updatedEntry = { id: existingIndex >= 0 ? current[existingIndex].id : Date.now(), label: "Missed Dose", detail };
+      return { ...entries, [dateKey]: existingIndex >= 0 ? current.map((entry, index) => index === existingIndex ? updatedEntry : entry) : [...current, updatedEntry] };
+    });
+  }, [selectedDate, selectedAction, missedAnswer]);
 
   const calendarDays = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -75,10 +114,35 @@ export function Tracker() {
     setViewDate((date) => new Date(date.getFullYear(), date.getMonth() + amount, 1));
   }
 
+  function saveRefill() {
+    if (!selectedDate || !refillCount) return;
+    const dateKey = toKey(selectedDate);
+    setSavedEntries((entries) => {
+      const current = entries[dateKey] ?? [];
+      const withoutPrevious = current.filter((entry) => entry.label !== "Factor Refill");
+      return { ...entries, [dateKey]: [...withoutPrevious, { id: Date.now(), label: "Factor Refill", detail: `${refillCount} vial${refillCount === "1" ? "" : "s"} added` }] };
+    });
+  }
+
+  useEffect(() => {
+    if (selectedAction !== "refill") return;
+    const button = Array.from(document.querySelectorAll("button")).find((item) => item.textContent === "Add vials");
+    if (!button) return;
+    const commit = () => saveRefill();
+    button.addEventListener("click", commit);
+    return () => button.removeEventListener("click", commit);
+  }, [selectedAction, selectedDate, refillCount]);
+
   function editEntry(dateKey: string, entry: SavedEntry) {
     if (entry.label === "Factor Refill") {
       setRefillCount(entry.detail.match(/\d+/)?.[0] ?? "");
       setSelectedAction("refill");
+      return;
+    }
+    if (entry.label === "Factor Use") {
+      setSelectedUseType(entry.detail.startsWith("Regular prophylaxis use") ? "prophylaxis" : entry.detail.startsWith("On-demand use") ? "on-demand" : "follow-up");
+      setUseCount(entry.detail.match(/\d+/)?.[0] ?? "");
+      setSelectedAction("use");
       return;
     }
     const nextLabel = window.prompt("Edit entry", entry.label);
@@ -96,8 +160,8 @@ export function Tracker() {
             <div className="mb-7 flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight sm:text-2xl">{monthTitle}</h1><div className="flex items-center gap-1"><button onClick={() => changeMonth(-1)} aria-label="Previous month" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-300"><Icon name="chevronLeft" className="h-5 w-5" /></button><button onClick={() => { setViewDate(today); setSelectedDate(today); }} className="rounded-lg px-3 py-2 text-xs font-bold text-[#6c5ce7] transition hover:bg-violet-50">Today</button><button onClick={() => changeMonth(1)} aria-label="Next month" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-300"><Icon name="chevronRight" className="h-5 w-5" /></button></div></div>
             <div className="grid grid-cols-7 border-b border-slate-100 pb-3">{DAYS.map((day) => <div key={day} className="text-center text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{day}</div>)}</div>
             <div className="grid grid-cols-7 pt-2">{calendarDays.map((date) => {
-              const key = toKey(date); const currentMonth = date.getMonth() === viewDate.getMonth(); const isToday = key === toKey(today); const isSelected = selectedDate ? key === toKey(selectedDate) : false;
-              return <button key={key} onClick={() => { setSelectedDate(date); setSelectedAction(null); }} aria-pressed={isSelected} className={`group relative flex aspect-[.95] flex-col items-center rounded-xl pt-2 transition focus:z-10 focus:outline-none focus:ring-2 focus:ring-violet-300 sm:aspect-square sm:pt-3 ${isSelected ? "bg-[#6c5ce7] text-white shadow-md shadow-violet-200" : "hover:bg-violet-50"}`}><span className={`grid h-7 w-7 place-items-center rounded-full text-sm font-semibold ${!currentMonth ? "text-slate-300" : isSelected ? "text-white" : isToday ? "bg-violet-100 text-[#6c5ce7]" : "text-slate-700"}`}>{date.getDate()}</span></button>;
+              const key = toKey(date); const currentMonth = date.getMonth() === viewDate.getMonth(); const isToday = key === toKey(today); const isSelected = selectedDate ? key === toKey(selectedDate) : false; const hasFactorUse = (savedEntries[key] ?? []).some((entry) => entry.label === "Factor Use"); const hasMissedDose = (savedEntries[key] ?? []).some((entry) => entry.label === "Missed Dose");
+              return <button key={key} onClick={() => { setSelectedDate(date); setSelectedAction(null); }} aria-pressed={isSelected} className={`group relative flex aspect-[.95] flex-col items-center rounded-xl pt-2 transition focus:z-10 focus:outline-none focus:ring-2 focus:ring-violet-300 sm:aspect-square sm:pt-3 ${isSelected ? "bg-[#6c5ce7] text-white shadow-md shadow-violet-200" : "hover:bg-violet-50"}`}><span className={`grid h-7 w-7 place-items-center rounded-full text-sm font-semibold ${!currentMonth ? "text-slate-300" : isSelected ? "text-white" : isToday ? "bg-violet-100 text-[#6c5ce7]" : "text-slate-700"}`}>{date.getDate()}</span>{(hasFactorUse || hasMissedDose) && <span className="mt-1.5 flex gap-1">{hasFactorUse && <i className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-white" : "bg-[#8df5c0]"}`} />}{hasMissedDose && <i className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-white" : "bg-[#cd5952]"}`} />}</span>}</button>;
             })}</div>
           </section>
         </div>
@@ -106,8 +170,10 @@ export function Tracker() {
       {selectedDate && <section className="fixed bottom-24 left-3 right-3 z-35 mx-auto max-w-md rounded-2xl border border-[#eee5d5] bg-[#fffaf0] p-4 shadow-xl sm:bottom-6 sm:left-auto sm:right-6"><div className="flex items-center justify-between"><h3 className="text-sm font-bold text-[#3b281c]">Saved entries</h3><span className="text-xs text-[#806d51]">{(savedEntries[toKey(selectedDate)] ?? []).length}</span></div>{(savedEntries[toKey(selectedDate)] ?? []).length ? <div className="mt-3 space-y-2">{savedEntries[toKey(selectedDate)].map((entry) => <div key={entry.id} className="flex items-center justify-between rounded-xl bg-[#f8f0e2] px-3 py-2"><div><p className="text-xs font-bold text-[#443229]">{entry.label}</p><p className="text-[11px] text-[#806d51]">{entry.detail}</p></div><div className="flex gap-1"><button onClick={() => editEntry(toKey(selectedDate), entry)} className="rounded-lg px-2 py-1 text-xs font-semibold text-[#80633e] hover:bg-[#f4ead8]">Edit</button><button onClick={() => setSavedEntries((entries) => ({ ...entries, [toKey(selectedDate)]: (entries[toKey(selectedDate)] ?? []).filter((item) => item.id !== entry.id) }))} className="rounded-lg px-2 py-1 text-xs font-semibold text-[#cd5952] hover:bg-[#f4ead8]">Delete</button></div></div>)}</div> : <p className="mt-2 text-xs text-[#806d51]">No saved entries for this date yet.</p>}</section>}
       {selectedDate && selectedAction === "use" && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Factor Use</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">What kind of use?</h2></div><button onClick={() => { setSelectedAction(null); setSelectedUseType(null); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><div className="mt-6 space-y-3"><button onClick={() => setSelectedUseType("prophylaxis")} aria-pressed={selectedUseType === "prophylaxis"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="block text-sm font-bold text-[#443229]">Regular prophylaxis use</span><span className="mt-1 block text-xs text-[#806d51]">Your planned preventative dose</span></button><button onClick={() => setSelectedUseType("on-demand")} aria-pressed={selectedUseType === "on-demand"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="block text-sm font-bold text-[#443229]">On-demand use</span><span className="mt-1 block text-xs text-[#806d51]">Treatment taken when a bleed starts</span></button><button onClick={() => setSelectedUseType("follow-up")} aria-pressed={selectedUseType === "follow-up"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="block text-sm font-bold text-[#443229]">Follow-up use after a bleed</span><span className="mt-1 block text-xs text-[#806d51]">An additional dose after a serious bleed</span></button></div></aside></div>}
       {selectedDate && selectedAction === "missed" && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Missed Dose</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">Was the missed dose taken or skipped?</h2></div><button onClick={() => { setSelectedAction(null); setMissedAnswer(null); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><div className="mt-6 space-y-3"><button onClick={() => setMissedAnswer("taken")} aria-pressed={missedAnswer === "taken"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#cd5952]">Taken</button><button onClick={() => setMissedAnswer("skipped")} aria-pressed={missedAnswer === "skipped"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#cd5952]">Skipped</button></div></aside></div>}
-      {selectedDate && selectedAction === "use" && <svg className="pointer-events-none fixed right-8 top-1/2 z-[70] h-6 w-6 -translate-y-1/2 text-[#cd5952] sm:right-[calc(50%-11rem)]" viewBox="0 0 24 24" fill="currentColor" aria-label="Bleed indicator"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5Z" /></svg>}
+      {selectedDate && selectedAction === "use" && !selectedUseType && <svg className="pointer-events-none fixed right-8 top-1/2 z-[70] h-6 w-6 -translate-y-1/2 text-[#cd5952] sm:right-[calc(50%-11rem)]" viewBox="0 0 24 24" fill="currentColor" aria-label="Bleed indicator"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5Z" /></svg>}
       {selectedDate && selectedAction === "refill" && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Factor Refill</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials?</h2></div><button onClick={() => { setSelectedAction(null); setRefillCount(""); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-5 text-sm text-[#806d51]">Enter the number of vials to add to your supply.</p><div className="mt-4 rounded-2xl bg-[#f8f0e2] px-4 py-3 text-center text-3xl font-bold tracking-wide text-[#3b281c]">{refillCount || "0"}</div><div className="mt-4 grid grid-cols-3 gap-2">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setRefillCount((count) => `${count}${number}`.slice(0, 3))} className="h-12 rounded-xl bg-[#f8f0e2] text-lg font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setRefillCount("")} className="h-12 rounded-xl bg-[#f8f0e2] text-sm font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setRefillCount((count) => `${count}0`.slice(0, 3))} className="h-12 rounded-xl bg-[#f8f0e2] text-lg font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setRefillCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-12 rounded-xl bg-[#f8f0e2] text-lg font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!refillCount} onClick={() => { setSelectedDate(null); setSelectedAction(null); setRefillCount(""); }} className="mt-4 w-full rounded-xl bg-[#a98559] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Add vials</button></aside></div>}
+      {selectedDate && selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up") && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">{selectedUseType === "on-demand" ? "On-demand use" : "Follow-up use after a bleed"}</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials used?</h2></div><button onClick={() => { setUseCount(""); setSelectedUseType(null); }} aria-label="Back to use type" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-5 text-sm text-[#806d51]">Enter the number of vials used.</p><div className="mt-4 rounded-2xl bg-[#f8f0e2] px-4 py-3 text-center text-3xl font-bold tracking-wide text-[#3b281c]">{useCount || "0"}</div><div className="mt-4 grid grid-cols-3 gap-2">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setUseCount((count) => `${count}${number}`.slice(0, 3))} className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setUseCount("")} className="h-10 rounded-xl bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setUseCount((count) => `${count}0`.slice(0, 3))} className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setUseCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div></aside></div>}
+      {selectedDate && selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up") && <button onClick={() => { setSelectedDate(null); setSelectedAction(null); setSelectedUseType(null); setUseCount(""); }} className="fixed right-4 top-4 z-[100] rounded-full border border-[#443229] bg-[#443229] px-4 py-2 text-sm font-semibold text-[#fffaf0] shadow-lg">Close</button>}
       <BottomNav active="tracker" />
       {false && <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-20 border-t border-[#eee5d5] bg-[#f8f0e2]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(74,53,32,0.06)] backdrop-blur">
         <div className="mx-auto flex max-w-md items-end justify-around gap-2">
