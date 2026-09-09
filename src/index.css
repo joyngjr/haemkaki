@@ -11,3 +11,63 @@
     @apply bg-slate-50 text-slate-900 antialiased;
   }
 }
+
+/* Keep the tracker visually aligned with the warm landing experience. */
+[data-theme="warm"] .bg-white {
+  background-color: #fffaf0;
+}
+[data-theme="warm"] .bg-slate-50 {
+  background-color: #f8f0e2;
+}
+[data-theme="warm"] .border-slate-100,
+[data-theme="warm"] .border-slate-200 {
+  border-color: #eee5d5;
+}
+[data-theme="warm"] .text-slate-400,
+[data-theme="warm"] .text-slate-500 {
+  color: #806d51;
+}
+[data-theme="warm"] .text-slate-700,
+[data-theme="warm"] .text-slate-800,
+[data-theme="warm"] .text-slate-900 {
+  color: #443229;
+}
+[data-theme="warm"] .bg-\[\#6c5ce7\],
+[data-theme="warm"] button[aria-pressed="true"] {
+  background-color: #a98559;
+}
+[data-theme="warm"] .text-\[\#6c5ce7\] {
+  color: #80633e;
+}
+[data-theme="warm"] .shadow-violet-200 {
+  --tw-shadow-color: #d8c3a0;
+}
+[data-theme="warm"] .hover\:bg-violet-50:hover {
+  background-color: #f4ead8;
+}
+[data-theme="warm"] .bg-\[\#cd5952\]\/15 {
+  display: grid;
+  place-items: center;
+}
+[data-theme="warm"] aside button[aria-pressed="true"],
+[data-theme="warm"] aside button[aria-pressed="true"]:hover,
+[data-theme="warm"] aside button[aria-pressed="true"]:active {
+  background-color: #f8f0e2;
+}
+[data-theme="warm"] .z-35 {
+  z-index: 50;
+}
+[data-theme="warm"] .z-40 {
+  background-color: transparent;
+}
+[data-theme="warm"] .z-40 .grid-cols-3 {
+  gap: 0.375rem;
+}
+[data-theme="warm"] .z-40 .grid-cols-3 button {
+  height: 2.5rem;
+  padding: 0;
+  font-size: 0.95rem;
+}
+[data-theme="warm"] svg.top-1\/2 {
+  top: calc(50% + 2.25rem);
+}
