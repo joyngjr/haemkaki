@@ -36,7 +36,7 @@ export function Tracker() {
   const [savedEntries, setSavedEntries] = useState<Record<string, SavedEntry[]>>({});
 
   const setSelectedDate = (date: Date | null) => {
-    if (date === null && selectedAction === "use" && selectedUseType === "on-demand") {
+    if (date === null && selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up")) {
       setSelectedAction(null);
       setSelectedUseType(null);
       setUseCount("");
@@ -86,18 +86,24 @@ export function Tracker() {
     const hasSavedOnDemand = (savedEntries[toKey(selectedDate)] ?? []).some(
       (entry) => entry.label === "Factor Use" && entry.detail.startsWith("On-demand use"),
     );
+    const hasSavedFollowUp = (savedEntries[toKey(selectedDate)] ?? []).some(
+      (entry) => entry.label === "Factor Use" && entry.detail.startsWith("Follow-up use after a bleed"),
+    );
     const prophylaxisButton = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim().startsWith("Regular prophylaxis use"));
     const onDemandButton = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim().startsWith("On-demand use"));
+    const followUpButton = Array.from(document.querySelectorAll("button")).find((item) => item.textContent?.trim().startsWith("Follow-up use after a bleed"));
     if (prophylaxisButton) prophylaxisButton.setAttribute("aria-pressed", String(hasSavedProphylaxis));
     if (onDemandButton) onDemandButton.setAttribute("aria-pressed", String(hasSavedOnDemand));
+    if (followUpButton) followUpButton.setAttribute("aria-pressed", String(hasSavedFollowUp));
   }, [selectedDate, selectedAction, selectedUseType, savedEntries]);
 
   useEffect(() => {
-    if (!selectedDate || selectedAction !== "use" || selectedUseType !== "on-demand") return;
-    const savedOnDemand = (savedEntries[toKey(selectedDate)] ?? []).find(
-      (entry) => entry.label === "Factor Use" && entry.detail.startsWith("On-demand use"),
+    if (!selectedDate || selectedAction !== "use" || (selectedUseType !== "on-demand" && selectedUseType !== "follow-up")) return;
+    const label = selectedUseType === "on-demand" ? "On-demand use" : "Follow-up use after a bleed";
+    const savedUse = (savedEntries[toKey(selectedDate)] ?? []).find(
+      (entry) => entry.label === "Factor Use" && entry.detail.startsWith(label),
     );
-    setUseCount(savedOnDemand?.detail.match(/\d+/)?.[0] ?? "");
+    setUseCount(savedUse?.detail.match(/\d+/)?.[0] ?? "");
   }, [selectedDate, selectedAction, selectedUseType, savedEntries]);
 
   useEffect(() => {
@@ -154,14 +160,18 @@ export function Tracker() {
     });
   }
 
-  function saveOnDemandUse() {
-    if (!selectedDate || selectedUseType !== "on-demand" || !useCount) return;
+  function saveFactorUse() {
+    if (!selectedDate || (selectedUseType !== "on-demand" && selectedUseType !== "follow-up") || !useCount) return;
     const dateKey = toKey(selectedDate);
-    const detail = `On-demand use — ${useCount} vial${useCount === "1" ? "" : "s"}`;
+    const detail = `${selectedUseType === "on-demand" ? "On-demand use" : "Follow-up use after a bleed"} — ${useCount} vial${useCount === "1" ? "" : "s"}`;
     setSavedEntries((entries) => ({
       ...entries,
       [dateKey]: [...(entries[dateKey] ?? []).filter((entry) => entry.label !== "Factor Use"), { id: Date.now(), label: "Factor Use", detail }],
     }));
+  }
+
+  function saveOnDemandUse() {
+    saveFactorUse();
   }
 
   useEffect(() => {
@@ -188,8 +198,9 @@ export function Tracker() {
     }
     if (entry.label === "Factor Use") {
       const isOnDemand = entry.detail.startsWith("On-demand use");
-      setSelectedUseType(isOnDemand ? "on-demand" : null);
-      setUseCount(isOnDemand ? (entry.detail.match(/\d+/)?.[0] ?? "") : "");
+      const isFollowUp = entry.detail.startsWith("Follow-up use after a bleed");
+      setSelectedUseType(isOnDemand ? "on-demand" : isFollowUp ? "follow-up" : null);
+      setUseCount(isOnDemand || isFollowUp ? (entry.detail.match(/\d+/)?.[0] ?? "") : "");
       setSelectedAction("use");
       return;
     }
