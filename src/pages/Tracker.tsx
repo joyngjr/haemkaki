@@ -33,6 +33,9 @@ export function Tracker() {
   const [missedAnswer, setMissedAnswer] = useState<string | null>(null);
   const [missedTakenDate, setMissedTakenDate] = useState<Date | null>(null);
   const [takenMissedDoseDates, setTakenMissedDoseDates] = useState<Record<string, boolean>>({});
+  const [missedDoseTakenKeys, setMissedDoseTakenKeys] = useState<Record<string, string>>({});
+  const [missedVialType, setMissedVialType] = useState<string | null>(null);
+  const [missedVialCount, setMissedVialCount] = useState("");
   const [refillCount, setRefillCount] = useState("");
   const [useCount, setUseCount] = useState("");
   const [savedEntries, setSavedEntries] = useState<Record<string, SavedEntry[]>>({});
@@ -71,6 +74,8 @@ export function Tracker() {
     if (selectedAction !== "missed") {
       setMissedAnswer(null);
       setMissedTakenDate(null);
+      setMissedVialType(null);
+      setMissedVialCount("");
     }
   }, [selectedAction]);
 
@@ -148,6 +153,9 @@ export function Tracker() {
   useEffect(() => {
     if (!selectedDate || !missedTakenDate) return;
     const dateKey = toKey(selectedDate);
+    const takenKey = toKey(missedTakenDate);
+    const previousKey = missedDoseTakenKeys[dateKey];
+    if (previousKey === takenKey) return;
     const detail = `Taken on ${missedTakenDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
     setSavedEntries((entries) => {
       const current = entries[dateKey] ?? [];
@@ -155,8 +163,20 @@ export function Tracker() {
       const updatedEntry = { id: existingIndex >= 0 ? current[existingIndex].id : Date.now(), label: "Missed Dose", detail };
       return { ...entries, [dateKey]: existingIndex >= 0 ? current.map((entry, index) => index === existingIndex ? updatedEntry : entry) : [...current, updatedEntry] };
     });
-    setTakenMissedDoseDates((dates) => ({ ...dates, [toKey(missedTakenDate)]: true }));
-  }, [selectedDate, missedTakenDate]);
+    setTakenMissedDoseDates((dates) => {
+      const next = { ...dates };
+      if (previousKey) delete next[previousKey];
+      next[takenKey] = true;
+      return next;
+    });
+    setMissedDoseTakenKeys((keys) => ({ ...keys, [dateKey]: takenKey }));
+  }, [selectedDate, missedTakenDate, missedDoseTakenKeys]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedAction !== "missed" || !missedVialType) return;
+    const saved = (savedEntries[toKey(selectedDate)] ?? []).find((entry) => entry.label === "Missed Dose");
+    setMissedVialCount(saved?.detail.match(/\d+/)?.[0] ?? "");
+  }, [selectedDate, selectedAction, missedVialType, savedEntries]);
 
   const calendarDays = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -175,6 +195,15 @@ export function Tracker() {
     date.setDate(date.getDate() + index);
     return date;
   }) : [], [selectedDate]);
+
+  const missedDoseWeekMonthLabel = useMemo(() => {
+    if (missedDoseWeek.length === 0) return "";
+    const startMonth = missedDoseWeek[0].toLocaleDateString("en-US", { month: "long" });
+    const endDate = missedDoseWeek[missedDoseWeek.length - 1];
+    const endMonth = endDate.toLocaleDateString("en-US", { month: "long" });
+    const year = endDate.getFullYear();
+    return startMonth === endMonth ? `${startMonth} ${year}` : `${startMonth} – ${endMonth} ${year}`;
+  }, [missedDoseWeek]);
 
   const monthTitle = viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const selectedDayLabel = selectedDate?.toLocaleDateString("en-US", { weekday: "long" }) ?? "Selected date";
@@ -208,6 +237,27 @@ export function Tracker() {
     saveFactorUse();
   }
 
+  function updateMissedDoseDetail(dateKey: string, detail: string) {
+    setSavedEntries((entries) => {
+      const current = entries[dateKey] ?? [];
+      const existingIndex = current.findIndex((entry) => entry.label === "Missed Dose");
+      const updatedEntry = { id: existingIndex >= 0 ? current[existingIndex].id : Date.now(), label: "Missed Dose", detail };
+      return { ...entries, [dateKey]: existingIndex >= 0 ? current.map((entry, index) => index === existingIndex ? updatedEntry : entry) : [...current, updatedEntry] };
+    });
+  }
+
+  function saveMissedDoseProphylaxis() {
+    if (!selectedDate || !missedTakenDate) return;
+    const takenLabel = `Taken on ${missedTakenDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+    updateMissedDoseDetail(toKey(selectedDate), `${takenLabel} — Regular prophylaxis amount`);
+  }
+
+  function saveMissedDoseVials() {
+    if (!selectedDate || !missedTakenDate || !missedVialCount) return;
+    const takenLabel = `Taken on ${missedTakenDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+    updateMissedDoseDetail(toKey(selectedDate), `${takenLabel} — ${missedVialCount} vial${missedVialCount === "1" ? "" : "s"}`);
+  }
+
   useEffect(() => {
     if (selectedAction !== "refill") return;
     const button = Array.from(document.querySelectorAll("button")).find((item) => item.textContent === "Add vials");
@@ -238,6 +288,14 @@ export function Tracker() {
       setSelectedAction("use");
       return;
     }
+    if (entry.label === "Missed Dose") {
+      setMissedAnswer(null);
+      setMissedTakenDate(null);
+      setMissedVialType(null);
+      setMissedVialCount("");
+      setSelectedAction("missed");
+      return;
+    }
     const nextLabel = window.prompt("Edit entry", entry.label);
     if (nextLabel?.trim()) setSavedEntries((entries) => ({ ...entries, [dateKey]: (entries[dateKey] ?? []).map((item) => item.id === entry.id ? { ...item, label: nextLabel.trim() } : item) }));
   }
@@ -263,7 +321,9 @@ export function Tracker() {
       {selectedDate && <section className="fixed bottom-24 left-3 right-3 z-35 mx-auto max-w-md rounded-2xl border border-[#eee5d5] bg-[#fffaf0] p-4 shadow-xl sm:bottom-6 sm:left-auto sm:right-6"><div className="flex items-center justify-between"><h3 className="text-sm font-bold text-[#3b281c]">Saved entries</h3><span className="text-xs text-[#806d51]">{(savedEntries[toKey(selectedDate)] ?? []).length}</span></div>{(savedEntries[toKey(selectedDate)] ?? []).length ? <div className="mt-3 space-y-2">{savedEntries[toKey(selectedDate)].map((entry) => <div key={entry.id} className="flex items-center justify-between rounded-xl bg-[#f8f0e2] px-3 py-2"><div><p className="text-xs font-bold text-[#443229]">{entry.label}</p><p className="text-[11px] text-[#806d51]">{entry.detail}</p></div><div className="flex gap-1"><button onClick={() => editEntry(toKey(selectedDate), entry)} className="rounded-lg px-2 py-1 text-xs font-semibold text-[#80633e] hover:bg-[#f4ead8]">Edit</button><button onClick={() => setSavedEntries((entries) => ({ ...entries, [toKey(selectedDate)]: (entries[toKey(selectedDate)] ?? []).filter((item) => item.id !== entry.id) }))} className="rounded-lg px-2 py-1 text-xs font-semibold text-[#cd5952] hover:bg-[#f4ead8]">Delete</button></div></div>)}</div> : <p className="mt-2 text-xs text-[#806d51]">No saved entries for this date yet.</p>}</section>}
       {selectedDate && selectedAction === "use" && !selectedUseType && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Factor Use</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">What kind of use?</h2></div><button onClick={() => { setSelectedAction(null); setSelectedUseType(null); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><div className="mt-6 space-y-3"><button onClick={() => setSelectedUseType("prophylaxis")} aria-pressed={selectedUseType === "prophylaxis"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="block text-sm font-bold text-[#443229]">Regular prophylaxis use</span><span className="mt-1 block text-xs text-[#806d51]">Your planned preventative dose</span></button><button onClick={() => setSelectedUseType("on-demand")} aria-pressed={selectedUseType === "on-demand"} className="relative w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 pr-12 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="block text-sm font-bold text-[#443229]">On-demand use</span><span className="mt-1 block text-xs text-[#806d51]">Treatment taken when a bleed starts</span><svg className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#cd5952]" viewBox="0 0 24 24" fill="currentColor" aria-label="Bleed indicator"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5Z" /></svg></button><button onClick={() => setSelectedUseType("follow-up")} aria-pressed={selectedUseType === "follow-up"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="block text-sm font-bold text-[#443229]">Follow-up use after a bleed</span><span className="mt-1 block text-xs text-[#806d51]">An additional dose after a serious bleed</span></button></div></aside></div>}
       {selectedDate && selectedAction === "missed" && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Missed Dose</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">Was the missed dose taken or skipped?</h2></div><button onClick={() => { setSelectedAction(null); setMissedAnswer(null); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><div className="mt-6 space-y-3"><button onClick={() => setMissedAnswer("taken")} aria-pressed={missedAnswer === "taken"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#cd5952]">Taken</button><button onClick={() => setMissedAnswer("skipped")} aria-pressed={missedAnswer === "skipped"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#cd5952]">Skipped</button></div></aside></div>}
-      {selectedDate && selectedAction === "missed" && missedAnswer === "taken" && !missedTakenDate && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Missed Dose</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">When did you take the missed dose?</h2></div><button onClick={() => setMissedAnswer(null)} aria-label="Back to missed-dose options" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-3 text-sm text-[#806d51]">Choose a day from this week.</p><div className="mt-5 grid grid-cols-7 gap-1.5">{missedDoseWeek.map((date) => <button key={toKey(date)} onClick={() => { setMissedTakenDate(date); setSelectedAction(null); }} className="flex h-16 flex-col items-center justify-center rounded-xl border border-[#eee5d5] bg-[#f8f0e2] text-[#443229] transition hover:bg-[#f4ead8]"><span className="text-[10px] font-bold uppercase text-[#806d51]">{date.toLocaleDateString("en-US", { weekday: "narrow" })}</span><span className="mt-1 text-sm font-bold">{date.getDate()}</span></button>)}</div></aside></div>}
+      {selectedDate && selectedAction === "missed" && missedAnswer === "taken" && !missedTakenDate && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Missed Dose</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">When did you take the missed dose?</h2></div><button onClick={() => setMissedAnswer(null)} aria-label="Back to missed-dose options" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-3 text-sm font-bold text-[#443229]">{missedDoseWeekMonthLabel}</p><div className="mt-5 grid grid-cols-7 gap-1.5">{missedDoseWeek.map((date) => <button key={toKey(date)} onClick={() => setMissedTakenDate(date)} className="flex h-16 flex-col items-center justify-center rounded-xl border border-[#eee5d5] bg-[#f8f0e2] text-[#443229] transition hover:bg-[#f4ead8]"><span className="text-[10px] font-bold uppercase text-[#806d51]">{date.toLocaleDateString("en-US", { weekday: "narrow" })}</span><span className="mt-1 text-sm font-bold">{date.getDate()}</span></button>)}</div></aside></div>}
+      {selectedDate && selectedAction === "missed" && missedAnswer === "taken" && missedTakenDate && !missedVialType && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Missed Dose</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials used?</h2></div><button onClick={() => setMissedTakenDate(null)} aria-label="Back to missed-dose date" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><div className="mt-6 space-y-3"><button onClick={() => { saveMissedDoseProphylaxis(); setSelectedAction(null); }} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8]"><span className="block text-sm font-bold text-[#443229]">Regular prophylaxis amount</span><span className="mt-1 block text-xs text-[#806d51]">Your usual planned dose</span></button><button onClick={() => setMissedVialType("custom")} aria-pressed={missedVialType === "custom"} className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#cd5952]"><span className="block text-sm font-bold text-[#443229]">Custom</span><span className="mt-1 block text-xs text-[#806d51]">Enter a specific number of vials</span></button></div></aside></div>}
+      {selectedDate && selectedAction === "missed" && missedAnswer === "taken" && missedTakenDate && missedVialType && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Missed Dose</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials used?</h2></div><button onClick={() => { setMissedVialType(null); setMissedVialCount(""); }} aria-label="Back to vial type" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-5 text-sm text-[#806d51]">Enter the number of vials used after the missed dose.</p><div className="mt-4 rounded-2xl bg-[#f8f0e2] px-4 py-3 text-center text-3xl font-bold tracking-wide text-[#3b281c]">{missedVialCount || "0"}</div><div className="mt-4 grid grid-cols-3 gap-2">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setMissedVialCount((count) => `${count}${number}`.slice(0, 3))} className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setMissedVialCount("")} className="h-10 rounded-xl bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setMissedVialCount((count) => `${count}0`.slice(0, 3))} className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setMissedVialCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!missedVialCount} onClick={() => { saveMissedDoseVials(); setSelectedDate(null); setSelectedAction(null); }} className="mt-4 w-full rounded-xl bg-[#a98559] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Track</button></aside></div>}
       {selectedDate && selectedAction === "refill" && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Factor Refill</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials?</h2></div><button onClick={() => { setSelectedAction(null); setRefillCount(""); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-5 text-sm text-[#806d51]">Enter the number of vials to add to your supply.</p><div className="mt-4 rounded-2xl bg-[#f8f0e2] px-4 py-3 text-center text-3xl font-bold tracking-wide text-[#3b281c]">{refillCount || "0"}</div><div className="mt-4 grid grid-cols-3 gap-2">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setRefillCount((count) => `${count}${number}`.slice(0, 3))} className="h-12 rounded-xl bg-[#f8f0e2] text-lg font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setRefillCount("")} className="h-12 rounded-xl bg-[#f8f0e2] text-sm font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setRefillCount((count) => `${count}0`.slice(0, 3))} className="h-12 rounded-xl bg-[#f8f0e2] text-lg font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setRefillCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-12 rounded-xl bg-[#f8f0e2] text-lg font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!refillCount} onClick={() => { setSelectedDate(null); setSelectedAction(null); setRefillCount(""); }} className="mt-4 w-full rounded-xl bg-[#a98559] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Add vials</button></aside></div>}
       {selectedDate && selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up") && <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">{selectedUseType === "on-demand" ? "On-demand use" : "Follow-up use after a bleed"}</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials used?</h2></div><button onClick={() => { setUseCount(""); setSelectedUseType(null); }} aria-label="Back to use type" className="grid h-8 w-8 place-items-center rounded-full text-xl text-[#806d51] hover:bg-[#f4ead8]">×</button></div><p className="mt-5 text-sm text-[#806d51]">Enter the number of vials used.</p><div className="mt-4 rounded-2xl bg-[#f8f0e2] px-4 py-3 text-center text-3xl font-bold tracking-wide text-[#3b281c]">{useCount || "0"}</div><div className="mt-4 grid grid-cols-3 gap-2">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setUseCount((count) => `${count}${number}`.slice(0, 3))} className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setUseCount("")} className="h-10 rounded-xl bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setUseCount((count) => `${count}0`.slice(0, 3))} className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setUseCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-xl bg-[#f8f0e2] text-base font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!useCount} onClick={() => { saveOnDemandUse(); setSelectedDate(null); setSelectedAction(null); setSelectedUseType(null); setUseCount(""); }} className="mt-4 w-full rounded-xl bg-[#a98559] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Track</button></aside></div>}
       <BottomNav active="tracker" />
