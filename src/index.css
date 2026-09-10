@@ -60,6 +60,11 @@ nav[aria-label="Primary navigation"] a[aria-current="page"] {
   background: rgba(216, 195, 160, 0.32);
   box-shadow: inset 0 0 0 1px rgba(128, 99, 62, 0.08);
 }
+
+[data-theme="warm"] main > header h1,
+[data-theme="warm"] section > div:first-child > h1 {
+  color: #6b3817;
+}
 [data-theme="warm"] .bg-\[\#cd5952\]\/15 {
   display: grid;
   place-items: center;
