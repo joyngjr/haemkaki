@@ -9,6 +9,13 @@ export type HealthLocation = {
   lng: number;
 };
 
+/** Pin and legend colour per type. Kept beside the data so both stay in step. */
+export const LOCATION_COLORS: Record<LocationType, string> = {
+  hospital: "#ef4444",
+  pharmacy: "#22c55e",
+  polyclinic: "#3b82f6",
+};
+
 export const healthLocations: HealthLocation[] = [
   // Hospitals (red)
   {
