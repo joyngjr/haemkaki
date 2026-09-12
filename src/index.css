@@ -8,7 +8,7 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-sand-50 text-sand-900 antialiased;
   }
 }
 
@@ -53,12 +53,6 @@
 
 [data-theme="warm"] .hover\:bg-violet-50:hover {
   background-color: #f4ead8;
-}
-
-nav[aria-label="Primary navigation"] a[aria-current="page"] {
-  border-radius: 1rem;
-  background: rgba(216, 195, 160, 0.32);
-  box-shadow: inset 0 0 0 1px rgba(128, 99, 62, 0.08);
 }
 
 [data-theme="warm"] main > header h1,
@@ -119,4 +113,18 @@ nav[aria-label="Primary navigation"] a[aria-current="page"] {
     top: calc(50% + 16rem);
     bottom: auto !important;
   }
+}
+
+/* AppLayout's tab bar sits at z-40, so the tracker's own overlays have to clear
+   it. Bumped here rather than on the utility classes because the warm-theme
+   rules above key off those exact z-30/z-40 class names. The three tiers keep
+   their relative order: day popup, then its modals, then the pickers. */
+[data-theme="warm"] .fixed.inset-0.z-30 {
+  z-index: 70;
+}
+[data-theme="warm"] .fixed.inset-0.z-40 {
+  z-index: 80;
+}
+[data-theme="warm"] .fixed.inset-0.z-50 {
+  z-index: 90;
 }
