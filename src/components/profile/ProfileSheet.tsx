@@ -103,9 +103,6 @@ function Sheet({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <h2 className="text-2xl font-bold tracking-tight text-sand-900">Who&rsquo;s here?</h2>
-            <p className="mt-1 text-sm text-sand-600">
-              Each profile has its own den, stock and log.
-            </p>
 
             {status === "loading" ? (
               <p className="mt-6 text-sm text-sand-600">Loading profiles…</p>
