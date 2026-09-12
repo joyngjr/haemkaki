@@ -29,6 +29,7 @@ export default function App() {
             <Route path="tips/injection-guide/port-a-cath" element={<PortACathInjection />} />
             <Route path="tips/find-medical-help" element={<FindMedicalHelp />} />
             <Route path="tips/community" element={<Community />} />
+            {/* Anything unrecognised lands back on the den. */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
