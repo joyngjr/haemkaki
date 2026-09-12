@@ -160,8 +160,16 @@ function firstNameOf(name: string): string {
  * This is an overlay rather than a replacement so a profile switch re-seeds the
  * screen without discarding anything the API cannot yet store.
  */
+function trackedProductLabel(profile: Profile): string {
+  const diagnosis = profile.clinical_profile?.diagnosis;
+  if (diagnosis === "factor_xi_deficiency") return "Factor XI";
+  if (diagnosis === "acquired_haemophilia") return "Acquired haemophilia";
+  if (diagnosis === "other_or_unknown") return "Care plan";
+  return `Factor ${profile.factor_type}`;
+}
+
 export function applyProfile(data: HomeDashboardData, profile: Profile): HomeDashboardData {
-  const medicationName = `Factor ${profile.factor_type}`;
+  const medicationName = trackedProductLabel(profile);
   return {
     ...data,
     user: { firstName: firstNameOf(profile.name) },

@@ -23,7 +23,16 @@ function CheckIcon() {
 
 function summary(profile: Profile): string {
   const days = profile.days_cover;
-  return `Factor ${profile.factor_type} · ${days} ${days === 1 ? "day" : "days"} cover`;
+  const diagnosis = profile.clinical_profile?.diagnosis;
+  const label =
+    diagnosis === "factor_xi_deficiency"
+      ? "Factor XI"
+      : diagnosis === "acquired_haemophilia"
+        ? "Acquired haemophilia"
+        : diagnosis === "other_or_unknown"
+          ? "Care plan"
+          : `Factor ${profile.factor_type}`;
+  return `${label} · ${days} ${days === 1 ? "day" : "days"} cover`;
 }
 
 function ProfileRow({
