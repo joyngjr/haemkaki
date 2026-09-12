@@ -45,10 +45,10 @@ export FIRECRAWL_API_KEY=$(grep '^FIRECRAWL_API_KEY=' hackitrx-frontend/.env | c
 If the variable is already set in the shell environment, use it directly. If `.env` is missing
 or the key is blank, stop and tell the developer.
 
-For full Firecrawl API reference, read:
+For the full Firecrawl API reference, read:
 
 ```
-hackitrx-frontend/skill_firecrawl.md
+hackitrx-frontend/.agents/skills/hackitrx-domain-expert/firecrawl_skill/SKILL.md
 ```
 
 Read this file before making any API calls so you use the correct endpoint signatures,
@@ -63,7 +63,7 @@ Before doing anything, confirm:
 1. **What topic?** (e.g. "factor VIII prophylaxis dosing", "half-life of extended-release
    factor products", "inhibitor development in haemophilia A")
 2. **Which sources?**
-   - *Repo files* — search `hackitrx-frontend/docs/` for existing medical documents.
+   - *Repo files* — search `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/references/` for existing medical documents.
    - *Web* — use Firecrawl to find and scrape authoritative sources autonomously.
    - *Both* — combine both (default when neither is specified).
 3. **Output format**: `.md` (default) or `.csv` — take this from the developer's prompt.
@@ -77,11 +77,11 @@ proceed autonomously.
 
 ## 2 — Source 1: Repository files
 
-Scan `hackitrx-frontend/docs/` (and its sub-folders) for existing medical documentation:
+Scan `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/references/` for existing medical documentation:
 
 ```bash
-# Find all markdown and text files under docs/
-find hackitrx-frontend/docs -type f \( -name "*.md" -o -name "*.txt" -o -name "*.csv" \)
+# Find all markdown and text files under references/
+find hackitrx-frontend/.agents/skills/hackitrx-domain-expert/references -type f \( -name "*.md" -o -name "*.txt" -o -name "*.csv" \)
 ```
 
 Then grep for topic keywords (e.g. `factor VIII`, `prophylaxis`, `haemophilia`, `inhibitor`,
@@ -94,7 +94,7 @@ so nothing clinical is lost or distorted.
 
 ## 3 — Source 2: Web via Firecrawl
 
-Read `hackitrx-frontend/skill_firecrawl.md` for the full API reference before calling any
+Read `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/firecrawl_skill/SKILL.md` for the full API reference before calling any
 endpoint. The sections below are a working summary.
 
 ### 3a — Searching for sources (no URL provided)
@@ -172,7 +172,7 @@ appear without its source.
 Write a **comprehensive, structured summary file** to:
 
 ```
-hackitrx-frontend/docs/medical-summaries/<kebab-case-topic>.<md|csv>
+hackitrx-frontend/.agents/skills/hackitrx-domain-expert/medical_info_summary/<kebab-case-topic>.<md|csv>
 ```
 
 Create the folder if it does not exist.
@@ -189,7 +189,7 @@ Use this template exactly:
 > **Status:** Pending developer review
 > **Generated:** <ISO 8601 date>
 > **Sources consulted:**
-> - [Repo] `hackitrx-frontend/docs/<path>`
+> - [Repo] `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/<source-folder>/<path>`
 > - [Web] <URL> — <site name / document title> [<citation key>]
 
 ---
@@ -285,7 +285,7 @@ After writing the file, report:
 5. Prompt the developer to review for clinical accuracy.
 
 Example:
-> "Summary written to `hackitrx-frontend/docs/medical-summaries/factor-viii-prophylaxis.md`.
+> "Summary written to `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/medical_info_summary/factor-viii-prophylaxis.md`.
 > Read 1 repo file and scraped 4 web sources (WFH 2020, UKHCDO 2023, 2 FDA labels).
 > Found 1 ⚠️ conflict in trough target levels — see the *Treatment Protocols* section.
 > Please confirm accuracy before using this in the app."
