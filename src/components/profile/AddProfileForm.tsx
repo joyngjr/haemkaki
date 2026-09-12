@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   type ClinicalProfile,
@@ -165,9 +165,12 @@ export function AddProfileForm({ onDone, onCancel }: { onDone: () => void; onCan
     setTreatment(treatmentOptions(next)[0]);
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim() || saving) return;
+  async function createCompletedProfile() {
+    // Profile creation is intentionally available only through the explicit
+    // button on Preferences. Enter/Done from an earlier text field must never
+    // submit the multi-step form or skip a page.
+    if (step !== STEPS.length - 1 || !name.trim() || saving) return;
+
     setSaving(true);
     setError(null);
     const clinicalProfile: ClinicalProfile = {
@@ -202,7 +205,7 @@ export function AddProfileForm({ onDone, onCancel }: { onDone: () => void; onCan
   }
 
   return (
-    <form onSubmit={(event) => void handleSubmit(event)} className="pb-1">
+    <form onSubmit={(event) => event.preventDefault()} className="pb-1">
       <div className="mb-6"><p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-800">New profile</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-sand-900">Let&rsquo;s tailor your care space</h2><p className="mt-2 text-sm leading-6 text-sand-600">Record your diagnosis and existing care plan. This does not replace advice from your haemophilia care team.</p></div>
       <ol aria-label="Profile creation progress" className="mb-7 grid grid-cols-4 gap-1">{STEPS.map((label, index) => <li key={label} className="min-w-0"><div className={cn("h-1.5 rounded-full", index <= step ? "bg-teal-700" : "bg-sand-200")} /><span className={cn("mt-2 block truncate text-[10px] font-semibold", index === step ? "text-teal-800" : "text-sand-500")}>{label}</span></li>)}</ol>
       <div className="space-y-5">
@@ -212,7 +215,7 @@ export function AddProfileForm({ onDone, onCancel }: { onDone: () => void; onCan
         {step === 3 ? <><div><p className="text-sm font-semibold text-sand-900">Would you like to join any group chats?</p><div className="mt-3 space-y-2">{["Haemophilia Support Group", "Community Page", "Touchpoints"].map((group) => <button type="button" key={group} onClick={() => toggleGroup(group)} aria-pressed={groups.includes(group)} className={cn("flex min-h-[52px] w-full items-center justify-between rounded-2xl border px-4 text-left text-sm font-semibold", groups.includes(group) ? "border-teal-700 bg-teal-50 text-teal-950" : "border-sand-300 bg-white text-sand-800")}><span>{group}</span><span aria-hidden="true">{groups.includes(group) ? "✓" : "+"}</span></button>)}</div></div><div><p className="text-sm font-semibold text-sand-900">Would you like reminders to order and take medication?</p><Choice columns value={reminders} onChange={setReminders} options={[{ value: "yes", label: "Yes, remind me" }, { value: "no", label: "No thanks" }]} /></div><div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950"><p className="font-bold">Safety note</p><p className="mt-1">Follow your care team&rsquo;s individual treatment and emergency plan. This profile is for organising that plan, not replacing it.</p></div></> : null}
       </div>
       {error ? <p role="alert" className="mt-5 text-sm font-medium text-rose-700">{error}</p> : null}
-      <div className="mt-7 flex gap-3 border-t border-sand-200 pt-5"><button type="button" onClick={step === 0 ? onCancel : () => setStep((current) => current - 1)} className="min-h-[48px] flex-1 rounded-2xl border border-sand-300 bg-white px-4 text-sm font-bold text-sand-700">{step === 0 ? "Cancel" : "Back"}</button>{step < STEPS.length - 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep((current) => current + 1)} className="min-h-[48px] flex-1 rounded-2xl bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-40">Continue</button> : <button type="submit" disabled={!name.trim() || saving} className="min-h-[48px] flex-1 rounded-2xl bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-40">{saving ? "Creating…" : "Create profile"}</button>}</div>
+      <div className="mt-7 flex gap-3 border-t border-sand-200 pt-5"><button type="button" onClick={step === 0 ? onCancel : () => setStep((current) => current - 1)} className="min-h-[48px] flex-1 rounded-2xl border border-sand-300 bg-white px-4 text-sm font-bold text-sand-700">{step === 0 ? "Cancel" : "Back"}</button>{step < STEPS.length - 1 ? <button type="button" disabled={!canContinue} onClick={() => setStep((current) => current + 1)} className="min-h-[48px] flex-1 rounded-2xl bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-40">Continue</button> : <button type="button" onClick={() => void createCompletedProfile()} disabled={!name.trim() || saving} className="min-h-[48px] flex-1 rounded-2xl bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-40">{saving ? "Creating…" : "Create profile"}</button>}</div>
     </form>
   );
 }
