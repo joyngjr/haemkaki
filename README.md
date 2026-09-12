@@ -1,9 +1,10 @@
 # HackitRx — web app
 
 React + TypeScript + Vite + Tailwind. A mobile-first companion app for people
-with haemophilia: a home "den" showing how covered you are, a calendar tracker
-for doses and supply, and a tips section with an injection guide, a medical ID
-card, a map of nearby help, and a community feed.
+with haemophilia: a home screen showing how covered you are, a calendar tracker
+for doses and supply, and a resources section with an injection guide, a medical
+ID card, a map of nearby help, and a community feed. A Quick Log button sits in
+the middle of the tab bar and records a dose or a bleed from any page.
 
 There is no authentication. A "profile" is just a name someone picks on the
 device, and anyone holding the phone can switch between everyone in a household.
@@ -53,7 +54,8 @@ src/
   index.css                    Tailwind directives, base styles, and the
                                tracker's `[data-theme="warm"]` overrides
   pages/
-    Home.tsx                   the den: active profile + factor/stock scene
+    Home.tsx                   the home screen: Kaki's scene, cover and next
+                               dose, activity, inventory, recent log, daily tip
     Tracker.tsx                calendar, factor supply, and routine editor
     tips/Tips.tsx              the tips index
     tips/MedicalId.tsx         emergency card: diagnosis, contacts, call links
@@ -63,20 +65,26 @@ src/
                                (intravenous, subcutaneous, port-a-cath)
   components/
     layout/                    AppLayout shell, PageHeader, BackLink
-    nav/                       BottomNav tab bar and its icons
+    nav/                       BottomNav — the five-slot tab bar
+    quick-log/                 QuickLogSheet — record a dose or a bleed
     platelet/                  the platelet mascot: Platelet, PlateletStates,
-                               FactorScene (dose state + stock shelf)
+                               FactorScene (dose state + stock shelf), and Kaki,
+                               the tinted animated version Home uses
     profile/                   profile button, sheet, avatar, add-profile form
     community/                 group list, composers, post card, chips
     find-medical-help/         HealthMap, MapLegend, map marker icons
     injection/                 headers, step lists, type cards for the guide
     medical-id/                section cards and call links
     tips/                      tip cards and icons
-    ui/                        Callout, ChevronRight — shared primitives
+    ui/                        Callout, ChevronRight, form primitives
   lib/
     api.ts                     the ONLY place that reads VITE_API_URL; wraps
                                fetch and mirrors the backend's schemas
-    nav.ts                     NAV_ITEMS — the bottom-tab definition
+    nav.ts                     NAV_LEFT / NAV_RIGHT — the routed tabs, split
+                               around the Quick Log button
+    home-data.ts               Home's data contracts and its demo data
+    home-format.ts             Home's date and time formatting
+    theme.ts                   ink, surface and status tone tokens
     community-store.ts         community groups/posts/comments in localStorage
     health-locations.ts        static list of Singapore care locations
     utils.ts                   cn() — clsx + tailwind-merge class joiner
@@ -84,6 +92,9 @@ src/
     ProfileProvider.tsx        loads profiles from the API, remembers the
                                active one in localStorage
     profile-context.ts         the context and its hook
+    HomeDataProvider.tsx       Home's dashboard state, above the router so the
+                               tab bar's Quick Log sheet writes to what Home reads
+    home-context.ts            the context and its hook
   assets/platelet/             the mascot SVGs per dose state
 ```
 
@@ -98,7 +109,8 @@ utilities are the phone layout, `sm:`/`md:` adapt upward. Use the `brand-*` and
 | Feature                                                                                                         | State                                                                                                                                 |
 | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Profiles — create, switch, edit, delete a household member                                                      | Backed by the API (`/users`)                                                                                                          |
-| Home den — dose state and stock state drawn as the platelet and its shelf                                       | Backed by the API (fields on the profile)                                                                                             |
+| Home — Kaki's scene, cover and next dose, activity, inventory, recent log, daily tip                            | Demo data (`src/lib/home-data.ts`); the API has no columns for dose timing, half-life, supplies or a log ledger yet                   |
+| Quick Log — record a dose or a bleed from the tab bar, on any page                                              | Writes to Home's demo data only; the tracker keeps a separate ledger, so a dose logged here does not appear on the calendar           |
 | Tracker calendar — month grid with per-day markers for factor use, planned prophylaxis, missed doses and bleeds | In-memory only; a refresh clears it                                                                                                   |
 | Logging a factor refill, a factor use (prophylaxis, on-demand, follow-up) or a missed dose against a date       | In-memory only                                                                                                                        |
 | Missed-dose follow-up — record whether it was taken or skipped, and link the day it was actually taken          | In-memory only                                                                                                                        |
