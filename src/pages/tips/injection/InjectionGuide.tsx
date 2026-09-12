@@ -1,11 +1,14 @@
 import { BackLink } from "@/components/layout/BackLink";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { InjectionTypeCard, type InjectionType } from "@/components/injection/InjectionTypeCard";
+import {
+  InjectionTypeCard,
+  type InjectionType,
+} from "@/components/tips/injection/InjectionTypeCard";
 import {
   IntravenousIcon,
   PortACathIcon,
   SubcutaneousIcon,
-} from "@/components/injection/InjectionTypeIcons";
+} from "@/components/tips/injection/InjectionTypeIcons";
 import { Callout } from "@/components/ui/Callout";
 
 const injectionTypes: InjectionType[] = [

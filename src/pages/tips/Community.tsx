@@ -1,10 +1,10 @@
 import { useState } from "react";
 
-import { GroupComposer } from "@/components/community/GroupComposer";
-import { GroupList } from "@/components/community/GroupList";
-import { PostCard } from "@/components/community/PostCard";
-import { PostComposer } from "@/components/community/PostComposer";
-import { TopicChips } from "@/components/community/TopicChips";
+import { GroupComposer } from "@/components/tips/community/GroupComposer";
+import { GroupList } from "@/components/tips/community/GroupList";
+import { PostCard } from "@/components/tips/community/PostCard";
+import { PostComposer } from "@/components/tips/community/PostComposer";
+import { TopicChips } from "@/components/tips/community/TopicChips";
 import { BackLink } from "@/components/layout/BackLink";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useCommunity } from "@/lib/community-store";

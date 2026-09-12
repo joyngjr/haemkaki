@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { HealthMap } from "@/components/find-medical-help/HealthMap";
-import { MapLegend } from "@/components/find-medical-help/MapLegend";
+import { HealthMap } from "@/components/tips/find-medical-help/HealthMap";
+import { MapLegend } from "@/components/tips/find-medical-help/MapLegend";
 import { BackLink } from "@/components/layout/BackLink";
 import { PageHeader } from "@/components/layout/PageHeader";
 

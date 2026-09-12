@@ -1,7 +1,12 @@
 import { BackLink } from "@/components/layout/BackLink";
-import { InjectionHeader } from "@/components/injection/InjectionHeader";
-import { InjectionSteps, type InjectionStep } from "@/components/injection/InjectionSteps";
-import { SwabIcon, SyringeIcon, TwoVialsIcon, VialIcon } from "@/components/injection/StepIcons";
+import { InjectionHeader } from "@/components/tips/injection/InjectionHeader";
+import { InjectionSteps, type InjectionStep } from "@/components/tips/injection/InjectionSteps";
+import {
+  SwabIcon,
+  SyringeIcon,
+  TwoVialsIcon,
+  VialIcon,
+} from "@/components/tips/injection/StepIcons";
 import { Callout } from "@/components/ui/Callout";
 
 const steps: InjectionStep[] = [

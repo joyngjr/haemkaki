@@ -1,13 +1,13 @@
 import { BackLink } from "@/components/layout/BackLink";
-import { CallLink } from "@/components/medical-id/CallLink";
-import { Field, SectionCard } from "@/components/medical-id/SectionCard";
+import { CallLink } from "@/components/tips/medical-id/CallLink";
+import { Field, SectionCard } from "@/components/tips/medical-id/SectionCard";
 import {
   CapsuleIcon,
   PersonIcon,
   PhoneIcon,
   PlusIcon,
   StethoscopeIcon,
-} from "@/components/medical-id/SectionIcons";
+} from "@/components/tips/medical-id/SectionIcons";
 import type { FactorType } from "@/lib/api";
 import { useProfiles } from "@/state/profile-context";
 
