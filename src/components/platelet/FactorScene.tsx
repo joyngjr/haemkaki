@@ -49,7 +49,7 @@ const AMBIENT: Record<
   0: {
     wallTop: "#FDF4DE",
     wallBottom: "#EAD2A4",
-    floor: "#C7A679",
+    floor: "#000000",
     shelf: "#AF8C61",
     shadow: "#9A7A52",
     vialTop: "#FFFCF2",
@@ -63,7 +63,7 @@ const AMBIENT: Record<
   1: {
     wallTop: "#F6EEE3",
     wallBottom: "#DECBB5",
-    floor: "#B69C87",
+    floor: "#000000",
     shelf: "#9D826F",
     shadow: "#8B7160",
     vialTop: "#FDFAF5",
@@ -75,7 +75,7 @@ const AMBIENT: Record<
   2: {
     wallTop: "#EEE7EA",
     wallBottom: "#D0C3CA",
-    floor: "#A28F99",
+    floor: "#000000",
     shelf: "#88757F",
     shadow: "#786671",
     vialTop: "#FBF7F9",
