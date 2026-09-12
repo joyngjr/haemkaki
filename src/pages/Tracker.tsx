@@ -25,13 +25,17 @@ function getSingaporeToday() {
   return new Date(Number(values.year), Number(values.month) - 1, Number(values.day));
 }
 
-function Icon({ name, className = "" }: { name: "chevronLeft" | "chevronRight" | "plus" | "close" | "search"; className?: string }) {
+function Icon({ name, className = "" }: { name: "chevronLeft" | "chevronRight" | "plus" | "close" | "search" | "repeat" | "calendar" | "vial" | "play"; className?: string }) {
   const paths = {
     chevronLeft: <path d="m15 18-6-6 6-6" />,
     chevronRight: <path d="m9 18 6-6-6-6" />,
     plus: <path d="M12 5v14M5 12h14" />,
     close: <path d="M18 6 6 18M6 6l12 12" />,
     search: <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>,
+    repeat: <><path d="m17 2 4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></>,
+    calendar: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
+    vial: <><rect x="8" y="2" width="8" height="20" rx="4" /><path d="M8 8h8" /></>,
+    play: <path d="M6 4v16l14-8Z" fill="currentColor" stroke="none" />,
   };
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>{paths[name]}</svg>;
 }
@@ -43,10 +47,63 @@ type TrackerProps = {
   lastRegularProphylaxisDate?: Date;
   /** How often regular prophylaxis is due, in days, set during profile creation. Undefined until that flow exists. */
   regularProphylaxisIntervalDays?: number;
+  /** Called when the user edits the dosage from "Your Current Routine" — wire this to the profile store to keep them in sync. */
+  onRegularProphylaxisVialsChange?: (vials: number) => void;
+  /** Called when the user edits the effective start date from "Your Current Routine". */
+  onLastRegularProphylaxisDateChange?: (date: Date) => void;
+  /** Called when the user edits the frequency (in days) from "Your Current Routine". */
+  onRegularProphylaxisIntervalDaysChange?: (days: number) => void;
 };
 
-export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, regularProphylaxisIntervalDays }: TrackerProps = {}) {
+export function Tracker({
+  regularProphylaxisVials: initialRoutineVials,
+  lastRegularProphylaxisDate: initialRoutineStartDate,
+  regularProphylaxisIntervalDays: initialRoutineIntervalDays,
+  onRegularProphylaxisVialsChange,
+  onLastRegularProphylaxisDateChange,
+  onRegularProphylaxisIntervalDaysChange,
+}: TrackerProps = {}) {
   const today = getSingaporeToday();
+  const [routineVials, setRoutineVialsState] = useState(initialRoutineVials);
+  const [routineStartDate, setRoutineStartDateState] = useState(initialRoutineStartDate);
+  const [routineIntervalDays, setRoutineIntervalDaysState] = useState(initialRoutineIntervalDays);
+  useEffect(() => setRoutineVialsState(initialRoutineVials), [initialRoutineVials]);
+  useEffect(() => setRoutineStartDateState(initialRoutineStartDate), [initialRoutineStartDate]);
+  useEffect(() => setRoutineIntervalDaysState(initialRoutineIntervalDays), [initialRoutineIntervalDays]);
+  function setRoutineVials(next: number) {
+    setRoutineVialsState(next);
+    onRegularProphylaxisVialsChange?.(next);
+  }
+  function setRoutineStartDate(next: Date) {
+    setRoutineStartDateState(next);
+    onLastRegularProphylaxisDateChange?.(next);
+  }
+  function setRoutineIntervalDays(next: number) {
+    setRoutineIntervalDaysState(next);
+    onRegularProphylaxisIntervalDaysChange?.(next);
+  }
+  function startEditingRoutineField(field: "frequency" | "dosage" | "start") {
+    if (field === "frequency") setRoutineIntervalDraft(routineIntervalDays ? String(routineIntervalDays) : "");
+    if (field === "dosage") setRoutineVialsDraft(routineVials ? String(routineVials) : "");
+    if (field === "start") setRoutineDatePickerMonth(routineStartDate ?? today);
+    setEditingRoutineField(field);
+  }
+  function saveRoutineInterval() {
+    const value = Number(routineIntervalDraft);
+    if (!value) return;
+    setRoutineIntervalDays(value);
+    setEditingRoutineField(null);
+  }
+  function saveRoutineVials() {
+    const value = Number(routineVialsDraft);
+    if (!value) return;
+    setRoutineVials(value);
+    setEditingRoutineField(null);
+  }
+  function saveRoutineStartDate(date: Date) {
+    setRoutineStartDate(date);
+    setEditingRoutineField(null);
+  }
   const [viewDate, setViewDate] = useState(today);
   const [selectedDate, setSelectedDateState] = useState<Date | null>(null);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
@@ -61,6 +118,10 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
   const [useCount, setUseCount] = useState("");
   const [savedEntries, setSavedEntries] = useState<Record<string, SavedEntry[]>>({});
   const [showSupplyHistory, setShowSupplyHistory] = useState(false);
+  const [editingRoutineField, setEditingRoutineField] = useState<"frequency" | "dosage" | "start" | null>(null);
+  const [routineIntervalDraft, setRoutineIntervalDraft] = useState("");
+  const [routineVialsDraft, setRoutineVialsDraft] = useState("");
+  const [routineDatePickerMonth, setRoutineDatePickerMonth] = useState(routineStartDate ?? today);
 
   const setSelectedDate = (date: Date | null) => {
     if (date === null && selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up")) {
@@ -80,8 +141,8 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
   useEffect(() => {
     if (!selectedDate || selectedAction !== "use" || selectedUseType !== "prophylaxis") return;
     const dateKey = toKey(selectedDate);
-    const detail = regularProphylaxisVials
-      ? `Regular prophylaxis use — ${regularProphylaxisVials} vial${regularProphylaxisVials === 1 ? "" : "s"}`
+    const detail = routineVials
+      ? `Regular prophylaxis use — ${routineVials} vial${routineVials === 1 ? "" : "s"}`
       : "Regular prophylaxis use";
     setSavedEntries((entries) => {
       const current = entries[dateKey] ?? [];
@@ -90,13 +151,22 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
       const withoutConflicts = current.filter((entry) => entry.label !== "Factor Use" && entry.label !== "Missed Dose");
       return { ...entries, [dateKey]: [...withoutConflicts, { id: Date.now(), label: "Factor Use", detail }] };
     });
-  }, [selectedDate, selectedAction, selectedUseType, regularProphylaxisVials]);
+  }, [selectedDate, selectedAction, selectedUseType, routineVials]);
 
   useEffect(() => {
-    if (!lastRegularProphylaxisDate) return;
-    const lastDoseKey = toKey(lastRegularProphylaxisDate);
-    const detail = regularProphylaxisVials
-      ? `Regular prophylaxis use — ${regularProphylaxisVials} vial${regularProphylaxisVials === 1 ? "" : "s"}`
+    if (!routineStartDate) return;
+    const lastDoseKey = toKey(routineStartDate);
+    if (routineStartDate.getTime() > today.getTime()) {
+      // A future effective start date is just a planned dose — no entry until it actually happens.
+      setSavedEntries((entries) => {
+        const current = entries[lastDoseKey] ?? [];
+        const filtered = current.filter((entry) => !(entry.label === "Factor Use" && entry.detail.startsWith("Regular prophylaxis use")));
+        return filtered.length === current.length ? entries : { ...entries, [lastDoseKey]: filtered };
+      });
+      return;
+    }
+    const detail = routineVials
+      ? `Regular prophylaxis use — ${routineVials} vial${routineVials === 1 ? "" : "s"}`
       : "Regular prophylaxis use";
     setSavedEntries((entries) => {
       const current = entries[lastDoseKey] ?? [];
@@ -105,11 +175,11 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
       const updatedEntry = { id: existingIndex >= 0 ? current[existingIndex].id : Date.now(), label: "Factor Use", detail };
       return { ...entries, [lastDoseKey]: existingIndex >= 0 ? current.map((entry, index) => index === existingIndex ? updatedEntry : entry) : [...current, updatedEntry] };
     });
-  }, [regularProphylaxisVials, lastRegularProphylaxisDate]);
+  }, [routineVials, routineStartDate, today]);
 
-  const effectiveLastRegularProphylaxisDate = useMemo(() => {
-    if (!lastRegularProphylaxisDate) return undefined;
-    let latest = lastRegularProphylaxisDate;
+  const scheduleAnchorDate = useMemo(() => {
+    if (!routineStartDate) return undefined;
+    let latest = routineStartDate;
     Object.entries(savedEntries).forEach(([key, entries]) => {
       const hasDose = entries.some((entry) => entry.label === "Factor Use" && (entry.detail.startsWith("Regular prophylaxis use") || entry.detail.startsWith("Missed dose on ")));
       if (!hasDose) return;
@@ -118,7 +188,7 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
       if (entryDate.getTime() > latest.getTime()) latest = entryDate;
     });
     return latest;
-  }, [savedEntries, lastRegularProphylaxisDate]);
+  }, [savedEntries, routineStartDate]);
 
   useEffect(() => {
     if (selectedAction !== "use") setSelectedUseType(null);
@@ -246,6 +316,18 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
     });
   }, [viewDate]);
 
+  const routineDatePickerDays = useMemo(() => {
+    const year = routineDatePickerMonth.getFullYear();
+    const month = routineDatePickerMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const start = new Date(year, month, 1 - firstDay.getDay());
+    return Array.from({ length: 35 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  }, [routineDatePickerMonth]);
+
   const missedDoseWeek = useMemo(() => selectedDate ? Array.from({ length: 7 }, (_, index) => {
     const date = new Date(selectedDate);
     date.setDate(date.getDate() + index);
@@ -343,8 +425,8 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
     if (!selectedDate || !missedTakenDate) return;
     const missedDateLabel = selectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const takenLabel = `Taken on ${missedTakenDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-    const amountLabel = regularProphylaxisVials
-      ? `${regularProphylaxisVials} vial${regularProphylaxisVials === 1 ? "" : "s"} (Regular prophylaxis amount)`
+    const amountLabel = routineVials
+      ? `${routineVials} vial${routineVials === 1 ? "" : "s"} (Regular prophylaxis amount)`
       : "Regular prophylaxis amount";
     updateMissedDoseDetail(toKey(selectedDate), `${takenLabel} — ${amountLabel}`);
     addMissedDoseFactorUseEntry(toKey(missedTakenDate), missedDateLabel, amountLabel);
@@ -500,13 +582,14 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
             <div className="mb-5 flex items-center justify-between"><h1 className="ml-2 text-xl font-bold tracking-tight text-[#6b3817] sm:text-2xl">{monthTitle}</h1><div className="flex items-center gap-1"><button onClick={() => changeMonth(-1)} aria-label="Previous month" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-300"><Icon name="chevronLeft" className="h-5 w-5" /></button><button onClick={() => { setViewDate(today); setSelectedDate(today); }} className="rounded-lg px-3 py-2 text-xs font-bold text-[#6c5ce7] transition hover:bg-violet-50">Today</button><button onClick={() => changeMonth(1)} aria-label="Next month" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-300"><Icon name="chevronRight" className="h-5 w-5" /></button></div></div>
             <div className="grid grid-cols-7 border-b border-slate-100 pb-3">{DAYS.map((day) => <div key={day} className="text-center text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{day}</div>)}</div>
             <div className="grid grid-cols-7 pt-2">{calendarDays.map((date, index) => {
-              const key = toKey(date); const currentMonth = date.getMonth() === viewDate.getMonth(); const isToday = key === toKey(today); const isSelected = selectedDate ? key === toKey(selectedDate) : false; const hasFactorUse = (savedEntries[key] ?? []).some((entry) => entry.label === "Factor Use") || Boolean(takenMissedDoseDates[key]); const hasMissedDose = (savedEntries[key] ?? []).some((entry) => entry.label === "Missed Dose"); const hasOnDemandUse = (savedEntries[key] ?? []).some((entry) => entry.label === "Factor Use" && entry.detail.startsWith("On-demand use")); const isLastRow = index >= calendarDays.length - 7; const isPlannedProphylaxis = !hasFactorUse && !hasMissedDose && isScheduledProphylaxisDate(date, effectiveLastRegularProphylaxisDate, regularProphylaxisIntervalDays);
+              const key = toKey(date); const currentMonth = date.getMonth() === viewDate.getMonth(); const isToday = key === toKey(today); const isSelected = selectedDate ? key === toKey(selectedDate) : false; const hasFactorUse = (savedEntries[key] ?? []).some((entry) => entry.label === "Factor Use") || Boolean(takenMissedDoseDates[key]); const hasMissedDose = (savedEntries[key] ?? []).some((entry) => entry.label === "Missed Dose"); const hasOnDemandUse = (savedEntries[key] ?? []).some((entry) => entry.label === "Factor Use" && entry.detail.startsWith("On-demand use")); const isLastRow = index >= calendarDays.length - 7; const isFutureRoutineStart = Boolean(routineStartDate && key === toKey(routineStartDate) && routineStartDate.getTime() > today.getTime()); const isPlannedProphylaxis = !hasFactorUse && !hasMissedDose && (isScheduledProphylaxisDate(date, scheduleAnchorDate, routineIntervalDays) || isFutureRoutineStart);
               return <button key={key} onClick={() => { setSelectedDate(date); setSelectedAction(null); }} aria-pressed={isSelected} className={`group relative flex ${isLastRow ? "aspect-[.95] sm:aspect-[1.05]" : "aspect-[.75] sm:aspect-[.85]"} flex-col items-center rounded-xl pt-2 transition focus:z-10 focus:outline-none focus:ring-2 focus:ring-violet-300 sm:pt-3 ${isSelected ? "bg-[#6c5ce7] text-white shadow-md shadow-violet-200" : "hover:bg-violet-50"}`}><span className={`grid h-7 w-7 place-items-center rounded-full text-sm font-semibold ${!currentMonth ? "text-slate-300" : isSelected ? "text-white" : isToday ? "bg-violet-100 text-[#6c5ce7]" : "text-slate-700"}`}>{date.getDate()}</span>{(hasFactorUse || hasMissedDose || hasOnDemandUse || isPlannedProphylaxis) && <span className="mt-0.5 flex items-center gap-1">{hasFactorUse && <i className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-white" : "bg-[#8df5c0]"}`} />}{isPlannedProphylaxis && <i className={`h-2.5 w-2.5 rounded-full border-2 bg-transparent ${isSelected ? "border-white" : "border-[#8df5c0]"}`} aria-label="Planned prophylaxis dose" />}{hasMissedDose && <i className={`h-2.5 w-2.5 rounded-full ${isSelected ? "bg-white" : "bg-[#ffcc4d]"}`} />}{hasOnDemandUse && <svg className={`h-3.5 w-3.5 ${isSelected ? "text-white" : "text-[#cd5952]"}`} viewBox="0 0 24 24" fill="currentColor" aria-label="Bleed indicator"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5Z" /></svg>}</span>}</button>;
             })}</div>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500 sm:justify-start"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#8df5c0]" />Factor Use</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#ffcc4d]" />Missed Dose</span><span className="flex items-center gap-1.5"><svg className="h-3.5 w-3.5 text-[#cd5952]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5Z" /></svg>Bleed Event</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full border-2 border-[#8df5c0] bg-transparent" />Planned Prophylaxis</span></div>
             </div>
           </section>
           <button onClick={() => setShowSupplyHistory(true)} className="mt-4 w-full overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-[0_12px_45px_rgba(36,45,80,0.06)] transition hover:bg-slate-50 sm:mt-6 sm:rounded-3xl sm:p-7"><div className="flex items-center justify-between"><div className="ml-1 sm:ml-2"><h2 className="text-xl font-bold tracking-tight text-[#6b3817] sm:text-2xl">Factor Supply</h2><p className="mt-2 text-sm text-[#806d51]">Vials remaining in your supply</p><p className="mt-2 flex items-center gap-1 text-sm text-[#806d51]"><Icon name="search" className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />Tap to view your recent activity</p></div><span className="mr-1 text-3xl font-bold text-[#3b281c] sm:mr-2 sm:text-4xl">{factorSupply}</span></div></button>
+          <section className="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_12px_45px_rgba(36,45,80,0.06)] sm:mt-6 sm:rounded-3xl sm:p-7"><h2 className="ml-1 text-xl font-bold tracking-tight text-[#6b3817] sm:ml-2 sm:text-2xl">Your Current Routine</h2><p className="ml-1 mt-1 text-sm text-[#a8977c] sm:ml-2">Tap any value to edit</p><div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => startEditingRoutineField("frequency")} className="flex flex-col items-center gap-1.5 rounded-xl bg-[#f8f0e2] px-2 py-3 text-center transition hover:bg-[#f4ead8]"><Icon name="repeat" className="h-5 w-5 text-[#80633e]" /><span className="flex min-h-8 items-center text-xs text-[#806d51]">Frequency</span><span className="text-sm font-bold leading-tight text-[#443229]">{routineIntervalDays ? <>Every<br />{routineIntervalDays} day{routineIntervalDays === 1 ? "" : "s"}</> : "Not set"}</span></button><button onClick={() => startEditingRoutineField("dosage")} className="flex flex-col items-center gap-1.5 rounded-xl bg-[#f8f0e2] px-2 py-3 text-center transition hover:bg-[#f4ead8]"><Icon name="vial" className="h-5 w-5 text-[#80633e]" /><span className="flex min-h-8 items-center text-xs text-[#806d51]">Dosage</span><span className="text-sm font-bold text-[#443229]">{routineVials ? `${routineVials} vial${routineVials === 1 ? "" : "s"}` : "Not set"}</span></button><button onClick={() => startEditingRoutineField("start")} className="flex flex-col items-center gap-1.5 rounded-xl bg-[#f8f0e2] px-2 py-3 text-center transition hover:bg-[#f4ead8]"><Icon name="play" className="h-5 w-5 text-[#80633e]" /><span className="flex min-h-8 items-center text-xs leading-tight text-[#806d51]">Effective<br />start date</span><span className="text-sm font-bold leading-tight text-[#443229]">{routineStartDate ? <>{routineStartDate.getDate()} {routineStartDate.toLocaleDateString("en-US", { month: "short" })}<br />{routineStartDate.getFullYear()}</> : "Not set"}</span></button></div></section>
         </div>
       </main>
       {selectedDate && <div onClick={closeAllPopups} className="fixed inset-0 z-30 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">{selectedDayLabel}</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">{selectedDateLabel}</h2></div><button onClick={() => setSelectedDate(null)} aria-label="Close date details" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div>{isFutureDate ? <p className="mt-6 rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-sm text-[#806d51]">This date hasn't happened yet, so it can't be logged. If a dose is planned for this day, you'll see it marked on the calendar.</p> : <div className="mt-6 space-y-3"><button onClick={() => setSelectedAction("refill")} aria-pressed={selectedAction === "refill"} className="flex w-full items-center gap-3 rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#a98559]"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#d8c3a0]/35 text-[#80633e]"><Icon name="plus" className="h-6 w-6" /></span><span className="flex-1"><span className="block text-sm font-bold text-[#443229]">Factor Refill</span><span className="mt-1 block text-xs text-[#806d51]">Add new vials to your supply</span></span></button><button onClick={() => setSelectedAction("use")} aria-pressed={selectedAction === "use"} className="flex w-full items-center gap-3 rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#8df5c0]"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#8df5c0]/25 text-[#3b281c]"><svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 19 4-4M8 20l-4-4M10 14l-3-3 5-5 3 3-5 5ZM14 6l2-2 4 4-2 2M15 15h5v5h-5z" /></svg></span><span className="flex-1"><span className="block text-sm font-bold text-[#443229]">Factor Use</span><span className="mt-1 block text-xs text-[#806d51]">Record an injection</span></span><i className="h-2.5 w-2.5 rounded-full bg-[#8df5c0]" /></button><button onClick={() => setSelectedAction("missed")} aria-pressed={selectedAction === "missed"} className="flex w-full items-center gap-3 rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] aria-pressed:ring-2 aria-pressed:ring-[#cd5952]"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#ffcc4d]/35 text-[#b8860b]"><svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v5M12 17h.01" /></svg></span><span className="flex-1"><span className="block text-sm font-bold text-[#443229]">Missed Dose</span><span className="mt-1 block text-xs text-[#806d51]">Mark a dose that was missed</span></span><i className="h-2.5 w-2.5 rounded-full bg-[#ffcc4d]" /></button></div>}</aside></div>}
@@ -519,6 +602,9 @@ export function Tracker({ regularProphylaxisVials, lastRegularProphylaxisDate, r
       {selectedDate && selectedAction === "refill" && <div onClick={closeAllPopups} className="fixed inset-0 z-40 flex items-start justify-center bg-[#443229]/25 px-3 pb-3 pt-16 backdrop-blur-sm sm:px-6 sm:pb-6 sm:pt-20"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Factor Refill</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials?</h2></div><div className="flex items-center gap-1"><button onClick={() => { setSelectedAction(null); setRefillCount(""); }} aria-label="Back to date actions" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="chevronLeft" className="h-5 w-5" /></button><button onClick={closeAllPopups} aria-label="Close all pop-ups" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div></div><p className="mt-2 text-xs text-[#806d51]">Enter the number of vials to add to your supply.</p><div className="mt-3 rounded-xl bg-[#f8f0e2] px-3 py-2 text-center text-2xl font-bold tracking-wide text-[#3b281c]">{refillCount || "0"}</div><div className="mt-3 grid grid-cols-3 gap-1.5">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setRefillCount((count) => `${count}${number}`.slice(0, 3))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setRefillCount("")} className="h-10 rounded-lg bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setRefillCount((count) => `${count}0`.slice(0, 3))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setRefillCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!refillCount} onClick={() => { setSelectedDate(null); setSelectedAction(null); setRefillCount(""); }} className="mt-3 w-full rounded-xl bg-[#a98559] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Add vials</button></aside></div>}
       {selectedDate && selectedAction === "use" && (selectedUseType === "on-demand" || selectedUseType === "follow-up") && <div onClick={closeAllPopups} className="fixed inset-0 z-40 flex items-start justify-center bg-[#443229]/25 px-3 pb-3 pt-16 backdrop-blur-sm sm:px-6 sm:pb-6 sm:pt-20"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">{selectedUseType === "on-demand" ? "On-demand use" : "Follow-up use after a bleed"}</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials used?</h2></div><div className="flex items-center gap-1"><button onClick={() => { setUseCount(""); setSelectedUseType(null); }} aria-label="Back to use type" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="chevronLeft" className="h-5 w-5" /></button><button onClick={closeAllPopups} aria-label="Close all pop-ups" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div></div><p className="mt-2 text-xs text-[#806d51]">Enter the number of vials used.</p><div className="mt-3 rounded-xl bg-[#f8f0e2] px-3 py-2 text-center text-2xl font-bold tracking-wide text-[#3b281c]">{useCount || "0"}</div><div className="mt-3 grid grid-cols-3 gap-1.5">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setUseCount((count) => `${count}${number}`.slice(0, 3))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setUseCount("")} className="h-10 rounded-lg bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setUseCount((count) => `${count}0`.slice(0, 3))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setUseCount((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!useCount} onClick={() => { saveOnDemandUse(); setSelectedDate(null); setSelectedAction(null); setSelectedUseType(null); setUseCount(""); }} className="mt-3 w-full rounded-xl bg-[#a98559] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Track</button></aside></div>}
       {showSupplyHistory && <div onClick={() => setShowSupplyHistory(false)} className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Factor Supply</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">Recent activity</h2></div><button onClick={() => setShowSupplyHistory(false)} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div>{supplyHistory.length ? <div className="mt-5 max-h-[60vh] space-y-2 overflow-y-auto">{supplyHistory.map((row) => { const [year, month, day] = row.dateKey.split("-").map(Number); const dateLabel = new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); return <div key={row.id} className="flex items-center justify-between rounded-xl bg-[#f8f0e2] px-3 py-2"><div><p className="text-xs font-bold text-[#443229]">{dateLabel}</p><p className="text-sm text-[#806d51]">{row.detail}</p></div><span className={`text-sm font-bold ${row.amount > 0 ? "text-[#3b9c5c]" : "text-[#cd5952]"}`}>{row.amount > 0 ? `+${row.amount}` : row.amount}</span></div>; })}</div> : <p className="mt-5 text-sm text-[#806d51]">No vial activity logged yet.</p>}</aside></div>}
+      {editingRoutineField === "frequency" && <div onClick={() => setEditingRoutineField(null)} className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Your Current Routine</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How often is prophylaxis due?</h2></div><button onClick={() => setEditingRoutineField(null)} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div><p className="mt-2 text-xs text-[#806d51]">For example, enter 3 for a dose every 3 days.</p><div className="relative mt-3 rounded-xl bg-[#f8f0e2] px-4 py-2 text-center"><span className="text-2xl font-bold tracking-wide text-[#3b281c]">{routineIntervalDraft || "0"}</span><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#806d51]">days</span></div><div className="mt-3 grid grid-cols-3 gap-1.5">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setRoutineIntervalDraft((count) => `${count}${number}`.slice(0, 2))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setRoutineIntervalDraft("")} className="h-10 rounded-lg bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setRoutineIntervalDraft((count) => `${count}0`.slice(0, 2))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setRoutineIntervalDraft((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!routineIntervalDraft || Number(routineIntervalDraft) === 0} onClick={saveRoutineInterval} className="mt-3 w-full rounded-xl bg-[#a98559] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Save</button></aside></div>}
+      {editingRoutineField === "dosage" && <div onClick={() => setEditingRoutineField(null)} className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Your Current Routine</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">How many vials per dose?</h2></div><button onClick={() => setEditingRoutineField(null)} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div><p className="mt-2 text-xs text-[#806d51]">Enter your usual dosage in vials</p><div className="mt-3 rounded-xl bg-[#f8f0e2] px-3 py-2 text-center text-2xl font-bold tracking-wide text-[#3b281c]">{routineVialsDraft || "0"}</div><div className="mt-3 grid grid-cols-3 gap-1.5">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((number) => <button key={number} onClick={() => setRoutineVialsDraft((count) => `${count}${number}`.slice(0, 3))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">{number}</button>)}<button onClick={() => setRoutineVialsDraft("")} className="h-10 rounded-lg bg-[#f8f0e2] text-xs font-bold text-[#806d51] transition hover:bg-[#f4ead8]">Clear</button><button onClick={() => setRoutineVialsDraft((count) => `${count}0`.slice(0, 3))} className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]">0</button><button onClick={() => setRoutineVialsDraft((count) => count.slice(0, -1))} aria-label="Delete last digit" className="h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold text-[#806d51] transition hover:bg-[#f4ead8]">⌫</button></div><button disabled={!routineVialsDraft || Number(routineVialsDraft) === 0} onClick={saveRoutineVials} className="mt-3 w-full rounded-xl bg-[#a98559] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40">Save</button></aside></div>}
+      {editingRoutineField === "start" && <div onClick={() => setEditingRoutineField(null)} className="fixed inset-0 z-40 flex items-end justify-center bg-[#443229]/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"><aside onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-[#806d51]">Your Current Routine</p><h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">When did this routine start?</h2></div><button onClick={() => setEditingRoutineField(null)} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]"><Icon name="close" className="h-5 w-5" /></button></div><div className="mt-4 flex items-center justify-between"><button onClick={() => setRoutineDatePickerMonth((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1))} aria-label="Previous month" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100"><Icon name="chevronLeft" className="h-4 w-4" /></button><span className="text-sm font-bold text-[#443229]">{routineDatePickerMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span><button onClick={() => setRoutineDatePickerMonth((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1))} aria-label="Next month" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100"><Icon name="chevronRight" className="h-4 w-4" /></button></div><div className="mt-3 grid grid-cols-7 gap-1">{DAYS.map((day) => <div key={day} className="text-center text-[10px] font-bold uppercase text-slate-400">{day[0]}</div>)}{routineDatePickerDays.map((date) => { const inMonth = date.getMonth() === routineDatePickerMonth.getMonth(); const isSelected = routineStartDate ? toKey(date) === toKey(routineStartDate) : false; return <button key={toKey(date)} onClick={() => saveRoutineStartDate(date)} className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition ${isSelected ? "bg-[#6c5ce7] text-white" : inMonth ? "text-[#443229] hover:bg-[#f4ead8]" : "text-slate-300 hover:bg-[#f4ead8]"}`}>{date.getDate()}</button>; })}</div></aside></div>}
       <BottomNav active="tracker" />
       {false && <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-20 border-t border-[#eee5d5] bg-[#f8f0e2]/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(74,53,32,0.06)] backdrop-blur">
         <div className="mx-auto flex max-w-md items-end justify-around gap-2">
