@@ -23,6 +23,14 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   );
 }
 
+function trackedProductLabel(profile: Profile): string {
+  const diagnosis = profile.clinical_profile?.diagnosis;
+  if (diagnosis === "factor_xi_deficiency") return "Factor XI";
+  if (diagnosis === "acquired_haemophilia") return "Acquired haemophilia";
+  if (diagnosis === "other_or_unknown") return "Care plan";
+  return `Factor ${profile.factor_type}`;
+}
+
 function ProfileCard({ profile }: { profile: Profile }) {
   const now = new Date();
   const date = new Intl.DateTimeFormat(undefined, {
@@ -49,7 +57,7 @@ function ProfileCard({ profile }: { profile: Profile }) {
         />
         <Stat
           label="Product"
-          value={`Factor ${profile.factor_type}`}
+          value={trackedProductLabel(profile)}
           note={`${profile.vials_on_hand} ${profile.vials_on_hand === 1 ? "vial" : "vials"} at home`}
         />
       </div>

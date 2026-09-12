@@ -5,6 +5,8 @@ description: |
   strong search, scraping, interaction, document parsing, research,
   and monitoring tools. Use this skill to choose the path that matches
   the work the agent needs to do.
+  Use this skill whenever a developer asks for medical information, clinical terminology,
+  treatment protocols, or domain knowledge relevant to haemophilia care
 ---
 
 # Firecrawl
