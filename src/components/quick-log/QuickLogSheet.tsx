@@ -27,14 +27,12 @@ function BottomSheet({
   open,
   onClose,
   title,
-  description,
   returnFocusRef,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
-  description: string;
   returnFocusRef?: RefObject<HTMLButtonElement>;
   children: ReactNode;
 }) {
@@ -59,19 +57,21 @@ function BottomSheet({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-sand-900/40" aria-hidden="true" onClick={onClose} />
+      <div
+        className="absolute inset-0 animate-fade-in bg-sand-900/40"
+        aria-hidden="true"
+        onClick={onClose}
+      />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] border border-sand-200 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+        className="relative max-h-[90dvh] w-full max-w-md animate-sheet-up overflow-y-auto rounded-t-[28px] bg-sand-50 px-5 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
       >
+        <div className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-sand-300" />
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className={cn("text-lg font-bold", INK)}>{title}</h2>
-            <p className={cn("mt-1 text-sm", INK_MUTED)}>{description}</p>
-          </div>
+          <h2 className={cn("text-2xl font-bold tracking-tight", INK)}>{title}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -182,9 +182,6 @@ export function QuickLogSheet({
       open={open}
       onClose={close}
       title={title}
-      description={
-        flow === "menu" ? "Choose what you want to record." : "Review the details before saving."
-      }
       {...(returnFocusRef ? { returnFocusRef } : {})}
     >
       {saveState === "success" ? (

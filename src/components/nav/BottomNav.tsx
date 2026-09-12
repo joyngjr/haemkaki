@@ -3,9 +3,11 @@ import { NavLink } from "react-router-dom";
 import type { RefObject } from "react";
 
 import { Kaki } from "@/components/platelet/Kaki";
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { NAV_LEFT, NAV_RIGHT, type NavItem } from "@/lib/nav";
 import { INK_MUTED } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { useProfiles } from "@/state/profile-context";
 
 /**
  * Fixed tab bar along the bottom of every page.
@@ -47,6 +49,7 @@ export function BottomNav({
   onOpenProfile: () => void;
   quickLogButtonRef?: RefObject<HTMLButtonElement>;
 }) {
+  const { activeProfile } = useProfiles();
   return (
     <nav
       aria-label="Main"
@@ -80,10 +83,29 @@ export function BottomNav({
         ))}
 
         {/* Profile opens the switcher sheet over the current page, so it is a
-            button rather than a tab and never shows an active state. */}
-        <button type="button" onClick={onOpenProfile} className={cn(SLOT_CLASS, INK_MUTED)}>
-          <CircleUserRound className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
-          <span>Profile</span>
+            button rather than a tab and never shows an active state.
+
+            The slot carries the active profile's own circle — the same initials
+            and colour the switcher lists them with — so the bar says who the
+            app is currently on. The generic icon is the fallback for the states
+            with nobody to show: still loading, API unreachable, no profiles. */}
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          aria-haspopup="dialog"
+          aria-label={
+            activeProfile ? `Profile: ${activeProfile.name}. Switch profile` : "Choose a profile"
+          }
+          className={cn(SLOT_CLASS, INK_MUTED)}
+        >
+          {activeProfile ? (
+            <ProfileAvatar profile={activeProfile} className="h-6 w-6 text-[10px]" />
+          ) : (
+            <CircleUserRound className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+          )}
+          <span className="max-w-full truncate">
+            {activeProfile ? activeProfile.name : "Profile"}
+          </span>
         </button>
       </div>
     </nav>

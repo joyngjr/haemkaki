@@ -37,7 +37,8 @@ import {
 } from "lucide-react";
 
 import { KAKI_BOB_DURATION, KakiBody } from "@/components/platelet/Kaki";
-import { GhostRow, OutlineButton, PrimaryButton } from "@/components/ui/form";
+import { DOSE_SEVERITY, ROOM_PALETTE, roomSeverity } from "@/components/platelet/room-palette";
+import { GhostRow, OutlineButton } from "@/components/ui/form";
 import {
   formatDate,
   formatDateTime,
@@ -51,6 +52,7 @@ import type {
   DataLoadState,
   DailyTipData,
   DoseState,
+  StockState,
   HomeActions,
   HomePageProps,
   HomeRouteKey,
@@ -217,8 +219,6 @@ const SCENE_STATUS_TONE: Record<SceneStatusId, StatusTone> = {
   recentBleed: "caution",
 };
 
-const DOSE_SEVERITY: Record<DoseState, 0 | 1 | 2> = { covered: 0, low: 1, veryLow: 2 };
-
 /** Priority model, highest first. Replaceable in one place. */
 function resolveSceneStatus(ctx: {
   dose: DoseState;
@@ -234,18 +234,10 @@ function resolveSceneStatus(ctx: {
 /* FactorScene — the homely hero scene                                    */
 /* ===================================================================== */
 
-const ROOM = {
-  wallTop: "#FDF4DE",
-  wallBottom: "#EAD2A4",
-  floor: "#C7A679",
-  wood: "#AF8C61",
-  plant: "#849B82",
-  light: "#FFF3D0",
-  text: "#3B2E20",
-};
-
 interface FactorSceneProps {
   dose: DoseState;
+  /** Vials at home. Tints the room alongside `dose`; never changes Kaki. */
+  stock: StockState;
   hasRecentBleed?: boolean;
   sceneStatus?: SceneStatusId;
   onKakiTap?: () => void;
@@ -254,9 +246,14 @@ interface FactorSceneProps {
   className?: string;
 }
 
-/** Kaki-focused, inventory-free scene. All clinical context arrives via props. */
+/**
+ * Kaki-focused scene. Nothing here loads an image: the character is drawn from
+ * `KAKI_PALETTE[dose]` and the room from `ROOM_PALETTE[severity]`, so both
+ * follow the `dose_state` / `stock_state` the API returned for this profile.
+ */
 function FactorScene({
   dose,
+  stock,
   hasRecentBleed,
   sceneStatus,
   onKakiTap,
@@ -268,6 +265,7 @@ function FactorScene({
   const wallId = `wall-${uid}`;
   const lightId = `light-${uid}`;
   const status = sceneStatus ?? resolveSceneStatus({ dose, hasRecentBleed });
+  const ROOM = ROOM_PALETTE[roomSeverity(dose, stock)];
   const [tapped, setTapped] = useState(false);
   const timer = useRef<number | undefined>(undefined);
 
@@ -477,11 +475,14 @@ function TreatmentStats({
 function TreatmentHero({
   treatmentStatus,
   activityStatus,
+  stock,
   now,
   actions,
 }: {
   treatmentStatus: TreatmentStatus | null;
   activityStatus: ActivityStatus;
+  /** Shelf level from the profile — tints the room, never Kaki. */
+  stock: StockState;
   now: Date;
   actions: HomeActions;
 }) {
@@ -503,9 +504,6 @@ function TreatmentHero({
         <p className={cn("mt-2 text-sm", INK_MUTED)}>
           Add your treatment details before Home shows schedule context.
         </p>
-        <PrimaryButton className="mt-4" onClick={() => actions.onNavigate("treatmentSetup")}>
-          Set up treatment
-        </PrimaryButton>
       </section>
     );
   }
@@ -517,6 +515,7 @@ function TreatmentHero({
     >
       <FactorScene
         dose={visualDose}
+        stock={stock}
         {...(activityStatus.hasLoggedBleed !== undefined
           ? { hasRecentBleed: activityStatus.hasLoggedBleed }
           : {})}
@@ -542,9 +541,6 @@ function TreatmentHero({
             <div className="mt-3 flex flex-wrap gap-2">
               <OutlineButton onClick={() => actions.onNavigate("bleedRecord")}>
                 View bleed record
-              </OutlineButton>
-              <OutlineButton onClick={() => actions.onNavigate("carePlan")}>
-                View my care plan
               </OutlineButton>
             </div>
           </>
@@ -734,9 +730,11 @@ function InventorySummaryCard({
               </span>
               <span className={cn("block text-sm font-normal", INK_MUTED)}>
                 {medicationStock.remaining} {medicationStock.unit}
-                {medicationStock.estimatedDosesRemaining !== undefined
-                  ? ` · ~${medicationStock.estimatedDosesRemaining} scheduled doses`
-                  : ""}
+                {medicationStock.estimatedSupplyDays !== undefined
+                  ? ` · ~${medicationStock.estimatedSupplyDays} days cover`
+                  : medicationStock.estimatedDosesRemaining !== undefined
+                    ? ` · ~${medicationStock.estimatedDosesRemaining} scheduled doses`
+                    : ""}
               </span>
             </span>
             <ChevronRight className={INK_MUTED} aria-hidden="true" />
@@ -924,7 +922,7 @@ function HomeSkeleton() {
   );
 }
 
-export function HomePage({ data, actions, now = new Date(), isLoading = false }: HomePageProps) {
+function HomePage({ data, actions, now = new Date(), isLoading = false }: HomePageProps) {
   return (
     <div className="px-4 pt-7 sm:px-5">
       {isLoading ? (
@@ -939,6 +937,7 @@ export function HomePage({ data, actions, now = new Date(), isLoading = false }:
           <TreatmentHero
             treatmentStatus={data.treatmentStatus}
             activityStatus={data.activityStatus}
+            stock={data.medicationStock.state}
             now={now}
             actions={actions}
           />
@@ -980,28 +979,22 @@ export function HomePage({ data, actions, now = new Date(), isLoading = false }:
  * Where each of Home's route intents actually goes today.
  *
  * Inventory, activity and bleed records all live on the tracker: the supply
- * card and the calendar are the pages that hold them. Anything with no page
- * yet is absent here and announces itself instead of navigating nowhere.
+ * card and the calendar are the pages that hold them. The map is total, so a
+ * new key does not compile until it has somewhere to go.
  */
-const ROUTE_PATHS: Partial<Record<HomeRouteKey, string>> = {
-  home: "/",
+const ROUTE_PATHS: Record<HomeRouteKey, string> = {
   tracker: "/tracker",
-  resources: "/tips",
   inventory: "/tracker",
   activity: "/tracker",
   bleedRecord: "/tracker",
 };
 
 export function Home() {
-  const { data, now, administerDose, logBleed, announce } = useHomeData();
+  const { data, now, isLoading, administerDose, logBleed } = useHomeData();
   const navigate = useNavigate();
 
   const actions = useMemo<HomeActions>(() => {
-    const go = (route: HomeRouteKey) => {
-      const path = ROUTE_PATHS[route];
-      if (path) navigate(path);
-      else announce(`${route} does not have a page yet.`);
-    };
+    const go = (route: HomeRouteKey) => navigate(ROUTE_PATHS[route]);
     return {
       onAdministerDose: administerDose,
       onLogBleed: logBleed,
@@ -1013,7 +1006,7 @@ export function Home() {
       onViewInventory: () => go("inventory"),
       onOpenLogEntry: () => go("tracker"),
     };
-  }, [administerDose, logBleed, navigate, announce]);
+  }, [administerDose, logBleed, navigate]);
 
-  return <HomePage data={data} actions={actions} now={now} />;
+  return <HomePage data={data} actions={actions} now={now} isLoading={isLoading} />;
 }

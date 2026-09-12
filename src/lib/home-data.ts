@@ -7,8 +7,8 @@
  * `createHomeMockData` (and nothing else) when those land.
  */
 
-import type { StockState } from "@/components/platelet/FactorScene";
-import type { DoseState } from "@/components/platelet/Platelet";
+import type { DoseState, StockState } from "@/components/platelet/Platelet";
+import type { Profile } from "@/lib/api";
 
 export type { DoseState, StockState };
 
@@ -101,20 +101,11 @@ export interface HomeDashboardData {
 
 /**
  * Logical destinations Home can request. Home never knows URLs — reconcile
- * these keys with the team's router in one place.
+ * these keys with the team's router in one place. Every key here is requested
+ * by something on the screen; add one only alongside the call site that needs
+ * it, or it becomes a button that navigates nowhere.
  */
-export type HomeRouteKey =
-  | "home"
-  | "tracker"
-  | "resources"
-  | "profile"
-  | "inventory"
-  | "activity"
-  | "carePlan"
-  | "bleedRecord"
-  | "treatmentSetup";
-
-export type AppNavigationKey = "home" | "tracker" | "resources" | "profile";
+export type HomeRouteKey = "tracker" | "inventory" | "activity" | "bleedRecord";
 
 export interface AdministerDosePayload {
   medicationName: string;
@@ -150,6 +141,41 @@ export interface HomePageProps {
   /** Injectable clock so relative times are deterministic in demos/tests. */
   now?: Date;
   isLoading?: boolean;
+}
+
+/** The greeting wants "Sam", not "Sam Tan". */
+function firstNameOf(name: string): string {
+  const [first] = name.trim().split(/\s+/);
+  return first || name;
+}
+
+/**
+ * Overlay the fields the API actually returns onto Home's demo data.
+ *
+ * `Profile` is the source of truth for who this is, how much factor is in them
+ * and how many vials are at home — which between them is everything the hero
+ * scene draws. Dose timings, supplies and the log ledger have no columns yet,
+ * so those stay demo data until they do.
+ *
+ * This is an overlay rather than a replacement so a profile switch re-seeds the
+ * screen without discarding anything the API cannot yet store.
+ */
+export function applyProfile(data: HomeDashboardData, profile: Profile): HomeDashboardData {
+  const medicationName = `Factor ${profile.factor_type}`;
+  return {
+    ...data,
+    user: { firstName: firstNameOf(profile.name) },
+    treatmentStatus: data.treatmentStatus
+      ? { ...data.treatmentStatus, dose: profile.dose_state, medicationName }
+      : null,
+    medicationStock: {
+      ...data.medicationStock,
+      label: medicationName,
+      remaining: profile.vials_on_hand,
+      state: profile.stock_state,
+      estimatedSupplyDays: profile.days_cover,
+    },
+  };
 }
 
 /** Stock derivation — replaceable by the Inventory owner's real model. */

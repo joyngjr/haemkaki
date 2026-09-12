@@ -2,8 +2,8 @@
  * Kaki — the Home screen's platelet mascot.
  *
  * Same geometry as `@/components/platelet/Platelet`, but tinted per
- * {@link DoseState} and animated, so the scene and the nav button read as one
- * character. `Platelet` stays the flat version used inside `FactorScene`.
+ * {@link DoseState} and animated, so the hero scene and the nav button read as
+ * one character. `Platelet` stays the flat version the tracker calendar uses.
  */
 
 import {
@@ -52,7 +52,7 @@ const BODY: Record<DoseState, { strokeWidth: number; radius: number }> = {
 
 export { KAKI_BOB_DURATION, KAKI_PALETTE };
 
-export function KakiFace({ state, palette }: { state: DoseState; palette: KakiPalette }) {
+function KakiFace({ state, palette }: { state: DoseState; palette: KakiPalette }) {
   const ink = palette.ink;
   if (state === "covered") {
     // Cheerful, not over-excited.

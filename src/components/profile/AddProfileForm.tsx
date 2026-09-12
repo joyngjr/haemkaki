@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 
-import { type StockState } from "@/components/platelet/FactorScene";
-import { type DoseState } from "@/components/platelet/Platelet";
+import { type DoseState, type StockState } from "@/components/platelet/Platelet";
 import type { FactorType } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useProfiles } from "@/state/profile-context";

@@ -11,9 +11,8 @@ export type HomeDataContextValue = {
   data: HomeDashboardData;
   /** Injectable clock, so relative times are deterministic during a demo. */
   now: Date;
-  /** The live-region message AppLayout renders. */
-  announcement: string;
-  announce: (message: string) => void;
+  /** True until the profile list resolves, so Home can hold the skeleton. */
+  isLoading: boolean;
   administerDose: (payload: AdministerDosePayload) => Promise<SaveResult>;
   logBleed: (payload: LogBleedPayload) => Promise<SaveResult>;
 };

@@ -17,7 +17,7 @@ import { useHomeData } from "@/state/home-context";
  * `pb-28` keeps the last card on a page clear of the fixed BottomNav.
  */
 export function AppLayout() {
-  const { data, now, announcement, administerDose, logBleed } = useHomeData();
+  const { data, now, administerDose, logBleed } = useHomeData();
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const quickLogButtonRef = useRef<HTMLButtonElement>(null);
@@ -44,10 +44,6 @@ export function AppLayout() {
         returnFocusRef={quickLogButtonRef}
       />
       <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
-
-      <p className="sr-only" aria-live="polite">
-        {announcement}
-      </p>
     </div>
   );
 }
