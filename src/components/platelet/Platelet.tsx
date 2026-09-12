@@ -1,7 +1,17 @@
 import { cn } from "@/lib/utils";
 
+/**
+ * The two axes the app tracks, and the two the API returns per profile
+ * (`dose_state` / `stock_state`). They live together here because they are
+ * domain states rather than drawing details: the mascot is tinted by the dose,
+ * the room behind it is tinted by whichever axis is worse.
+ */
+
 /** How much factor is in the patient right now — drives the platelet's mood. */
 export type DoseState = "covered" | "low" | "veryLow";
+
+/** How many vials are at home. Independent of {@link DoseState}. */
+export type StockState = "wellStocked" | "moderate" | "low";
 
 const SPIKES: Record<DoseState, string[]> = {
   covered: [

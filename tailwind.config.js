@@ -29,6 +29,13 @@ export default {
           "0%, 100%": { transform: "translateY(0px)" },
           "50%": { transform: "translateY(-6px)" },
         },
+        // Kaki squashes when tapped, so the scene answers a press.
+        "kaki-pop": {
+          "0%": { transform: "scale(1)" },
+          "40%": { transform: "scale(0.92, 1.06)" },
+          "70%": { transform: "scale(1.05, 0.95)" },
+          "100%": { transform: "scale(1)" },
+        },
         "sheet-up": {
           from: { transform: "translateY(100%)" },
           to: { transform: "translateY(0)" },
@@ -40,6 +47,7 @@ export default {
       },
       animation: {
         "platelet-bob": "platelet-bob 4s ease-in-out infinite",
+        "kaki-pop": "kaki-pop 600ms ease-out",
         "sheet-up": "sheet-up 260ms cubic-bezier(0.32, 0.72, 0, 1)",
         "fade-in": "fade-in 200ms ease-out",
       },

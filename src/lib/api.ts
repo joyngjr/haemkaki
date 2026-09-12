@@ -1,5 +1,4 @@
-import { type StockState } from "@/components/platelet/FactorScene";
-import { type DoseState } from "@/components/platelet/Platelet";
+import { type DoseState, type StockState } from "@/components/platelet/Platelet";
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
