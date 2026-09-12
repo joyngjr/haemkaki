@@ -316,7 +316,10 @@ export function Tracker({
     const month = viewDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const start = new Date(year, month, 1 - firstDay.getDay());
-    return Array.from({ length: 35 }, (_, index) => {
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const end = new Date(year, month, lastDayOfMonth.getDate() + (6 - lastDayOfMonth.getDay()));
+    const totalDays = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    return Array.from({ length: totalDays }, (_, index) => {
       const date = new Date(start);
       date.setDate(start.getDate() + index);
       return date;
