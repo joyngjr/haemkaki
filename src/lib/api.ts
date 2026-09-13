@@ -24,7 +24,7 @@ export type MedicationDetails = {
 export type ClinicalProfile = {
   diagnosis: DiagnosisType;
   sex: string;
-  age: number | null;
+  date_of_birth: string | null;
   has_drug_allergies: boolean;
   drug_allergy_details: string | null;
   diagnosis_factor_activity_percent: number | null;
