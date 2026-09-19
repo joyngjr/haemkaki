@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { DayActionsSheet, type DayFlow } from "@/components/tracker/DayActionsSheet";
 import { FactorSupplyCard, SupplyHistorySheet } from "@/components/tracker/FactorSupplyCard";
 import { FactorUseFlow, type SavedUse } from "@/components/tracker/FactorUseFlow";
+import { InventoryCard } from "@/components/tracker/InventoryCard";
 import { MissedDoseFlow } from "@/components/tracker/MissedDoseFlow";
 import { MonthCalendar } from "@/components/tracker/MonthCalendar";
 import { RefillSheet } from "@/components/tracker/RefillSheet";
@@ -309,6 +310,8 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           recommendedOrderVials={recommendedOrderVials}
           onShowHistory={() => setShowSupplyHistory(true)}
         />
+
+        <InventoryCard />
 
         <RoutineCard
           routine={routine}
