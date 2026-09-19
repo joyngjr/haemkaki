@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { connectArduino, disconnectArduino, tryAutoConnect } from "@/lib/arduino";
+import { connectArduino, disconnectArduino, sendToArduino, tryAutoConnect } from "@/lib/arduino";
 
 
 import { DayActionsSheet, type DayFlow } from "@/components/tracker/DayActionsSheet";
@@ -55,6 +55,7 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
   const [showSupplyHistory, setShowSupplyHistory] = useState(false);
 
     const [isDeviceConnected, setIsDeviceConnected] = useState(false);
+    const [deviceVials, setDeviceVials] = useState<number | null>(null);
 
   // Dose history state saved in browser storage
   const [doseHistory, setDoseHistory] = useState<DoseHistoryItem[]>(() => {
@@ -86,20 +87,37 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
       return updated;
     });
   };
-
-  // Auto-connect to previously paired Arduino on page load
+    // Auto-connect to previously paired Arduino on page load
   useEffect(() => {
     tryAutoConnect({
-      onStatusChange: setIsDeviceConnected,
+      onStatusChange: (connected) => {
+        setIsDeviceConnected(connected);
+        if (connected) {
+          // Send today's date and vials 1.5s after connect
+          setTimeout(() => {
+            const todayStr = today.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            });
+            sendToArduino(`SET_DATE:${todayStr}`);
+            sendToArduino(`SET_VIALS:${factorSupply}`);
+          }, 1500);
+        }
+      },
       onDoseTaken: () => {
-        const todayKey = toKey(today);
-        putEntry(todayKey, { id: Date.now(), kind: "prophylaxis" }, [
+        console.log("Device dose triggered!");
+        const key = toKey(new Date());
+        putEntry(key, { id: Date.now(), kind: "prophylaxis" }, [
           "prophylaxis",
           "on-demand",
           "follow-up",
           "missed",
         ]);
-        recordDoseHistory("device"); // Logs exact date & time from device
+        recordDoseHistory("device");
+      },
+      onVialsChange: (count) => {
+        console.log("Device sent vials:", count);
+        setDeviceVials(count);
       },
     });
   }, [today]);
@@ -107,33 +125,37 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
   // Connect/disconnect button handler
   const handleToggleDevice = async () => {
     if (isDeviceConnected) {
-      await disconnectArduino({ onStatusChange: setIsDeviceConnected });
-    } else {
-      const formattedDate = today.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-      });
-
-      await connectArduino(
+      await disconnectArduino();
+      setIsDeviceConnected(false);
+     } else {
+    const formattedDate = today.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    });
+            await connectArduino(
         {
           onStatusChange: setIsDeviceConnected,
           onDoseTaken: () => {
-            const todayKey = toKey(today);
-            putEntry(todayKey, { id: Date.now(), kind: "prophylaxis" }, [
+            console.log("Device dose triggered!");
+            const key = toKey(new Date());
+            putEntry(key, { id: Date.now(), kind: "prophylaxis" }, [
               "prophylaxis",
               "on-demand",
               "follow-up",
               "missed",
             ]);
-            recordDoseHistory("device"); // Logs exact date & time from device
+            recordDoseHistory("device");
           },
+                onVialsChange: (count) => {
+        console.log("Device sent vials:", count);
+        setDeviceVials(count);
+      },
         },
         factorSupply,
         formattedDate
       );
     }
   };
-
 
   // The routine's own start date implies a dose; it is derived rather than
   // written so editing the routine can't strand a stale entry.
@@ -147,12 +169,60 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
   const isFutureDate = Boolean(selectedDate && selectedDate.getTime() > today.getTime());
 
   const factorSupply = totalFactorSupply(entries, routine.vials);
+  console.log("routine.vials is:", routine.vials, "factorSupply calculated as:", factorSupply);
+    // Automatically send website vial count to the Arduino whenever it changes
+   // When the device connects, send whatever vial count is on the web to the Arduino
   const isFactorSupplyLow =
     minimumFactorSupplyVials !== undefined && factorSupply <= minimumFactorSupplyVials;
   const scheduleAnchorDate = useMemo(
     () => latestDoseDate(entries, routine.startDate),
     [entries, routine.startDate],
   );
+  // Find the next upcoming scheduled prophylaxis date
+const nextDoseDate = useMemo(() => {
+  if (!scheduleAnchorDate || !routine.intervalDays) return null;
+
+  // If today's dose was already taken, look starting tomorrow; otherwise start from today
+  const todayKey = toKey(today);
+  const tookToday = (entries[todayKey] ?? []).some((e) => e.kind === "prophylaxis");
+
+  const check = new Date(today);
+  if (tookToday) {
+    check.setDate(check.getDate() + 1);
+  }
+
+  // Look ahead up to 30 days to find the next scheduled dose matching your calendar
+  for (let i = 0; i < 30; i++) {
+    if (isScheduledProphylaxisDate(check, scheduleAnchorDate, routine.intervalDays)) {
+      return new Date(check);
+    }
+    check.setDate(check.getDate() + 1);
+  }
+  return null;
+}, [today, entries, scheduleAnchorDate, routine.intervalDays]);
+   // Keep Arduino synced whenever the count on the web changes
+    // Keep Arduino synced whenever the count or scheduled date changes
+  useEffect(() => {
+    if (!isDeviceConnected) return;
+
+    const timer = setTimeout(() => {
+      // 1. Send vial count
+      const countToSend = deviceVials ?? factorSupply ?? 0;
+      sendToArduino(`SET_VIALS:${countToSend}`);
+
+      // 2. Format and send next scheduled dose date
+      const dateObj = nextDoseDate ?? today;
+      const formattedDate = dateObj.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      });
+
+      console.log("Sending date to Arduino:", formattedDate);
+      sendToArduino(`SET_DATE:${formattedDate}`);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [deviceVials, factorSupply, nextDoseDate, isDeviceConnected, today]);
 
   // Orders are placed a week before the month they cover.
   const nextOrderDate = useMemo(() => {
@@ -377,23 +447,33 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
     </p>
   </div>
 
-  {/* USB Connect Button */}
-  <button
-    type="button"
-    onClick={handleToggleDevice}
-    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold shadow-sm transition-all sm:text-sm ${
-      isDeviceConnected
-        ? "bg-[#2e7d32] text-white"
-        : "bg-[#6b3817] text-[#f8f0e2] hover:bg-[#522b12]"
-    }`}
-  >
-    <span
-      className={`h-2 w-2 rounded-full ${
-        isDeviceConnected ? "animate-pulse bg-emerald-200" : "bg-orange-200"
-      }`}
-    />
-    {isDeviceConnected ? "Device Connected" : "Connect Device"}
-  </button>
+        {/* USB Connect Button */}
+        <button
+          type="button"
+          onClick={handleToggleDevice}
+          className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold ${
+            isDeviceConnected
+              ? "bg-[#2e7d32] text-white"
+              : "bg-[#6b3817] text-[#f8f0e2] hover:bg-[#522b12]"
+          }`}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isDeviceConnected ? "animate-pulse bg-emerald-200" : "bg-orange-200"
+            }`}
+          />
+          {isDeviceConnected ? "Device Connected" : "Connect Device"}
+        </button>
+
+        {/* Separate Test Dose Reminder Button */}
+        <button
+          type="button"
+          onClick={() => sendToArduino("DOSE_ALERT_ON")}
+          className="ml-2 px-3 py-1 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600"
+        >
+          Test Dose Reminder
+        </button>
+
 </header>
 
         <MonthCalendar
@@ -411,8 +491,8 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           }}
         />
 
-        <FactorSupplyCard
-          vialsRemaining={factorSupply}
+       <FactorSupplyCard
+          vialsRemaining={deviceVials ?? factorSupply}
           isLow={isFactorSupplyLow}
           nextOrderDate={nextOrderDate}
           isOrderNeededAsap={isFactorSupplyLow && daysToNextOrder > 0}
@@ -526,4 +606,4 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
       )}
     </div>
   );
-}
+  }

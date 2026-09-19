@@ -17,6 +17,7 @@ export async function tryAutoConnect(handlers: ArduinoHandlers) {
     if (ports.length > 0) {
       port = ports[0];
       await port.open({ baudRate: 9600 });
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       keepReading = true;
       handlers.onStatusChange?.(true);
       startReadLoop(handlers);
@@ -40,8 +41,12 @@ export async function connectArduino(
   }
 
   try {
-    port = await (navigator as any).serial.requestPort();
+        port = await (navigator as any).serial.requestPort();
     await port.open({ baudRate: 9600 });
+
+    // Wait 2 seconds for Arduino Uno to finish rebooting
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     keepReading = true;
     handlers.onStatusChange?.(true);
 
