@@ -8,7 +8,15 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-sand-50 text-sand-900 antialiased;
+  }
+}
+
+/* Kaki bobs and pops; nobody who asked for stillness should see either. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-platelet-bob,
+  .animate-kaki-pop {
+    animation: none !important;
   }
 }
 
