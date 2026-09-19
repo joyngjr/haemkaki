@@ -14,11 +14,7 @@ import { HomeDataContext, type HomeDataContextValue } from "@/state/home-context
 import { useProfiles } from "@/state/profile-context";
 
 /**
- * Home's dashboard state.
- *
- * It lives above the router because the Quick Log button sits in the tab bar:
- * the sheet is rendered by `AppLayout` and has to write to the same data Home
- * reads.
+ * Home's dashboard state, held above the router so routed screens can share it.
  *
  * The active profile from `@/lib/api` supplies the fields the API actually has
  * — the name, factor type, dose state, stock state and vial count, which is
@@ -26,8 +22,8 @@ import { useProfiles } from "@/state/profile-context";
  * ledger) has no columns yet and stays demo data, so this file is still the one
  * place mock data and mutations live.
  *
- * Quick Log writes are session-local: they are not sent back to the API, and
- * the tracker keeps its own ledger, so a dose recorded here reaches neither.
+ * Dose and schedule writes are session-local: they are not sent back to the
+ * API, and the tracker keeps its own ledger.
  */
 
 const HOUR = 3_600_000;
@@ -78,7 +74,7 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
               id: `dose-${Date.now()}`,
               type: "dose",
               title: "Prophylactic dose",
-              ...(payload.dose ? { detail: payload.dose } : {}),
+              ...(payload.administeredDose ? { detail: payload.administeredDose } : {}),
               occurredAt: payload.administeredAt,
             },
             ...current.recentLogs,
@@ -86,6 +82,17 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
         };
       });
       return { ok: true };
+    };
+
+    const rescheduleDose = (scheduledAt: string) => {
+      setData((current) =>
+        current.treatmentStatus
+          ? {
+              ...current,
+              treatmentStatus: { ...current.treatmentStatus, nextDoseAt: scheduledAt },
+            }
+          : current,
+      );
     };
 
     const logBleed = async (payload: LogBleedPayload): Promise<SaveResult> => {
@@ -116,6 +123,7 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
       now: clock,
       isLoading: status === "loading",
       administerDose,
+      rescheduleDose,
       logBleed,
     };
   }, [data, clock, status]);

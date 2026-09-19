@@ -146,7 +146,7 @@ export function QuickLogSheet({
       medicationName: treatment.medicationName,
       administeredAt: new Date(doseTime).toISOString(),
     };
-    if (treatment.prescribedDose) payload.dose = treatment.prescribedDose;
+    if (treatment.prescribedDose) payload.administeredDose = treatment.prescribedDose;
     const result = await onAdministerDose(payload);
     if (result.ok) setSaveState("success");
     else {

@@ -109,7 +109,8 @@ export type HomeRouteKey = "tracker" | "inventory" | "activity" | "bleedRecord";
 
 export interface AdministerDosePayload {
   medicationName: string;
-  dose?: string;
+  /** Amount actually administered for this event; never the configured regimen. */
+  administeredDose?: string;
   administeredAt: string;
 }
 

@@ -14,6 +14,7 @@ export type HomeDataContextValue = {
   /** True until the profile list resolves, so Home can hold the skeleton. */
   isLoading: boolean;
   administerDose: (payload: AdministerDosePayload) => Promise<SaveResult>;
+  rescheduleDose: (scheduledAt: string) => void;
   logBleed: (payload: LogBleedPayload) => Promise<SaveResult>;
 };
 

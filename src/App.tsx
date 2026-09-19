@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Home } from "@/pages/Home";
+import Home from "@/pages/Home";
 import { Tracker } from "@/pages/Tracker";
 import { Community } from "@/pages/tips/Community";
 import { FindMedicalHelp } from "@/pages/tips/FindMedicalHelp";
@@ -17,8 +17,7 @@ import { ProfileProvider } from "@/state/ProfileProvider";
 export default function App() {
   return (
     <ProfileProvider>
-      {/* Above the router: the tab bar's Quick Log sheet writes to Home's data
-          from whichever page is showing. */}
+      {/* Above the router so Home state is shared by routed screens. */}
       <HomeDataProvider>
         <BrowserRouter>
           <Routes>
