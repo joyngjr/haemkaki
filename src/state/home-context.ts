@@ -1,11 +1,6 @@
 import { createContext, useContext } from "react";
 
-import type {
-  AdministerDosePayload,
-  HomeDashboardData,
-  LogBleedPayload,
-  SaveResult,
-} from "@/lib/home-data";
+import type { AdministerDosePayload, HomeDashboardData, SaveResult } from "@/lib/home-data";
 
 export type HomeDataContextValue = {
   data: HomeDashboardData;
@@ -15,7 +10,6 @@ export type HomeDataContextValue = {
   isLoading: boolean;
   administerDose: (payload: AdministerDosePayload) => Promise<SaveResult>;
   rescheduleDose: (scheduledAt: string) => void;
-  logBleed: (payload: LogBleedPayload) => Promise<SaveResult>;
 };
 
 export const HomeDataContext = createContext<HomeDataContextValue | null>(null);

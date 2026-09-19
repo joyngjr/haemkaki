@@ -99,14 +99,6 @@ export interface HomeDashboardData {
   lastUpdatedAt?: string;
 }
 
-/**
- * Logical destinations Home can request. Home never knows URLs — reconcile
- * these keys with the team's router in one place. Every key here is requested
- * by something on the screen; add one only alongside the call site that needs
- * it, or it becomes a button that navigates nowhere.
- */
-export type HomeRouteKey = "tracker" | "inventory" | "activity" | "bleedRecord";
-
 export interface AdministerDosePayload {
   medicationName: string;
   /** Amount actually administered for this event; never the configured regimen. */
@@ -114,35 +106,7 @@ export interface AdministerDosePayload {
   administeredAt: string;
 }
 
-export interface LogBleedPayload {
-  occurredAt: string;
-  bodyLocation: string;
-  note?: string;
-}
-
 export type SaveResult = { ok: true } | { ok: false; message?: string };
-
-/** Every side effect Home can trigger. The host app implements these. */
-export interface HomeActions {
-  onAdministerDose: (payload: AdministerDosePayload) => Promise<SaveResult>;
-  onLogStock: () => void;
-  onLogBleed: (payload: LogBleedPayload) => Promise<SaveResult>;
-  onNavigate: (route: HomeRouteKey) => void;
-  onOpenActivity: () => void;
-  onViewMedicationStock: () => void;
-  onViewSupplies: () => void;
-  onViewInventory: () => void;
-  onOpenLogEntry: (id: string, type: LogEntryType) => void;
-  onRetryInventory?: () => void;
-}
-
-export interface HomePageProps {
-  data: HomeDashboardData;
-  actions: HomeActions;
-  /** Injectable clock so relative times are deterministic in demos/tests. */
-  now?: Date;
-  isLoading?: boolean;
-}
 
 /** The greeting wants "Sam", not "Sam Tan". */
 function firstNameOf(name: string): string {

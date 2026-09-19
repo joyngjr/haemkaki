@@ -6,7 +6,6 @@ import {
   deriveStockState,
   type AdministerDosePayload,
   type HomeDashboardData,
-  type LogBleedPayload,
   type SaveResult,
 } from "@/lib/home-data";
 import type { Profile } from "@/lib/api";
@@ -95,36 +94,12 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
       );
     };
 
-    const logBleed = async (payload: LogBleedPayload): Promise<SaveResult> => {
-      setData((current) => ({
-        ...current,
-        lastUpdatedAt: payload.occurredAt,
-        activityStatus: {
-          hasLoggedBleed: true,
-          lastBleedAt: payload.occurredAt,
-          recentBleedLocation: payload.bodyLocation,
-        },
-        recentLogs: [
-          {
-            id: `bleed-${Date.now()}`,
-            type: "bleed",
-            title: `${payload.bodyLocation} bleed`,
-            ...(payload.note ? { detail: payload.note } : {}),
-            occurredAt: payload.occurredAt,
-          },
-          ...current.recentLogs,
-        ],
-      }));
-      return { ok: true };
-    };
-
     return {
       data,
       now: clock,
       isLoading: status === "loading",
       administerDose,
       rescheduleDose,
-      logBleed,
     };
   }, [data, clock, status]);
 

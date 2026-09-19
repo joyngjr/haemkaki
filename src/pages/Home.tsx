@@ -1,20 +1,19 @@
 /**
- * HaemKakis — Home screen (consolidated single-file build)
- * =========================================================
+ * HaemKakis — Home screen
+ * =======================
  *
  * This pass implements the team's final Home scope + the low-friction dose
  * workflow from patient survey feedback:
  *  - REMOVED: Inventory card, Recent Activity card, Quick Log, centre Actions
  *    button. Not replaced with new permanent cards.
  *  - Bottom navigation: exactly Home / Tracker / Resources.
- *  - Profile moved to the header (top-right).
+ *  - Profile moved to the header (top-right), via the shared `ProfileButton`
+ *    that Tracker and `PageHeader` also carry — the switcher is no longer in
+ *    the tab bar, so every top-level header has to offer it.
  *  - Kaki's tap panel is now a short, state-aware explanation only — no
  *    numeric details, no action buttons.
  *  - New: a contextual dose-action area (Taken / Change time / I took it /
  *    Update schedule / Remind me later) that only appears when relevant.
- *
- * Dependencies: react, lucide-react. Nothing else.
- * Tailwind: uses the team's existing brand-* palette plus standard utilities.
  *
  * CLINICAL BOUNDARY: the cover estimate and activity timing logic in this file
  * are PROTOTYPE / DEMO heuristics based on recorded schedule timing only.
@@ -24,169 +23,47 @@
  * touching any component.
  *
  * INTEGRATION BOUNDARY:
- *  - <HomeScreen /> (default export) wires Home to MOCK data + local state so
- *    it renders standalone today.
+ *  - <HomeScreen /> (default export) adapts the shared `HomeDataProvider`
+ *    state to <HomePage />'s props. It is the only place routing lives.
  *  - <HomePage /> is pure presentation: give it `HomeDashboardData` +
  *    `HomeActions` and it never touches state, storage, or a router.
- *  - Navigation is expressed as `onNavigate(route: HomeRouteKey)` intents.
- *    Connect them to the team's router in one place (see HomeScreen below).
- *  - `onRescheduleDose` with `scope: "futureSchedule"` is a UI/intention
- *    boundary only — see HomeScreen for where that's flagged as pending.
+ *  - `onRescheduleDose` moves the NEXT dose only. There is no recurring
+ *    schedule in `HomeDataProvider` to edit — Tracker owns the routine — so
+ *    Home does not offer to change one.
+ *  - `activityStatus.hasLoggedBleed` drives the "recent bleed" states below,
+ *    but nothing sets it any more: Tracker keeps its own bleed ledger and the
+ *    two are not connected yet. Those branches stay unreachable until they are.
  */
 
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
-import {
-  CircleUserRound,
-  Clock3,
-  Lightbulb,
-  PersonStanding,
-  ShieldCheck,
-  X,
-} from "lucide-react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Clock3, Lightbulb, PersonStanding, ShieldCheck, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { ProfileSheet } from "@/components/profile/ProfileSheet";
+import { KAKI_BOB_DURATION, KakiBody } from "@/components/platelet/Kaki";
+import { ProfileButton } from "@/components/profile/ProfileButton";
+import { formatDate, formatDateTime, formatNextDose, getDayPeriod } from "@/lib/home-format";
+import { INK, INK_MUTED, STATUS_TONE_CLASSES, SURFACE_RAISED, type StatusTone } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+import type {
+  ActivityStatus,
+  CoverStatus,
+  DailyTipData,
+  DoseState,
+  HomeDashboardData,
+  HomeUser,
+  SaveResult,
+  TreatmentStatus,
+} from "@/lib/home-data";
 import { useHomeData } from "@/state/home-context";
-
-/* ===================================================================== */
-/* Tiny utilities                                                         */
-/* ===================================================================== */
-
-function cn(...parts: Array<string | false | null | undefined>): string {
-  return parts.filter(Boolean).join(" ");
-}
-
-/* Injected once: Kaki animations + reduced-motion handling. */
-const HOME_STYLE_TEXT = `
-@keyframes platelet-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
-}
-@keyframes kaki-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(0.92, 1.06); }
-  70% { transform: scale(1.05, 0.95); }
-  100% { transform: scale(1); }
-}
-.animate-platelet-bob { animation: platelet-bob 5s ease-in-out infinite; }
-.animate-kaki-pop { animation: kaki-pop 0.6s ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .animate-platelet-bob, .animate-kaki-pop { animation: none !important; }
-}
-`;
-
-function HomeStyles() {
-  return <style>{HOME_STYLE_TEXT}</style>;
-}
-
-/* Status colours as complete literal classes (Tailwind JIT-safe). */
-type StatusTone = "protected" | "transitioning" | "caution";
-
-const STATUS_TONE_CLASSES: Record<
-  StatusTone,
-  { solid: string; soft: string; dot: string }
-> = {
-  protected: {
-    solid: "bg-emerald-600",
-    soft: "bg-emerald-600/15 text-emerald-700",
-    dot: "bg-emerald-500",
-  },
-  transitioning: {
-    solid: "bg-amber-500",
-    soft: "bg-amber-500/15 text-amber-700",
-    dot: "bg-amber-500",
-  },
-  caution: {
-    solid: "bg-rose-700",
-    soft: "bg-rose-700/15 text-rose-800",
-    dot: "bg-rose-600",
-  },
-};
-
-/* Ink/surface fallbacks so the file works even before team tokens exist. */
-const INK = "text-stone-800";
-const INK_MUTED = "text-stone-500";
-const SURFACE_RAISED = "bg-white";
 
 /* ===================================================================== */
 /* 1. Data contracts                                                      */
 /* ===================================================================== */
 
-/** How much factor cover the patient has right now — drives Kaki. */
-export type DoseState = "covered" | "low" | "veryLow";
-
-export interface HomeUser {
-  firstName: string;
-}
-
-/** Single source of truth for treatment / half-life information. */
-export interface TreatmentStatus {
-  dose: DoseState;
-  /** ISO timestamp of the most recent administered dose. */
-  lastDoseAt?: string;
-  /** ISO timestamp of the next scheduled prophylactic dose. */
-  nextDoseAt?: string;
-  factorHalfLifeHours: number;
-  /**
-   * Estimated days of prophylactic protection from the treatment schedule.
-   * NOT inventory coverage — Home no longer shows inventory at all.
-   */
-  estimatedProtectionDays?: number;
-  /** Already configured on the patient's treatment profile — never re-asked here. */
-  medicationName?: string;
-  prescribedDose?: string;
-}
-
-export interface CoverStatus {
-  state: "estimated" | "approaching" | "needsReview" | "unavailable";
-  displayValue?: string;
-  source: "scheduleEstimate" | "validatedPK" | "unavailable";
-  supportingText: string;
-}
-
-export interface ActivityStatus {
-  hasLoggedBleed?: boolean;
-}
-
-export interface DailyTipData {
-  id: string;
-  title: string;
-  body: string;
-  sourceLabel?: string;
-  sourceUrl?: string;
-  reviewedAt?: string;
-  clinicalReviewStatus?: "pending" | "reviewed";
-}
-
-export interface HomeDashboardData {
-  user: HomeUser;
-  treatmentStatus: TreatmentStatus | null;
-  activityStatus: ActivityStatus;
-  dailyTip: DailyTipData;
-  lastUpdatedAt?: string;
-}
-
 /**
  * Logical destinations Home can request. Home never knows URLs — reconcile
  * these keys with the team's router in one place.
  */
-export type HomeRouteKey =
-  | "home"
-  | "tracker"
-  | "resources"
-  | "profile"
-  | "activity"
-  | "treatmentSetup";
-
-export type SaveResult = { ok: true } | { ok: false; message?: string };
-
 export interface RecordDosePayload {
   /** ISO timestamp of the actual administration time (prospective or retrospective). */
   administeredAt: string;
@@ -197,19 +74,18 @@ export interface RecordDosePayload {
 export interface RescheduleDosePayload {
   /** ISO timestamp of the new scheduled time. */
   newScheduledAt: string;
-  scope: "thisDose" | "futureSchedule";
 }
 
 /** Every side effect Home can trigger. The host app implements these. */
 export interface HomeActions {
   /** Handles both the "Taken" (prospective) and "I took it" (retrospective) flows. */
   onRecordDose: (payload: RecordDosePayload) => Promise<SaveResult>;
-  /** UI/intention boundary — see HomeScreen for how "futureSchedule" is flagged pending. */
+  /** Moves the next scheduled dose. There is no recurring-schedule model to edit yet. */
   onRescheduleDose: (payload: RescheduleDosePayload) => void;
   /** Optional: hook into real notification infra. Home always defers the prompt locally either way. */
   onRemindLater?: () => void;
   onOpenActivity: () => void;
-  onNavigate: (route: HomeRouteKey) => void;
+  onOpenTreatmentSetup: () => void;
 }
 
 export interface HomePageProps {
@@ -218,91 +94,6 @@ export interface HomePageProps {
   /** Injectable clock so relative times are deterministic in demos/tests. */
   now?: Date;
   isLoading?: boolean;
-}
-
-/* ===================================================================== */
-/* 2. Date/time formatting helpers (pure)                                 */
-/* ===================================================================== */
-
-const DEFAULT_LOCALE = "en-SG";
-const DEFAULT_TIME_ZONE = "Asia/Singapore";
-
-function getDayPeriod(date: Date): "Morning" | "Afternoon" | "Evening" {
-  const hour = date.getHours();
-  if (hour < 12) return "Morning";
-  if (hour < 18) return "Afternoon";
-  return "Evening";
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(date);
-}
-
-interface NextDoseDisplay {
-  day: string;
-  dateTime: string;
-  state: "scheduled" | "overdue" | "missing" | "invalid";
-}
-
-function formatNextDose(
-  iso: string | undefined,
-  now: Date,
-  timeZone = DEFAULT_TIME_ZONE,
-): NextDoseDisplay {
-  if (!iso) return { day: "Not scheduled", dateTime: "", state: "missing" };
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime()))
-    return { day: "Unavailable", dateTime: "", state: "invalid" };
-  if (date.getTime() < now.getTime()) {
-    return { day: "Schedule needs attention", dateTime: "", state: "overdue" };
-  }
-  const day = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    weekday: "long",
-    timeZone,
-  }).format(date);
-  const datePart = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    day: "numeric",
-    month: "short",
-    timeZone,
-  }).format(date);
-  const time = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone,
-  }).format(date);
-  return { day, dateTime: `${datePart} · ${time}`, state: "scheduled" };
-}
-
-function formatDateTime(
-  date: Date,
-  now: Date,
-  timeZone = DEFAULT_TIME_ZONE,
-): string {
-  const dayKey = (d: Date) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone }).format(d);
-  const sameDay = dayKey(date) === dayKey(now);
-  const isYesterday = dayKey(date) === dayKey(new Date(now.getTime() - 86_400_000));
-  const dateLabel = sameDay
-    ? "Today"
-    : isYesterday
-      ? "Yesterday"
-      : new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-        day: "numeric",
-        month: "short",
-        timeZone,
-      }).format(date);
-  const time = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone,
-  }).format(date);
-  return `${dateLabel} · ${time}`;
 }
 
 /* ===================================================================== */
@@ -395,10 +186,7 @@ function getActivitySafety(input: {
   const hoursSinceLastDose = Math.max(0, Math.round(elapsedMs / 3_600_000));
   const halfLife = treatment.factorHalfLifeHours > 0 ? treatment.factorHalfLifeHours : 24;
   /** Two half-lives bounds the visual range of demo data. */
-  const position = Math.min(
-    100,
-    Math.max(0, (hoursSinceLastDose / halfLife / 2) * 100),
-  );
+  const position = Math.min(100, Math.max(0, (hoursSinceLastDose / halfLife / 2) * 100));
 
   if (activity.hasLoggedBleed) {
     return {
@@ -443,26 +231,6 @@ function getActivitySafety(input: {
 /* 4. Kaki — mascot state mapping (presentation only, retunable)          */
 /* ===================================================================== */
 
-interface KakiPalette {
-  body: string;
-  blush: string;
-  ink: string;
-}
-
-/** Warm coral -> softer dusty pink -> muted mauve. Never red. */
-const KAKI_PALETTE: Record<DoseState, KakiPalette> = {
-  covered: { body: "#FF7B93", blush: "#FF4766", ink: "#2D3748" },
-  low: { body: "#DFA2B0", blush: "#C87F92", ink: "#3B3A46" },
-  veryLow: { body: "#B78D9E", blush: "#9C7488", ink: "#463F49" },
-};
-
-/** Bob duration per state — calmer as protection tapers. */
-const KAKI_BOB_DURATION: Record<DoseState, string> = {
-  covered: "5s",
-  low: "7.5s",
-  veryLow: "11s",
-};
-
 type SceneStatusId = "recentBleed" | "doseOverdue" | "doseApproaching" | "onTrack";
 
 const SCENE_STATUS_LABEL: Record<SceneStatusId, string> = {
@@ -490,139 +258,6 @@ function resolveSceneStatus(ctx: {
   if (DOSE_SEVERITY[ctx.dose] >= 2) return "doseOverdue";
   if (DOSE_SEVERITY[ctx.dose] === 1) return "doseApproaching";
   return "onTrack";
-}
-
-/* ===================================================================== */
-/* 5. Kaki drawing (Platelet / PlateletBody)                              */
-/* ===================================================================== */
-
-const SPIKES: Record<DoseState, string[]> = {
-  covered: [
-    "M 100 100 L 100 35",
-    "M 100 100 L 45 55",
-    "M 100 100 L 155 55",
-    "M 100 100 L 35 110",
-    "M 100 100 L 165 110",
-    "M 100 100 L 70 155",
-    "M 100 100 L 130 155",
-  ],
-  low: [
-    "M 100 100 Q 102 64 84 36",
-    "M 100 100 Q 72 80 42 72",
-    "M 100 100 Q 128 80 158 72",
-    "M 100 100 Q 72 104 38 116",
-    "M 100 100 Q 128 104 162 116",
-    "M 100 100 Q 86 128 72 158",
-    "M 100 100 Q 114 128 128 158",
-  ],
-  veryLow: [
-    "M 100 100 Q 104 70 80 48",
-    "M 100 100 Q 72 86 42 90",
-    "M 100 100 Q 128 86 158 90",
-    "M 100 100 Q 72 106 44 124",
-    "M 100 100 Q 128 106 156 124",
-    "M 100 100 Q 86 126 76 152",
-    "M 100 100 Q 114 126 124 152",
-  ],
-};
-
-const BODY: Record<DoseState, { strokeWidth: number; radius: number }> = {
-  covered: { strokeWidth: 24, radius: 45 },
-  low: { strokeWidth: 22, radius: 41 },
-  veryLow: { strokeWidth: 20, radius: 38 },
-};
-
-function KakiFace({ state, palette }: { state: DoseState; palette: KakiPalette }) {
-  const ink = palette.ink;
-  if (state === "covered") {
-    // Cheerful, not over-excited.
-    return (
-      <g>
-        <circle cx="70" cy="108" r="8" fill={palette.blush} opacity="0.35" />
-        <circle cx="130" cy="108" r="8" fill={palette.blush} opacity="0.35" />
-        <circle cx="82" cy="95" r="6" fill={ink} />
-        <circle cx="118" cy="95" r="6" fill={ink} />
-        <circle cx="80" cy="93" r="2" fill="#FFFFFF" />
-        <circle cx="116" cy="93" r="2" fill="#FFFFFF" />
-        <path
-          d="M 94 106 Q 100 112 106 106"
-          stroke={ink}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </g>
-    );
-  }
-  if (state === "low") {
-    // Neutral and calm — no sadness, no distress.
-    return (
-      <g>
-        <circle cx="72" cy="108" r="7" fill={palette.blush} opacity="0.2" />
-        <circle cx="128" cy="108" r="7" fill={palette.blush} opacity="0.2" />
-        <ellipse cx="82" cy="96" rx="5.5" ry="4.5" fill={ink} />
-        <ellipse cx="118" cy="96" rx="5.5" ry="4.5" fill={ink} />
-        <circle cx="80.5" cy="94.5" r="1.6" fill="#FFFFFF" />
-        <circle cx="116.5" cy="94.5" r="1.6" fill="#FFFFFF" />
-        <path
-          d="M 93 108 Q 100 111 107 108"
-          stroke={ink}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </g>
-    );
-  }
-  // Attentive / gently concerned — alert, never panicked.
-  return (
-    <g>
-      <ellipse cx="82" cy="97" rx="5.5" ry="5" fill={ink} />
-      <ellipse cx="118" cy="97" rx="5.5" ry="5" fill={ink} />
-      <circle cx="80.5" cy="95.5" r="1.6" fill="#FFFFFF" />
-      <circle cx="116.5" cy="95.5" r="1.6" fill="#FFFFFF" />
-      <path
-        d="M 74 85 Q 82 81 90 84"
-        stroke={ink}
-        strokeWidth="2.6"
-        fill="none"
-        strokeLinecap="round"
-        opacity="0.6"
-      />
-      <path
-        d="M 126 85 Q 118 81 110 84"
-        stroke={ink}
-        strokeWidth="2.6"
-        fill="none"
-        strokeLinecap="round"
-        opacity="0.6"
-      />
-      <path d="M 93 110 L 107 110" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
-    </g>
-  );
-}
-
-/** Kaki as a bare <g> on a 200x200 grid centred at (100,100). */
-function PlateletBody({ state, palette }: { state: DoseState; palette?: KakiPalette }) {
-  const body = BODY[state];
-  const colours = palette ?? KAKI_PALETTE[state];
-  return (
-    <g>
-      <g
-        fill={colours.body}
-        stroke={colours.body}
-        strokeWidth={body.strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {SPIKES[state].map((d) => (
-          <path key={d} d={d} fill="none" />
-        ))}
-        <circle cx="100" cy="100" r={body.radius} />
-      </g>
-      <KakiFace state={state} palette={colours} />
-    </g>
-  );
 }
 
 /* ===================================================================== */
@@ -695,11 +330,33 @@ function FactorScene({
         {/* Window */}
         <g opacity="0.5">
           <rect
-            x="48" y="48" width="112" height="126" rx="10"
-            fill={ROOM.light} stroke={ROOM.wood} strokeWidth="4"
+            x="48"
+            y="48"
+            width="112"
+            height="126"
+            rx="10"
+            fill={ROOM.light}
+            stroke={ROOM.wood}
+            strokeWidth="4"
           />
-          <line x1="104" y1="48" x2="104" y2="174" stroke={ROOM.wood} strokeWidth="3" opacity="0.45" />
-          <line x1="48" y1="111" x2="160" y2="111" stroke={ROOM.wood} strokeWidth="3" opacity="0.45" />
+          <line
+            x1="104"
+            y1="48"
+            x2="104"
+            y2="174"
+            stroke={ROOM.wood}
+            strokeWidth="3"
+            opacity="0.45"
+          />
+          <line
+            x1="48"
+            y1="111"
+            x2="160"
+            y2="111"
+            stroke={ROOM.wood}
+            strokeWidth="3"
+            opacity="0.45"
+          />
         </g>
         <ellipse cx="240" cy="214" rx="230" ry="165" fill={`url(#${lightId})`} />
 
@@ -707,7 +364,11 @@ function FactorScene({
         <g>
           <path d="M 519 288 L 526 242 Q 549 251 539 288 Z" fill={ROOM.plant} />
           <path d="M 526 268 Q 499 245 494 260 Q 506 282 527 280 Z" fill={ROOM.plant} />
-          <path d="M 529 259 Q 554 237 564 250 Q 554 274 531 276 Z" fill={ROOM.plant} opacity="0.82" />
+          <path
+            d="M 529 259 Q 554 237 564 250 Q 554 274 531 276 Z"
+            fill={ROOM.plant}
+            opacity="0.82"
+          />
           <path
             d="M 505 288 h 48 l -7 36 a 6 6 0 0 1 -6 5 h -22 a 6 6 0 0 1 -6 -5 Z"
             fill={ROOM.wood}
@@ -721,7 +382,7 @@ function FactorScene({
             className={cn("animate-platelet-bob", tapped && "animate-kaki-pop")}
             style={tapped ? undefined : { animationDuration: KAKI_BOB_DURATION[dose] }}
           >
-            <PlateletBody state={dose} />
+            <KakiBody state={dose} />
           </g>
         </g>
       </svg>
@@ -736,7 +397,10 @@ function FactorScene({
           style={{ color: ROOM.text }}
         >
           <span
-            className={cn("h-2 w-2 rounded-full", STATUS_TONE_CLASSES[SCENE_STATUS_TONE[status]].dot)}
+            className={cn(
+              "h-2 w-2 rounded-full",
+              STATUS_TONE_CLASSES[SCENE_STATUS_TONE[status]].dot,
+            )}
             aria-hidden="true"
           />
           {SCENE_STATUS_LABEL[status]}
@@ -751,7 +415,9 @@ function FactorScene({
         aria-controls={controlsId}
         className="absolute left-[24%] top-[21%] h-[67%] w-[55%] rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
       />
-      <p className="sr-only">Kaki reflects recorded treatment context, not a measured factor level.</p>
+      <p className="sr-only">
+        Kaki reflects recorded treatment context, not a measured factor level.
+      </p>
     </div>
   );
 }
@@ -798,15 +464,7 @@ function OutlineButton({
   );
 }
 
-function Field({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: ReactNode;
-}) {
+function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <div>
       <label htmlFor={id} className="text-sm font-semibold text-stone-700">
@@ -828,12 +486,10 @@ function HomeHeader({
   user,
   now,
   lastUpdatedAt,
-  onOpenProfile,
 }: {
   user: HomeUser;
   now: Date;
   lastUpdatedAt?: string;
-  onOpenProfile: () => void;
 }) {
   return (
     <header className="flex items-start justify-between gap-3">
@@ -848,14 +504,7 @@ function HomeHeader({
           </p>
         ) : null}
       </div>
-      <button
-        type="button"
-        onClick={onOpenProfile}
-        aria-label="Open profile"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-stone-600 shadow-sm ring-1 ring-black/10 transition-colors hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-      >
-        <CircleUserRound className="h-6 w-6" aria-hidden="true" />
-      </button>
+      <ProfileButton />
     </header>
   );
 }
@@ -972,7 +621,7 @@ function TreatmentHero({
         <p className={cn("mt-2 text-sm", INK_MUTED)}>
           Add your treatment details before Home shows schedule context.
         </p>
-        <PrimaryButton className="mt-4" onClick={() => actions.onNavigate("treatmentSetup")}>
+        <PrimaryButton className="mt-4" onClick={actions.onOpenTreatmentSetup}>
           Set up treatment
         </PrimaryButton>
       </section>
@@ -1031,7 +680,10 @@ function ActivityCard({
         className="flex min-h-11 w-full items-center justify-start gap-3 rounded-lg p-0 text-left"
       >
         <span
-          className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", tone.soft)}
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+            tone.soft,
+          )}
           aria-hidden="true"
         >
           <PersonStanding className="h-5 w-5" />
@@ -1087,7 +739,10 @@ function ActivityCard({
 
 function DailyTip({ tip }: { tip: DailyTipData }) {
   return (
-    <section aria-labelledby="daily-tip-title" className="mt-5 flex gap-3 border-t border-black/10 px-1 py-5">
+    <section
+      aria-labelledby="daily-tip-title"
+      className="mt-5 flex gap-3 border-t border-black/10 px-1 py-5"
+    >
       <span
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700"
         aria-hidden="true"
@@ -1140,24 +795,23 @@ function BottomSheet({
     if (!open) return;
     const panel = panelRef.current;
     panel?.querySelector<HTMLElement>("button, input, textarea")?.focus();
+    // Captured now: by cleanup time the ref may already point elsewhere, and
+    // focus has to return to the control that opened the sheet.
+    const opener = returnFocusRef?.current;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      returnFocusRef?.current?.focus();
+      opener?.focus();
     };
   }, [open, onClose, returnFocusRef]);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
-        aria-hidden="true"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"
@@ -1199,43 +853,29 @@ function toLocalInputValue(date: Date) {
  * Medication/dose are read from the treatment profile, never re-typed here.
  */
 function RecordDoseSheet({
-  open,
   mode,
   treatmentStatus,
   now,
   onClose,
   onConfirm,
 }: {
-  open: boolean;
   mode: "taken" | "retrospective";
   treatmentStatus: TreatmentStatus;
   now: Date;
   onClose: () => void;
   onConfirm: HomeActions["onRecordDose"];
 }) {
-  const [time, setTime] = useState(toLocalInputValue(now));
-  const [isDifferentDose, setIsDifferentDose] = useState(false);
-  const [doseValue, setDoseValue] = useState("");
-  const [doseError, setDoseError] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [failureMessage, setFailureMessage] = useState("");
-
   const usualDose = treatmentStatus.prescribedDose ?? "";
   const usualDoseMatch = usualDose.match(/^\s*([\d,.]+)\s*(.*?)\s*$/);
   const usualDoseValue = usualDoseMatch?.[1].replace(/,/g, "") ?? "";
   const doseUnit = usualDoseMatch?.[2] ?? "";
 
-  useEffect(() => {
-    if (open) {
-      setTime(toLocalInputValue(now));
-      setIsDifferentDose(false);
-      setDoseValue(usualDoseValue);
-      setDoseError("");
-      setSaveState("idle");
-      setFailureMessage("");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, usualDoseValue]);
+  const [time, setTime] = useState(() => toLocalInputValue(now));
+  const [isDifferentDose, setIsDifferentDose] = useState(false);
+  const [doseValue, setDoseValue] = useState(usualDoseValue);
+  const [doseError, setDoseError] = useState("");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [failureMessage, setFailureMessage] = useState("");
 
   const hasMedication = Boolean(treatmentStatus.medicationName);
   const title = "Record dose";
@@ -1243,7 +883,10 @@ function RecordDoseSheet({
   const submit = async () => {
     if (!hasMedication || saveState === "submitting") return;
     const numericDose = Number(doseValue.replace(/,/g, ""));
-    if (isDifferentDose && (!doseValue.trim() || !Number.isFinite(numericDose) || numericDose <= 0)) {
+    if (
+      isDifferentDose &&
+      (!doseValue.trim() || !Number.isFinite(numericDose) || numericDose <= 0)
+    ) {
       setDoseError("Enter a sensible positive dose amount.");
       return;
     }
@@ -1262,13 +905,20 @@ function RecordDoseSheet({
     });
     if (result.ok) setSaveState("success");
     else {
-      setFailureMessage(result.message ?? "We couldn't save this entry. Your record has not been updated.");
+      setFailureMessage(
+        result.message ?? "We couldn't save this entry. Your record has not been updated.",
+      );
       setSaveState("failure");
     }
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={title} description="Review the details before saving.">
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={title}
+      description="Review the details before saving."
+    >
       {saveState === "success" ? (
         <div className="py-8" role="status">
           <p className={cn("text-lg font-bold", INK)}>Dose recorded</p>
@@ -1282,7 +932,9 @@ function RecordDoseSheet({
             <div>
               <p className={cn("font-semibold", INK)}>{treatmentStatus.medicationName}</p>
               {treatmentStatus.prescribedDose ? (
-                <p className={cn("text-sm", INK_MUTED)}>Usual dose: {treatmentStatus.prescribedDose}</p>
+                <p className={cn("text-sm", INK_MUTED)}>
+                  Usual dose: {treatmentStatus.prescribedDose}
+                </p>
               ) : null}
             </div>
           ) : (
@@ -1308,10 +960,22 @@ function RecordDoseSheet({
                     aria-describedby={doseError ? "dose-administered-error" : undefined}
                     className={INPUT_CLASS}
                   />
-                  {doseUnit ? <span className={cn("shrink-0 text-sm font-semibold", INK_MUTED)}>{doseUnit}</span> : null}
+                  {doseUnit ? (
+                    <span className={cn("shrink-0 text-sm font-semibold", INK_MUTED)}>
+                      {doseUnit}
+                    </span>
+                  ) : null}
                 </div>
               </Field>
-              {doseError ? <p id="dose-administered-error" role="alert" className="-mt-3 text-sm font-medium text-rose-700">{doseError}</p> : null}
+              {doseError ? (
+                <p
+                  id="dose-administered-error"
+                  role="alert"
+                  className="-mt-3 text-sm font-medium text-rose-700"
+                >
+                  {doseError}
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="min-h-11 text-sm font-semibold text-brand-700"
@@ -1342,7 +1006,9 @@ function RecordDoseSheet({
               className={INPUT_CLASS}
             />
           </Field>
-          {mode === "taken" ? <p className={cn("text-xs", INK_MUTED)}>{formatDateTime(new Date(time), now)}</p> : null}
+          {mode === "taken" ? (
+            <p className={cn("text-xs", INK_MUTED)}>{formatDateTime(new Date(time), now)}</p>
+          ) : null}
           {saveState === "failure" ? (
             <p role="alert" className={cn("text-sm font-medium", INK)}>
               {failureMessage}
@@ -1357,7 +1023,11 @@ function RecordDoseSheet({
               disabled={!hasMedication || saveState === "submitting"}
               onClick={submit}
             >
-              {saveState === "submitting" ? "Saving…" : saveState === "failure" ? "Try again" : "Confirm"}
+              {saveState === "submitting"
+                ? "Saving…"
+                : saveState === "failure"
+                  ? "Try again"
+                  : "Confirm"}
             </PrimaryButton>
           </div>
         </div>
@@ -1368,37 +1038,32 @@ function RecordDoseSheet({
 
 /** "Change time" / "Update schedule" — one scheduling UI, two entry points. */
 function RescheduleSheet({
-  open,
   currentScheduledAt,
   now,
   onClose,
   onConfirm,
 }: {
-  open: boolean;
   currentScheduledAt?: string;
   now: Date;
   onClose: () => void;
   onConfirm: HomeActions["onRescheduleDose"];
 }) {
-  const initialTime = () => toLocalInputValue(currentScheduledAt ? new Date(currentScheduledAt) : now);
-  const [time, setTime] = useState(initialTime);
-  const [scope, setScope] = useState<RescheduleDosePayload["scope"]>("thisDose");
-
-  useEffect(() => {
-    if (open) {
-      setTime(initialTime());
-      setScope("thisDose");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentScheduledAt]);
+  const [time, setTime] = useState(() =>
+    toLocalInputValue(currentScheduledAt ? new Date(currentScheduledAt) : now),
+  );
 
   const confirm = () => {
-    onConfirm({ newScheduledAt: new Date(time).toISOString(), scope });
+    onConfirm({ newScheduledAt: new Date(time).toISOString() });
     onClose();
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Change time" description="Update your scheduled dose time.">
+    <BottomSheet
+      open
+      onClose={onClose}
+      title="Change time"
+      description="Move your next scheduled dose."
+    >
       <div className="mt-5 space-y-5">
         <Field id="reschedule-time" label="New time">
           <input
@@ -1409,29 +1074,8 @@ function RescheduleSheet({
             className={INPUT_CLASS}
           />
         </Field>
-        <fieldset>
-          <legend className={cn("text-sm font-semibold", INK)}>Change</legend>
-          <div className="mt-2 space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="reschedule-scope"
-                checked={scope === "thisDose"}
-                onChange={() => setScope("thisDose")}
-              />
-              This dose only
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="reschedule-scope"
-                checked={scope === "futureSchedule"}
-                onChange={() => setScope("futureSchedule")}
-              />
-              Future schedule
-            </label>
-          </div>
-        </fieldset>
+        {/* This moves the next dose only. Changing the recurring routine lives
+            on Tracker, which is the screen that owns the schedule. */}
         <div className="flex gap-3">
           <OutlineButton className="flex-1" onClick={onClose}>
             Cancel
@@ -1445,7 +1089,10 @@ function RescheduleSheet({
   );
 }
 
-function getDoseActionState(nextDoseAt: string | undefined, now: Date): "upcoming" | "needsAttention" | null {
+function getDoseActionState(
+  nextDoseAt: string | undefined,
+  now: Date,
+): "upcoming" | "needsAttention" | null {
   if (!nextDoseAt) return null;
   const date = new Date(nextDoseAt);
   if (Number.isNaN(date.getTime())) return null;
@@ -1511,21 +1158,25 @@ function DoseActionPanel({
         </>
       )}
 
-      <RecordDoseSheet
-        open={recordMode !== null}
-        mode={recordMode ?? "taken"}
-        treatmentStatus={treatmentStatus}
-        now={now}
-        onClose={() => setRecordMode(null)}
-        onConfirm={actions.onRecordDose}
-      />
-      <RescheduleSheet
-        open={rescheduleOpen}
-        {...(treatmentStatus.nextDoseAt ? { currentScheduledAt: treatmentStatus.nextDoseAt } : {})}
-        now={now}
-        onClose={() => setRescheduleOpen(false)}
-        onConfirm={actions.onRescheduleDose}
-      />
+      {recordMode !== null ? (
+        <RecordDoseSheet
+          mode={recordMode}
+          treatmentStatus={treatmentStatus}
+          now={now}
+          onClose={() => setRecordMode(null)}
+          onConfirm={actions.onRecordDose}
+        />
+      ) : null}
+      {rescheduleOpen ? (
+        <RescheduleSheet
+          {...(treatmentStatus.nextDoseAt
+            ? { currentScheduledAt: treatmentStatus.nextDoseAt }
+            : {})}
+          now={now}
+          onClose={() => setRescheduleOpen(false)}
+          onConfirm={actions.onRescheduleDose}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1547,8 +1198,7 @@ function HomeSkeleton() {
 
 export function HomePage({ data, actions, now = new Date(), isLoading = false }: HomePageProps) {
   return (
-    <main className="mx-auto w-full max-w-md px-4 pb-28 pt-7 sm:px-5">
-      <HomeStyles />
+    <div className="px-4 pt-7 sm:px-1">
       {isLoading ? (
         <HomeSkeleton />
       ) : (
@@ -1557,7 +1207,6 @@ export function HomePage({ data, actions, now = new Date(), isLoading = false }:
             user={data.user}
             now={now}
             {...(data.lastUpdatedAt ? { lastUpdatedAt: data.lastUpdatedAt } : {})}
-            onOpenProfile={() => actions.onNavigate("profile")}
           />
           <TreatmentHero
             treatmentStatus={data.treatmentStatus}
@@ -1574,39 +1223,8 @@ export function HomePage({ data, actions, now = new Date(), isLoading = false }:
           <DailyTip tip={data.dailyTip} />
         </>
       )}
-    </main>
+    </div>
   );
-}
-
-/* ===================================================================== */
-/* 12. Mock data (replace by swapping the caller, not the components)     */
-/* ===================================================================== */
-
-const HOUR = 3_600_000;
-
-export function createHomeMockData(now: Date = new Date()): HomeDashboardData {
-  const t = now.getTime();
-  const iso = (offsetHours: number) => new Date(t + offsetHours * HOUR).toISOString();
-  return {
-    user: { firstName: "Sam" },
-    treatmentStatus: {
-      dose: "covered",
-      lastDoseAt: iso(-18),
-      nextDoseAt: iso(30),
-      factorHalfLifeHours: 24,
-      estimatedProtectionDays: 2.5,
-      medicationName: "Factor VIII",
-      prescribedDose: "2,000 IU",
-    },
-    activityStatus: { hasLoggedBleed: false },
-    dailyTip: {
-      id: "tip-rotate-sites",
-      title: "Keep your records current",
-      body: "Recording changes when they happen can make your next care conversation easier.",
-      sourceLabel: "HaemKakis demo content",
-      clinicalReviewStatus: "pending",
-    },
-  };
 }
 
 /* ===================================================================== */
@@ -1620,7 +1238,6 @@ export function createHomeMockData(now: Date = new Date()): HomeDashboardData {
 export function HomeScreen({ now }: { now?: Date }) {
   const { data, now: contextNow, isLoading, administerDose, rescheduleDose } = useHomeData();
   const navigate = useNavigate();
-  const [profileOpen, setProfileOpen] = useState(false);
   const clock = now ?? contextNow;
 
   const actions: HomeActions = {
@@ -1633,19 +1250,10 @@ export function HomeScreen({ now }: { now?: Date }) {
     onRescheduleDose: ({ newScheduledAt }) => rescheduleDose(newScheduledAt),
     onRemindLater: () => undefined,
     onOpenActivity: () => navigate("/tracker"),
-    onNavigate: (route) => {
-      if (route === "profile") setProfileOpen(true);
-      else if (route === "tracker" || route === "activity") navigate("/tracker");
-      else if (route === "resources") navigate("/tips");
-    },
+    onOpenTreatmentSetup: () => navigate("/tracker"),
   };
 
-  return (
-    <div className="min-h-dvh bg-stone-50 text-stone-800">
-      <HomePage data={data} actions={actions} now={clock} isLoading={isLoading} />
-      <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
-    </div>
-  );
+  return <HomePage data={data} actions={actions} now={clock} isLoading={isLoading} />;
 }
 
 export default HomeScreen;
