@@ -39,32 +39,135 @@ function ProfileRow({
   profile,
   active,
   onSelect,
+  onEdit,
+  onDelete,
 }: {
   profile: Profile;
   active: boolean;
   onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={active ? "true" : undefined}
+    <div
       className={cn(
-        "flex w-full items-center gap-4 rounded-3xl p-3 text-left transition-colors",
+        "flex w-full items-center gap-1 rounded-3xl p-2 transition-colors",
         active ? "bg-white shadow-sm ring-1 ring-sand-200" : "bg-sand-100 active:bg-sand-200",
       )}
     >
-      <ProfileAvatar profile={profile} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-lg font-semibold text-sand-900">{profile.name}</span>
-        <span className="block truncate text-sm text-sand-600">{summary(profile)}</span>
-      </span>
-      {active ? (
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
-          <CheckIcon />
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={active ? "true" : undefined}
+        className="flex min-h-[56px] min-w-0 flex-1 items-center gap-3 rounded-2xl p-1 text-left"
+      >
+        <ProfileAvatar profile={profile} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-lg font-semibold text-sand-900">{profile.name}</span>
+          <span className="block truncate text-sm text-sand-600">{summary(profile)}</span>
         </span>
+        {active ? (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
+            <CheckIcon />
+          </span>
+        ) : null}
+      </button>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Edit ${profile.name}'s profile`}
+        className="min-h-[44px] shrink-0 rounded-full px-3 text-sm font-bold text-teal-800 active:bg-teal-50"
+      >
+        Edit
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label={`Delete ${profile.name}'s profile`}
+        className="min-h-[44px] shrink-0 rounded-full px-2 text-sm font-bold text-rose-700 active:bg-rose-50"
+      >
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function DeleteProfileConfirmation({
+  profile,
+  onCancel,
+  onDeleted,
+}: {
+  profile: Profile;
+  onCancel: () => void;
+  onDeleted: () => void;
+}) {
+  const { deleteProfile } = useProfiles();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProfile(profile.id);
+      onDeleted();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "Could not delete the profile");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="delete-profile-title" className="pb-1">
+      <div
+        aria-hidden="true"
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-2xl font-bold text-rose-700"
+      >
+        !
+      </div>
+      <p className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-rose-700">
+        Delete profile
+      </p>
+      <h2
+        id="delete-profile-title"
+        className="mt-1 text-2xl font-bold tracking-tight text-sand-900"
+      >
+        Delete {profile.name}’s profile?
+      </h2>
+      <div className="mt-5 rounded-3xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-950">
+        <p className="font-bold">This action cannot be undone.</p>
+        <p className="mt-1">
+          Their personal details, care plan, medication information, stock, and dose status will be
+          permanently deleted.
+        </p>
+      </div>
+
+      {deleteError ? (
+        <p role="alert" className="mt-5 text-sm font-medium text-rose-700">
+          {deleteError}
+        </p>
       ) : null}
-    </button>
+
+      <div className="mt-7 flex gap-3 border-t border-sand-200 pt-5">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={deleting}
+          className="min-h-[48px] flex-1 rounded-2xl border border-sand-300 bg-white px-4 text-sm font-bold text-sand-700 disabled:opacity-40"
+        >
+          Keep profile
+        </button>
+        <button
+          type="button"
+          onClick={() => void confirmDelete()}
+          disabled={deleting}
+          className="min-h-[48px] flex-1 rounded-2xl bg-rose-700 px-4 text-sm font-bold text-white disabled:opacity-40"
+        >
+          {deleting ? "Deleting…" : "Delete profile"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -74,7 +177,9 @@ function ProfileRow({
  */
 function Sheet({ onClose }: { onClose: () => void }) {
   const { profiles, activeProfile, status, error, selectProfile, reload } = useProfiles();
-  const [view, setView] = useState<"list" | "add">("list");
+  const [view, setView] = useState<"list" | "add" | "edit" | "delete">("list");
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
+  const [deletingProfile, setDeletingProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -102,13 +207,28 @@ function Sheet({ onClose }: { onClose: () => void }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Choose a profile"
+        aria-label={view === "delete" ? "Confirm profile deletion" : "Choose a profile"}
         className="relative max-h-[88vh] animate-sheet-up overflow-y-auto rounded-t-[28px] bg-sand-50 px-5 pb-10 pt-3 shadow-2xl"
       >
         <div className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-sand-300" />
 
-        {view === "add" ? (
-          <AddProfileForm onDone={onClose} onCancel={() => setView("list")} />
+        {view === "delete" && deletingProfile ? (
+          <DeleteProfileConfirmation
+            key={deletingProfile.id}
+            profile={deletingProfile}
+            onCancel={() => setView("list")}
+            onDeleted={() => {
+              setDeletingProfile(null);
+              setView("list");
+            }}
+          />
+        ) : view === "add" || view === "edit" ? (
+          <AddProfileForm
+            key={editingProfile?.id ?? "new"}
+            profile={view === "edit" ? editingProfile ?? undefined : undefined}
+            onDone={onClose}
+            onCancel={() => setView("list")}
+          />
         ) : (
           <>
             <h2 className="text-2xl font-bold tracking-tight text-sand-900">Who&rsquo;s here?</h2>
@@ -146,12 +266,23 @@ function Sheet({ onClose }: { onClose: () => void }) {
                     selectProfile(profile.id);
                     onClose();
                   }}
+                  onEdit={() => {
+                    setEditingProfile(profile);
+                    setView("edit");
+                  }}
+                  onDelete={() => {
+                    setDeletingProfile(profile);
+                    setView("delete");
+                  }}
                 />
               ))}
 
               <button
                 type="button"
-                onClick={() => setView("add")}
+                onClick={() => {
+                  setEditingProfile(null);
+                  setView("add");
+                }}
                 className="flex w-full items-center gap-4 rounded-3xl bg-sand-100 p-3 text-left active:bg-sand-200"
               >
                 <span

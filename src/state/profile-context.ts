@@ -12,6 +12,7 @@ export type ProfileContextValue = {
   selectProfile: (id: number) => void;
   createProfile: (draft: ProfileDraft) => Promise<Profile>;
   updateProfile: (id: number, patch: Partial<ProfileDraft>) => Promise<Profile>;
+  deleteProfile: (id: number) => Promise<void>;
   reload: () => Promise<void>;
 };
 

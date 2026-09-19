@@ -79,6 +79,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  const deleteProfile = useCallback(async (id: number) => {
+    await api.deleteProfile(id);
+    setProfiles((current) => current.filter((profile) => profile.id !== id));
+    setActiveId((current) => (current === id ? null : current));
+  }, []);
+
   // Selection is session-only; profiles themselves always come from the API.
   const activeProfile = useMemo(
     () => profiles.find((p) => p.id === activeId) ?? profiles[0] ?? null,
@@ -94,9 +100,20 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       selectProfile,
       createProfile,
       updateProfile,
+      deleteProfile,
       reload,
     }),
-    [profiles, activeProfile, status, error, selectProfile, createProfile, updateProfile, reload],
+    [
+      profiles,
+      activeProfile,
+      status,
+      error,
+      selectProfile,
+      createProfile,
+      updateProfile,
+      deleteProfile,
+      reload,
+    ],
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
