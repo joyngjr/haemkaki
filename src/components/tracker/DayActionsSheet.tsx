@@ -32,8 +32,8 @@ export function DayActionsSheet({
     >
       {isFuture ? (
         <p className="mt-6 rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-sm leading-loose text-[#806d51]">
-          Oops! This date hasn't happened yet, so it can't be logged. If a dose is planned for this
-          day, you'll see it marked on your calendar.
+          Oops! This date hasn't happened yet. If a dose is planned for this day, you'll see it
+          marked on your calendar.
         </p>
       ) : (
         <div className="mt-6 space-y-3">

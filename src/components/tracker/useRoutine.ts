@@ -1,9 +1,11 @@
 import { useState } from "react";
 
+import { frequencyKey, type Frequency } from "@/lib/tracker-dates";
+
 /** The prophylaxis routine: how much, how often, and from when. */
 export type Routine = {
   vials: number | undefined;
-  intervalDays: number | undefined;
+  frequency: Frequency | undefined;
   startDate: Date | undefined;
 };
 
@@ -12,14 +14,14 @@ export type RoutineProps = {
   regularProphylaxisVials?: number;
   /** Date of the last regular prophylaxis dose, set during profile creation. Undefined until that flow exists. */
   lastRegularProphylaxisDate?: Date;
-  /** How often regular prophylaxis is due, in days, set during profile creation. Undefined until that flow exists. */
-  regularProphylaxisIntervalDays?: number;
+  /** How often regular prophylaxis is due (every N days, or fixed weekdays), set during profile creation. Undefined until that flow exists. */
+  regularProphylaxisFrequency?: Frequency;
   /** Called when the user edits the dosage from "Your Current Routine" — wire this to the profile store to keep them in sync. */
   onRegularProphylaxisVialsChange?: (vials: number) => void;
   /** Called when the user edits the effective start date from "Your Current Routine". */
   onLastRegularProphylaxisDateChange?: (date: Date | undefined) => void;
-  /** Called when the user edits the frequency (in days) from "Your Current Routine". */
-  onRegularProphylaxisIntervalDaysChange?: (days: number) => void;
+  /** Called when the user edits the frequency from "Your Current Routine". */
+  onRegularProphylaxisFrequencyChange?: (frequency: Frequency) => void;
 };
 
 /**
@@ -33,14 +35,14 @@ export type RoutineProps = {
 export function useRoutine({
   regularProphylaxisVials,
   lastRegularProphylaxisDate,
-  regularProphylaxisIntervalDays,
+  regularProphylaxisFrequency,
   onRegularProphylaxisVialsChange,
   onLastRegularProphylaxisDateChange,
-  onRegularProphylaxisIntervalDaysChange,
+  onRegularProphylaxisFrequencyChange,
 }: RoutineProps) {
   const fromProfile: Routine = {
     vials: regularProphylaxisVials,
-    intervalDays: regularProphylaxisIntervalDays,
+    frequency: regularProphylaxisFrequency,
     startDate: lastRegularProphylaxisDate,
   };
   const [routine, setRoutine] = useState(fromProfile);
@@ -48,7 +50,7 @@ export function useRoutine({
 
   if (
     lastFromProfile.vials !== fromProfile.vials ||
-    lastFromProfile.intervalDays !== fromProfile.intervalDays ||
+    frequencyKey(lastFromProfile.frequency) !== frequencyKey(fromProfile.frequency) ||
     lastFromProfile.startDate !== fromProfile.startDate
   ) {
     setLastFromProfile(fromProfile);
@@ -61,9 +63,9 @@ export function useRoutine({
       setRoutine((current) => ({ ...current, vials }));
       onRegularProphylaxisVialsChange?.(vials);
     },
-    setIntervalDays(intervalDays: number) {
-      setRoutine((current) => ({ ...current, intervalDays }));
-      onRegularProphylaxisIntervalDaysChange?.(intervalDays);
+    setFrequency(frequency: Frequency) {
+      setRoutine((current) => ({ ...current, frequency }));
+      onRegularProphylaxisFrequencyChange?.(frequency);
     },
     setStartDate(startDate: Date | undefined) {
       setRoutine((current) => ({ ...current, startDate }));

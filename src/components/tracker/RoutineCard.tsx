@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 
-import { DAYS, fixedMonthGrid, toKey } from "@/lib/tracker-dates";
+import {
+  DAYS,
+  fixedMonthGrid,
+  frequencyLabel,
+  toKey,
+  weekdayList,
+  type Frequency,
+} from "@/lib/tracker-dates";
 
+import { FrequencyEditor } from "./FrequencyEditor";
 import { NumberPad } from "./NumberPad";
 import { Sheet } from "./Sheet";
 import { ChevronLeftIcon, ChevronRightIcon, PlayIcon, RepeatIcon, VialIcon } from "./TrackerIcons";
@@ -12,7 +20,7 @@ type EditableField = "frequency" | "dosage" | "start";
 type RoutineCardProps = {
   routine: Routine;
   today: Date;
-  onIntervalDaysChange: (days: number) => void;
+  onFrequencyChange: (frequency: Frequency) => void;
   onVialsChange: (vials: number) => void;
   onStartDateChange: (date: Date) => void;
 };
@@ -26,7 +34,7 @@ type RoutineCardProps = {
 export function RoutineCard({
   routine,
   today,
-  onIntervalDaysChange,
+  onFrequencyChange,
   onVialsChange,
   onStartDateChange,
 }: RoutineCardProps) {
@@ -35,7 +43,6 @@ export function RoutineCard({
   const [pickerMonth, setPickerMonth] = useState(routine.startDate ?? today);
 
   function startEditing(field: EditableField) {
-    if (field === "frequency") setDraft(routine.intervalDays ? String(routine.intervalDays) : "");
     if (field === "dosage") setDraft(routine.vials ? String(routine.vials) : "");
     if (field === "start") setPickerMonth(routine.startDate ?? today);
     setEditing(field);
@@ -52,10 +59,12 @@ export function RoutineCard({
           <RoutineField
             icon={<RepeatIcon className="h-5 w-5 text-[#80633e]" />}
             label="Frequency"
-            value={
-              routine.intervalDays
-                ? `Every ${routine.intervalDays} day${routine.intervalDays === 1 ? "" : "s"}`
-                : "Not set"
+            wrap={routine.frequency?.unit === "week"}
+            value={routine.frequency ? frequencyLabel(routine.frequency) : "Not set"}
+            detail={
+              routine.frequency?.unit === "week"
+                ? weekdayList(routine.frequency.weekdays)
+                : undefined
             }
             onClick={() => startEditing("frequency")}
           />
@@ -94,15 +103,11 @@ export function RoutineCard({
           title="How often is prophylaxis due?"
           onClose={() => setEditing(null)}
         >
-          <NumberPad
-            value={draft}
-            onChange={setDraft}
-            maxLength={2}
-            suffix="days"
-            hint="For example, enter 3 for a dose every 3 days."
+          <FrequencyEditor
+            initial={routine.frequency}
             confirmLabel="Save"
-            onConfirm={() => {
-              onIntervalDaysChange(Number(draft));
+            onConfirm={(frequency) => {
+              onFrequencyChange(frequency);
               setEditing(null);
             }}
           />
@@ -155,12 +160,15 @@ function RoutineField({
   icon,
   label,
   value,
+  detail,
   wrap,
   onClick,
 }: {
   icon: React.ReactNode;
   label: React.ReactNode;
   value: string;
+  /** A smaller line under the value, e.g. the weekdays of a weekly routine. */
+  detail?: string;
   wrap?: boolean;
   onClick: () => void;
 }) {
@@ -176,6 +184,7 @@ function RoutineField({
       <span className={`text-sm font-bold text-[#443229] ${wrap ? "" : "whitespace-nowrap"}`}>
         {value}
       </span>
+      {detail ? <span className="-mt-1 text-xs text-[#806d51]">{detail}</span> : null}
     </button>
   );
 }

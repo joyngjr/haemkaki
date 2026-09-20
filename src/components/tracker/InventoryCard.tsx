@@ -168,7 +168,7 @@ export function InventoryCard() {
           className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#d8c3a0] text-sm font-bold text-[#80633e] transition hover:bg-[#f4ead8]"
         >
           <PlusIcon className="h-4 w-4" />
-          Add supply
+          Add item
         </button>
       )}
     </section>

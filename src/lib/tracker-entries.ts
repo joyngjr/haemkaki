@@ -1,4 +1,4 @@
-import { fromKey, shortDate, toKey } from "@/lib/tracker-dates";
+import { fromKey, shortDate } from "@/lib/tracker-dates";
 
 /**
  * The tracker's event ledger.
@@ -33,9 +33,6 @@ export type TrackerEntry =
     };
 
 export type EntryMap = Record<string, TrackerEntry[]>;
-
-/** The id given to the prophylaxis dose implied by the routine's start date. */
-export const ROUTINE_START_ENTRY_ID = -1;
 
 const DOSE_KINDS = ["prophylaxis", "on-demand", "follow-up", "makeup"] as const;
 
@@ -113,37 +110,50 @@ export function entryVials(entry: TrackerEntry, routineVials: number | undefined
 }
 
 /**
- * The stored ledger plus the prophylaxis dose implied by the routine's start
- * date. That dose is derived rather than written so editing the routine can
- * never leave a stale entry behind; a future start date implies nothing yet.
+ * Whether an entry is a dose the prophylaxis schedule is counted from. A made-up
+ * dose whose size is still unanswered doesn't count yet — the flow isn't done.
  */
-export function withRoutineStartDose(
-  entries: EntryMap,
-  routineStartDate: Date | undefined,
-  today: Date,
-): EntryMap {
-  if (!routineStartDate || routineStartDate.getTime() > today.getTime()) return entries;
-  const key = toKey(routineStartDate);
-  const existing = entries[key] ?? [];
-  if (existing.some((entry) => entry.kind === "prophylaxis")) return entries;
-  return {
-    ...entries,
-    [key]: [...existing, { id: ROUTINE_START_ENTRY_ID, kind: "prophylaxis" }],
-  };
+export function countsTowardSchedule(entry: TrackerEntry) {
+  return (
+    entry.kind === "prophylaxis" || (entry.kind === "makeup" && entry.amount.source !== "pending")
+  );
 }
 
-/** The most recent dose, which is what the prophylaxis schedule counts forward from. */
-export function latestDoseDate(entries: EntryMap, routineStartDate: Date | undefined) {
-  if (!routineStartDate) return undefined;
-  let latest = routineStartDate;
+/** The date a schedule-counting dose is filed under, or undefined once it has been removed. */
+export function scheduleDoseDate(entries: EntryMap, id: number | undefined) {
+  if (id === undefined) return undefined;
+  const found = Object.entries(entries).find(([, dayEntries]) =>
+    dayEntries.some((entry) => entry.id === id && countsTowardSchedule(entry)),
+  );
+  return found ? fromKey(found[0]) : undefined;
+}
+
+/**
+ * The dose that has thrown the planned schedule off, if there is one.
+ *
+ * Only the latest dose after `anchorDate` matters: if it sits on the current
+ * schedule nothing has changed, and if it doesn't, it is the date any shifted
+ * schedule would count forward from. Doses on or before `handledThrough` have
+ * already been answered, so they are left alone.
+ */
+export function findScheduleDisruption(
+  entries: EntryMap,
+  anchorDate: Date | undefined,
+  handledThrough: Date | undefined,
+  isPlanned: (date: Date) => boolean,
+) {
+  if (!anchorDate) return undefined;
+  const floor =
+    handledThrough && handledThrough.getTime() > anchorDate.getTime() ? handledThrough : anchorDate;
+  let latest: { id: number; date: Date } | undefined;
   Object.entries(entries).forEach(([key, dayEntries]) => {
-    const hasDose = dayEntries.some(
-      (entry) => entry.kind === "prophylaxis" || entry.kind === "makeup",
-    );
-    if (!hasDose) return;
+    const dose = dayEntries.find(countsTowardSchedule);
+    if (!dose) return;
     const date = fromKey(key);
-    if (date.getTime() > latest.getTime()) latest = date;
+    if (date.getTime() <= floor.getTime()) return;
+    if (!latest || date.getTime() > latest.date.getTime()) latest = { id: dose.id, date };
   });
+  if (!latest || isPlanned(latest.date)) return undefined;
   return latest;
 }
 
@@ -157,12 +167,13 @@ export type SupplyRow = {
 /** The most recent vial movements, newest first. Entries of unknown size are skipped. */
 export function supplyHistory(
   entries: EntryMap,
-  routineVials: number | undefined,
+  vialsOn: (dateKey: string) => number | undefined,
   limit = 5,
 ): SupplyRow[] {
   const rows: SupplyRow[] = [];
   Object.entries(entries).forEach(([dateKey, dayEntries]) => {
     dayEntries.forEach((entry) => {
+      const routineVials = vialsOn(dateKey);
       const amount = entryVials(entry, routineVials);
       if (!amount) return;
       rows.push({ id: entry.id, dateKey, detail: entryDetail(entry, routineVials), amount });
@@ -172,10 +183,13 @@ export function supplyHistory(
   return rows.slice(0, limit);
 }
 
-export function totalFactorSupply(entries: EntryMap, routineVials: number | undefined) {
-  const total = Object.values(entries).reduce(
-    (sum, dayEntries) =>
-      sum + dayEntries.reduce((daySum, entry) => daySum + entryVials(entry, routineVials), 0),
+export function totalFactorSupply(
+  entries: EntryMap,
+  vialsOn: (dateKey: string) => number | undefined,
+) {
+  const total = Object.entries(entries).reduce(
+    (sum, [dateKey, dayEntries]) =>
+      sum + dayEntries.reduce((daySum, entry) => daySum + entryVials(entry, vialsOn(dateKey)), 0),
     0,
   );
   return Math.max(0, total);

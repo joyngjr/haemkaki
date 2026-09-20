@@ -23,16 +23,93 @@ export function shortDate(date: Date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** Regular prophylaxis schedule: every `intervalDays` days from `lastDoseDate`, both set during profile creation. */
+/**
+ * How often regular prophylaxis is due: a dose every N days, or on fixed days
+ * of the week (0 = Sunday … 6 = Saturday, sorted, at least one).
+ */
+export type Frequency = { unit: "days"; days: number } | { unit: "week"; weekdays: number[] };
+
+/** A stable string for comparing frequencies by value. */
+export function frequencyKey(frequency: Frequency | undefined) {
+  if (!frequency) return "";
+  return frequency.unit === "days" ? `d${frequency.days}` : `w${frequency.weekdays.join(",")}`;
+}
+
+/** "Mon, Wed, Fri" */
+export function weekdayList(weekdays: number[]) {
+  return weekdays.map((day) => DAYS[day]).join(", ");
+}
+
+/** "Every 3 days" or "3 times a week". */
+export function frequencyLabel(frequency: Frequency) {
+  if (frequency.unit === "days") {
+    return `Every ${frequency.days} day${frequency.days === 1 ? "" : "s"}`;
+  }
+  const count = frequency.weekdays.length;
+  return `${count} time${count === 1 ? "" : "s"} a week`;
+}
+
+/** Move every weekday by `offset` days, wrapping around the week. */
+export function rotateWeekdays(weekdays: number[], offset: number) {
+  return weekdays.map((day) => (((day + offset) % 7) + 7) % 7).sort((a, b) => a - b);
+}
+
+/**
+ * How many days the weekly schedule moves when a dose lands on `doseDate`: the
+ * dose is taken to stand in for the nearest planned weekday, and the whole week
+ * moves by the gap. A tie between an early and a late day goes to the late one.
+ */
+export function weekdayShiftFor(weekdays: number[], doseDate: Date) {
+  let best = 0;
+  let bestDistance = Infinity;
+  weekdays.forEach((day) => {
+    const gap = ((((doseDate.getDay() - day + 3) % 7) + 7) % 7) - 3;
+    if (Math.abs(gap) < bestDistance || (Math.abs(gap) === bestDistance && gap > best)) {
+      best = gap;
+      bestDistance = Math.abs(gap);
+    }
+  });
+  return best;
+}
+
+/** The frequency a schedule would have if it were shifted to a dose on `doseDate`. */
+export function shiftedFrequency(frequency: Frequency, doseDate: Date): Frequency {
+  if (frequency.unit === "days") return frequency;
+  return {
+    unit: "week",
+    weekdays: rotateWeekdays(frequency.weekdays, weekdayShiftFor(frequency.weekdays, doseDate)),
+  };
+}
+
+/** Regular prophylaxis schedule: counted forward from `lastDoseDate`, on the routine's frequency. */
 export function isScheduledProphylaxisDate(
   date: Date,
   lastDoseDate: Date | undefined,
-  intervalDays: number | undefined,
+  frequency: Frequency | undefined,
 ) {
-  if (!lastDoseDate || !intervalDays) return false;
+  if (!lastDoseDate || !frequency) return false;
   const diffDays = Math.round((date.getTime() - lastDoseDate.getTime()) / MS_PER_DAY);
   if (diffDays <= 0) return false;
-  return diffDays % intervalDays === 0;
+  if (frequency.unit === "days") return frequency.days > 0 && diffDays % frequency.days === 0;
+  return frequency.weekdays.includes(date.getDay());
+}
+
+/**
+ * The next date to place a factor order: a week before the last Tuesday of the
+ * month. Once this month's date has passed, it is next month's.
+ */
+export function nextOrderDate(today: Date) {
+  const orderDateIn = (monthOffset: number) => {
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0);
+    const daysSinceTuesday = (lastDay.getDay() + 5) % 7;
+    return new Date(
+      lastDay.getFullYear(),
+      lastDay.getMonth(),
+      lastDay.getDate() - daysSinceTuesday - 7,
+    );
+  };
+  const thisMonth = orderDateIn(0);
+  return thisMonth.getTime() >= today.getTime() ? thisMonth : orderDateIn(1);
 }
 
 /**
