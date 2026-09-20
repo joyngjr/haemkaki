@@ -60,6 +60,16 @@ export function SearchIcon(props: IconProps) {
   );
 }
 
+export function QuestionIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.1 9.2a3 3 0 0 1 5.8 1c0 2-2.9 2.6-2.9 2.6" />
+      <path d="M12 16.8h.01" />
+    </Glyph>
+  );
+}
+
 export function RepeatIcon(props: IconProps) {
   return (
     <Glyph {...props}>

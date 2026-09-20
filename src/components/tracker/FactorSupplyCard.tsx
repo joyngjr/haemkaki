@@ -1,9 +1,24 @@
+import { useState } from "react";
+
 import type { SupplyRow } from "@/lib/tracker-entries";
 import { fromKey } from "@/lib/tracker-dates";
 
 import { Sheet } from "./Sheet";
-import { SearchIcon } from "./TrackerIcons";
+import { QuestionIcon, SearchIcon } from "./TrackerIcons";
 import { AlarmedPlatelet } from "./TrackerMascots";
+
+/** The working behind the recommended order, shown in its "?" explainer. */
+export type OrderBreakdown = {
+  /** Vials to order, never below zero. */
+  vials: number;
+  /** The month the order covers, e.g. "October". */
+  monthLabel: string;
+  plannedDoses: number;
+  /** Vials those doses use, after any plan's dosage. */
+  plannedVials: number;
+  minimumBuffer: number;
+  currentSupply: number;
+};
 
 type FactorSupplyCardProps = {
   vialsRemaining: number;
@@ -14,7 +29,7 @@ type FactorSupplyCardProps = {
   isOrderNeededAsap: boolean;
   isNextOrderDateSoon: boolean;
   /** Undefined while the routine or the minimum buffer is still unset. */
-  recommendedOrderVials: number | undefined;
+  order: OrderBreakdown | undefined;
   onShowHistory: () => void;
 };
 
@@ -24,9 +39,10 @@ export function FactorSupplyCard({
   nextOrderDate,
   isOrderNeededAsap,
   isNextOrderDateSoon,
-  recommendedOrderVials,
+  order,
   onShowHistory,
 }: FactorSupplyCardProps) {
+  const [showOrderHelp, setShowOrderHelp] = useState(false);
   return (
     <section className="mt-4 overflow-hidden rounded-2xl border border-[#eee5d5] bg-[#fffaf0] p-4 shadow-[0_12px_45px_rgba(36,45,80,0.06)] sm:mt-6 sm:rounded-3xl sm:p-7">
       <button onClick={onShowHistory} className="w-full text-left transition hover:opacity-80">
@@ -53,7 +69,14 @@ export function FactorSupplyCard({
           </span>
         </div>
       </button>
-      <div className="mt-4 border-t border-[#eee5d5] pt-4">
+      <div className="relative mt-4 border-t border-[#eee5d5] pt-4">
+        <button
+          onClick={() => setShowOrderHelp(true)}
+          aria-label="How is the recommended order worked out?"
+          className="absolute -right-2 -top-1 grid h-11 w-11 place-items-center text-[#806d51] transition hover:text-[#443229]"
+        >
+          <QuestionIcon className="h-5 w-5" />
+        </button>
         <h3 className="text-center text-base font-bold text-[#6b3817] sm:text-lg">
           Recommended order
         </h3>
@@ -71,13 +94,79 @@ export function FactorSupplyCard({
                   })
             }
           />
-          <OrderRow
-            label="Number of vials"
-            value={recommendedOrderVials !== undefined ? String(recommendedOrderVials) : ""}
-          />
+          <OrderRow label="Number of vials" value={order ? String(order.vials) : ""} />
         </div>
       </div>
+      {showOrderHelp && <OrderHelpSheet order={order} onClose={() => setShowOrderHelp(false)} />}
     </section>
+  );
+}
+
+function OrderHelpSheet({
+  order,
+  onClose,
+}: {
+  order: OrderBreakdown | undefined;
+  onClose: () => void;
+}) {
+  const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+  return (
+    <Sheet
+      tier="action"
+      eyebrow="Recommended order"
+      title="How is this worked out?"
+      onClose={onClose}
+    >
+      <p className="mt-3 text-sm text-[#806d51]">
+        We add up the vials your planned doses will use next month, add your minimum buffer, then
+        take away what you already have.
+      </p>
+      <div className="mt-4 space-y-2">
+        <HelpRow
+          label={order ? `${order.monthLabel}'s planned doses` : "Next month's planned doses"}
+          detail={order ? plural(order.plannedDoses, "dose") : undefined}
+          value={order ? plural(order.plannedVials, "vial") : "vials"}
+        />
+        <HelpRow
+          label="+ Minimum buffer"
+          value={order ? plural(order.minimumBuffer, "vial") : "vials"}
+        />
+        <HelpRow
+          label="− Current supply"
+          value={order ? plural(order.currentSupply, "vial") : "vials"}
+        />
+        <HelpRow label="= Vials to order" value={order ? plural(order.vials, "vial") : ""} strong />
+      </div>
+      <p className="mt-3 text-xs text-[#806d51]">
+        {order
+          ? "Planned doses come from your routine and any plans you've added. If your supply already covers it, the number is 0."
+          : "Set your dosage, frequency, start date and minimum buffer to see your number."}
+      </p>
+    </Sheet>
+  );
+}
+
+function HelpRow({
+  label,
+  detail,
+  value,
+  strong,
+}: {
+  label: string;
+  detail?: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 ${strong ? "bg-[#ecdcbf]" : "bg-[#f8f0e2]"}`}
+    >
+      <span className="min-w-0 text-sm text-[#806d51]">
+        {label}
+        {detail ? <span className="block text-xs">{detail}</span> : null}
+      </span>
+      <span className="shrink-0 text-sm font-bold text-[#443229]">{value}</span>
+    </div>
   );
 }
 

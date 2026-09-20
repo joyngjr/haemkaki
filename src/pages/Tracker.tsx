@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 
 import { DayActionsSheet, type DayFlow } from "@/components/tracker/DayActionsSheet";
-import { FactorSupplyCard, SupplyHistorySheet } from "@/components/tracker/FactorSupplyCard";
+import {
+  FactorSupplyCard,
+  SupplyHistorySheet,
+  type OrderBreakdown,
+} from "@/components/tracker/FactorSupplyCard";
 import { FactorUseFlow, type SavedUse } from "@/components/tracker/FactorUseFlow";
 import { InventoryCard } from "@/components/tracker/InventoryCard";
 import { MissedDoseFlow } from "@/components/tracker/MissedDoseFlow";
@@ -148,16 +152,26 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
     (orderDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );
 
-  const recommendedOrderVials = useMemo(() => {
+  const orderBreakdown = useMemo<OrderBreakdown | undefined>(() => {
     if (!routine.vials || !frequency || !scheduleAnchorDate) return undefined;
     if (minimumFactorSupplyVials === undefined) return undefined;
     const monthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+    let plannedDoses = 0;
     let plannedVials = 0;
     for (const day = new Date(monthStart); day <= monthEnd; day.setDate(day.getDate() + 1)) {
-      if (isPlannedDate(day)) plannedVials += vialsOn(plans, toKey(day), routine.vials) ?? 0;
+      if (!isPlannedDate(day)) continue;
+      plannedDoses++;
+      plannedVials += vialsOn(plans, toKey(day), routine.vials) ?? 0;
     }
-    return Math.max(0, plannedVials + minimumFactorSupplyVials - factorSupply);
+    return {
+      vials: Math.max(0, plannedVials + minimumFactorSupplyVials - factorSupply),
+      monthLabel: monthStart.toLocaleDateString("en-US", { month: "long" }),
+      plannedDoses,
+      plannedVials,
+      minimumBuffer: minimumFactorSupplyVials,
+      currentSupply: factorSupply,
+    };
   }, [
     routine.vials,
     frequency,
@@ -373,7 +387,7 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           nextOrderDate={orderDate}
           isOrderNeededAsap={isFactorSupplyLow && daysToNextOrder > 0}
           isNextOrderDateSoon={daysToNextOrder >= 0 && daysToNextOrder <= 3}
-          recommendedOrderVials={recommendedOrderVials}
+          order={orderBreakdown}
           onShowHistory={() => setShowSupplyHistory(true)}
         />
 
