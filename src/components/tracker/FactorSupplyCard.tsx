@@ -118,8 +118,8 @@ function OrderHelpSheet({
       onClose={onClose}
     >
       <p className="mt-3 text-sm text-[#806d51]">
-        We add up the vials your planned doses will use next month, add your minimum buffer, then
-        take away what you already have.
+        We add up the number of vials you will need for your planned doses next month and your
+        minimum buffer, then subtract any excess you might already have in your supply.
       </p>
       <div className="mt-4 space-y-2">
         <HelpRow
