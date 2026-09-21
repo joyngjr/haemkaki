@@ -1,44 +1,37 @@
 import { useState } from "react";
 
 import { CloseIcon, PlusIcon } from "./TrackerIcons";
-
-type InventoryItem = { id: string; name: string; quantity: number };
-
-const DEFAULT_ITEMS: InventoryItem[] = [
-  { id: "gauze", name: "Gauze", quantity: 0 },
-  { id: "syringes", name: "Syringes", quantity: 0 },
-  { id: "saline", name: "Saline", quantity: 0 },
-];
+import { useSupplies } from "./useSupplies";
 
 /**
  * "Inventory" — supplies other than factor (gauze, syringes, saline, and
- * whatever else gets added), tracked as a simple counted list. Collapsible:
- * dismissing it swaps the card for a one-line button so it can be brought
- * back without losing what's in it. State is local only, matching the rest
- * of the tracker — nothing here is persisted yet.
+ * whatever else gets added), tracked as a simple counted list. The list lives
+ * in `/users/{id}/supplies` behind `useSupplies`; only whether the card is
+ * shown is local. Dismissing it swaps the card for a one-line button so it can
+ * be brought back without losing anything.
  */
-export function InventoryCard() {
-  const [items, setItems] = useState<InventoryItem[]>(DEFAULT_ITEMS);
+export function InventoryCard({ profileId }: { profileId: number | undefined }) {
+  const { items, update, isLoading, error } = useSupplies(profileId);
   const [visible, setVisible] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [draftName, setDraftName] = useState("");
 
-  function updateQuantity(id: string, change: number) {
-    setItems((current) =>
+  function updateQuantity(key: string, change: number) {
+    update((current) =>
       current.map((item) =>
-        item.id === id ? { ...item, quantity: Math.max(0, item.quantity + change) } : item,
+        item.key === key ? { ...item, quantity: Math.max(0, item.quantity + change) } : item,
       ),
     );
   }
 
-  function removeItem(id: string) {
-    setItems((current) => current.filter((item) => item.id !== id));
+  function removeItem(key: string) {
+    update((current) => current.filter((item) => item.key !== key));
   }
 
   function addItem() {
     const name = draftName.trim();
     if (!name) return;
-    setItems((current) => [...current, { id: `custom-${Date.now()}`, name, quantity: 0 }]);
+    update((current) => [...current, { key: `new-${Date.now()}`, name, quantity: 0 }]);
     setDraftName("");
     setIsAdding(false);
   }
@@ -75,10 +68,19 @@ export function InventoryCard() {
         </button>
       </div>
 
+      {error && (
+        <p
+          role="status"
+          className="mt-3 rounded-xl border border-[#e7c3bf] bg-[#fdeceb] px-3 py-2 text-sm font-semibold text-[#9c3b34]"
+        >
+          {error}
+        </p>
+      )}
+
       <div className="mt-4 space-y-2">
         {items.map((item) => (
           <div
-            key={item.id}
+            key={item.key}
             className="flex items-center justify-between gap-2 rounded-xl bg-[#f8f0e2] px-3 py-2"
           >
             <div className="min-w-0">
@@ -88,7 +90,7 @@ export function InventoryCard() {
                   <span className="font-semibold text-[#cd5952]">Out of stock</span>
                 )}
                 <button
-                  onClick={() => removeItem(item.id)}
+                  onClick={() => removeItem(item.key)}
                   aria-label={`Remove ${item.name}`}
                   className="-mx-1 -my-2 px-1 py-3 text-[#806d51] underline"
                 >
@@ -98,7 +100,7 @@ export function InventoryCard() {
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <button
-                onClick={() => updateQuantity(item.id, -1)}
+                onClick={() => updateQuantity(item.key, -1)}
                 disabled={item.quantity === 0}
                 aria-label={`Decrease ${item.name}`}
                 className="grid h-11 w-11 place-items-center rounded-full text-xl font-bold text-[#80633e] transition hover:bg-[#f4ead8] disabled:opacity-30"
@@ -111,7 +113,7 @@ export function InventoryCard() {
                 {item.quantity}
               </span>
               <button
-                onClick={() => updateQuantity(item.id, 1)}
+                onClick={() => updateQuantity(item.key, 1)}
                 aria-label={`Increase ${item.name}`}
                 className="grid h-11 w-11 place-items-center rounded-full text-[#80633e] transition hover:bg-[#f4ead8]"
               >
@@ -122,7 +124,7 @@ export function InventoryCard() {
         ))}
         {items.length === 0 && (
           <p className="rounded-xl bg-[#f8f0e2] px-3 py-3 text-center text-sm text-[#806d51]">
-            No supplies yet. Add one below.
+            {isLoading ? "Loading your supplies…" : "No supplies yet. Add one below."}
           </p>
         )}
       </div>
@@ -165,7 +167,8 @@ export function InventoryCard() {
       ) : (
         <button
           onClick={() => setIsAdding(true)}
-          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#d8c3a0] text-sm font-bold text-[#80633e] transition hover:bg-[#f4ead8]"
+          disabled={profileId === undefined}
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#d8c3a0] text-sm font-bold text-[#80633e] transition hover:bg-[#f4ead8] disabled:opacity-40"
         >
           <PlusIcon className="h-4 w-4" />
           Add supply

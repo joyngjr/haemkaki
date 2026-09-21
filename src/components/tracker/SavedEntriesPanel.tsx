@@ -11,12 +11,10 @@ import { entryDetail, entryLabel, type TrackerEntry } from "@/lib/tracker-entrie
  */
 export function SavedEntriesPanel({
   entries,
-  routineVials,
   onEdit,
   onDelete,
 }: {
   entries: TrackerEntry[];
-  routineVials: number | undefined;
   onEdit: (entry: TrackerEntry) => void;
   onDelete: (entry: TrackerEntry) => void;
 }) {
@@ -35,7 +33,7 @@ export function SavedEntriesPanel({
             >
               <div>
                 <p className="text-xs font-bold text-[#443229]">{entryLabel(entry)}</p>
-                <p className="text-sm text-[#806d51]">{entryDetail(entry, routineVials)}</p>
+                <p className="text-sm text-[#806d51]">{entryDetail(entry)}</p>
               </div>
               <div className="flex gap-1">
                 {/* A made-up dose is edited from the missed dose it belongs to. */}

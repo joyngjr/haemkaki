@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Home from "@/pages/Home";
 import { Tracker } from "@/pages/Tracker";
-import { Community } from "@/pages/tips/Community";
 import { FindMedicalHelp } from "@/pages/tips/FindMedicalHelp";
 import { MedicalId } from "@/pages/tips/MedicalId";
 import { Tips } from "@/pages/tips/Tips";
@@ -34,7 +33,6 @@ export default function App() {
               <Route path="tips/injection-guide/subcutaneous" element={<Subcutaneous />} />
               <Route path="tips/injection-guide/port-a-cath" element={<PortACath />} />
               <Route path="tips/find-medical-help" element={<FindMedicalHelp />} />
-              <Route path="tips/community" element={<Community />} />
 
               {/* Anything unrecognised lands back on the den. */}
               <Route path="*" element={<Navigate to="/" replace />} />

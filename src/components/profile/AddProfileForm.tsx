@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 import {
+  type BloodType,
   type ClinicalProfile,
   type DiagnosisType,
   type FactorType,
@@ -24,7 +25,18 @@ type YesNo = "yes" | "no";
 type Sex = "male" | "female" | "other";
 type Medication = MedicationDetails;
 
-const STEPS = ["About you", "Diagnosis", "Treatment", "Preferences"];
+const STEPS = ["About you", "Diagnosis", "Treatment", "Emergency", "Preferences"];
+const BLOOD_TYPE_OPTIONS: { value: BloodType; label: string }[] = [
+  { value: "A+", label: "A+" },
+  { value: "A-", label: "A−" },
+  { value: "B+", label: "B+" },
+  { value: "B-", label: "B−" },
+  { value: "AB+", label: "AB+" },
+  { value: "AB-", label: "AB−" },
+  { value: "O+", label: "O+" },
+  { value: "O-", label: "O−" },
+  { value: "unknown", label: "Not known" },
+];
 const A_OR_B: DiagnosisType[] = [
   "haemophilia_a",
   "haemophilia_b",
@@ -500,6 +512,11 @@ function allergyDetailsFromStorage(details: string | null): {
   };
 }
 
+/** The API's own rule for a phone: something to dial, however it is spaced. */
+function hasDigits(value: string): boolean {
+  return value.replace(/\D/g, "").length >= 3;
+}
+
 function diagnosisFromProfile(profile?: Profile): DiagnosisType {
   if (profile?.clinical_profile) return profile.clinical_profile.diagnosis;
   if (profile?.factor_type === "VIII") return "haemophilia_a";
@@ -535,15 +552,11 @@ export function AddProfileForm({
   const [drugAllergies, setDrugAllergies] = useState<string[]>(allergyDetails.allergies);
   const [allergyNotes, setAllergyNotes] = useState(allergyDetails.notes);
   const [diagnosis, setDiagnosis] = useState<DiagnosisType>(diagnosisFromProfile(profile));
-  const [congenitalSeverity, setCongenitalSeverity] = useState(
-    clinical?.congenital_severity ?? "",
-  );
+  const [congenitalSeverity, setCongenitalSeverity] = useState(clinical?.congenital_severity ?? "");
   const [xiLevel, setXiLevel] = useState(clinical?.factor_xi_deficiency_level ?? "");
   const [diagnosisTestDate, setDiagnosisTestDate] = useState(clinical?.diagnosis_test_date ?? "");
   const [inhibitorStatus, setInhibitorStatus] = useState(clinical?.inhibitor_status ?? "unknown");
-  const [fixAllergy, setFixAllergy] = useState(
-    clinical?.fix_allergy_or_anaphylaxis ?? "unknown",
-  );
+  const [fixAllergy, setFixAllergy] = useState(clinical?.fix_allergy_or_anaphylaxis ?? "unknown");
   const [acquiredTitre, setAcquiredTitre] = useState(
     clinical?.acquired_inhibitor_titre_bu_ml?.toString() ?? "",
   );
@@ -562,16 +575,24 @@ export function AddProfileForm({
   const [onDemandMedications, setOnDemandMedications] = useState<Medication[]>(
     medicationsFromStorage(clinical?.on_demand_medication ?? null),
   );
-  const [takesOther, setTakesOther] = useState<YesNo>(
-    clinical?.other_medication ? "yes" : "no",
-  );
+  const [takesOther, setTakesOther] = useState<YesNo>(clinical?.other_medication ? "yes" : "no");
   const [otherMedications, setOtherMedications] = useState<Medication[]>(
     medicationsFromStorage(clinical?.other_medication ?? null),
   );
-  const [groups, setGroups] = useState<string[]>(clinical?.group_chats ?? []);
   const [reminders, setReminders] = useState<YesNo>(
     clinical ? (clinical.medication_reminders ? "yes" : "no") : "yes",
   );
+  const [bloodType, setBloodType] = useState<BloodType | "">(clinical?.blood_type ?? "");
+  const [contactName, setContactName] = useState(clinical?.emergency_contact?.name ?? "");
+  const [contactRelationship, setContactRelationship] = useState(
+    clinical?.emergency_contact?.relationship ?? "",
+  );
+  const [contactPhone, setContactPhone] = useState(clinical?.emergency_contact?.phone ?? "");
+  const [doctorName, setDoctorName] = useState(clinical?.primary_doctor?.name ?? "");
+  const [doctorOrganisation, setDoctorOrganisation] = useState(
+    clinical?.primary_doctor?.organisation ?? "",
+  );
+  const [doctorPhone, setDoctorPhone] = useState(clinical?.primary_doctor?.phone ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -596,11 +617,26 @@ export function AddProfileForm({
   const diagnosisComplete =
     (!isCongenital && diagnosis !== "factor_xi_deficiency") ||
     (isCongenital ? congenitalSeverity !== "" : xiLevel !== "");
-  const canContinue = step === 0 ? aboutYouComplete : step === 1 ? diagnosisComplete : true;
-  const toggleGroup = (group: string) =>
-    setGroups((current) =>
-      current.includes(group) ? current.filter((item) => item !== group) : [...current, group],
-    );
+  // The Medical ID card is for a responder, so a contact is either complete
+  // enough to call or left off entirely — never a name with nothing to dial.
+  const contactStarted = Boolean(
+    contactName.trim() || contactRelationship.trim() || contactPhone.trim(),
+  );
+  const contactComplete = !contactStarted || Boolean(contactName.trim() && hasDigits(contactPhone));
+  const doctorStarted = Boolean(
+    doctorName.trim() || doctorOrganisation.trim() || doctorPhone.trim(),
+  );
+  const doctorComplete =
+    !doctorStarted || Boolean(doctorName.trim() && (!doctorPhone.trim() || hasDigits(doctorPhone)));
+  const emergencyComplete = contactComplete && doctorComplete;
+  const canContinue =
+    step === 0
+      ? aboutYouComplete
+      : step === 1
+        ? diagnosisComplete
+        : step === 3
+          ? emergencyComplete
+          : true;
 
   function toggleTreatment(treatment: string) {
     setTreatments((current) => {
@@ -659,11 +695,26 @@ export function AddProfileForm({
         ? medicationsForStorage(prophylacticMedications)
         : null,
       minimum_buffer: minimumBufferDays ? `${minimumBufferDays} days` : null,
+      minimum_buffer_days: minimumBufferDays ? Number(minimumBufferDays) : null,
       on_demand_medication:
         takesOnDemand === "yes" ? medicationsForStorage(onDemandMedications) : null,
       other_medication: takesOther === "yes" ? medicationsForStorage(otherMedications) : null,
-      group_chats: groups,
       medication_reminders: reminders === "yes",
+      blood_type: bloodType || null,
+      emergency_contact: contactName.trim()
+        ? {
+            name: contactName.trim(),
+            relationship: contactRelationship.trim(),
+            phone: contactPhone.trim(),
+          }
+        : null,
+      primary_doctor: doctorName.trim()
+        ? {
+            name: doctorName.trim(),
+            organisation: doctorOrganisation.trim(),
+            phone: doctorPhone.trim() || null,
+          }
+        : null,
     };
     try {
       const draft = {
@@ -694,7 +745,7 @@ export function AddProfileForm({
           haemophilia care team.
         </p>
       </div>
-      <ol aria-label="Profile creation progress" className="mb-7 grid grid-cols-4 gap-1">
+      <ol aria-label="Profile creation progress" className="mb-7 grid grid-cols-5 gap-1">
         {STEPS.map((label, index) => (
           <li key={label} className="min-w-0">
             <div
@@ -1040,30 +1091,94 @@ export function AddProfileForm({
         ) : null}
         {step === 3 ? (
           <>
-            <div>
-              <p className="text-sm font-semibold text-sand-900">
-                Would you like to join any group chats?
+            <div className="rounded-3xl bg-red-50 p-4">
+              <p className="text-sm font-bold text-red-900">For your Medical ID</p>
+              <p className="mt-1 text-xs leading-5 text-red-900">
+                Shown to a responder in an emergency. Everything here is optional; a contact needs a
+                name and a number before it appears on the card.
               </p>
-              <div className="mt-3 space-y-2">
-                {["Haemophilia Support Group", "Community Page", "Touchpoints"].map((group) => (
-                  <button
-                    type="button"
-                    key={group}
-                    onClick={() => toggleGroup(group)}
-                    aria-pressed={groups.includes(group)}
-                    className={cn(
-                      "flex min-h-[52px] w-full items-center justify-between rounded-2xl border px-4 text-left text-sm font-semibold",
-                      groups.includes(group)
-                        ? "border-teal-700 bg-teal-50 text-teal-950"
-                        : "border-sand-300 bg-white text-sand-800",
-                    )}
-                  >
-                    <span>{group}</span>
-                    <span aria-hidden="true">{groups.includes(group) ? "✓" : "+"}</span>
-                  </button>
-                ))}
-              </div>
             </div>
+            <div>
+              <p className="text-sm font-semibold text-sand-900">Blood type</p>
+              <Choice
+                columns
+                value={bloodType}
+                onChange={setBloodType}
+                options={BLOOD_TYPE_OPTIONS}
+              />
+            </div>
+            <section className="space-y-4 rounded-3xl border border-sand-200 bg-sand-100/60 p-4">
+              <h3 className="text-sm font-bold text-sand-900">Emergency contact</h3>
+              <Field label="Name">
+                <input
+                  className={inputClass}
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  maxLength={80}
+                  placeholder="Who should be called first?"
+                />
+              </Field>
+              <Field label="Relationship">
+                <input
+                  className={inputClass}
+                  value={contactRelationship}
+                  onChange={(e) => setContactRelationship(e.target.value)}
+                  maxLength={40}
+                  placeholder="For example, mother or partner"
+                />
+              </Field>
+              <Field label="Phone">
+                <input
+                  className={inputClass}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  maxLength={32}
+                  placeholder="+65 9123 4567"
+                />
+              </Field>
+            </section>
+            <section className="space-y-4 rounded-3xl border border-sand-200 bg-sand-100/60 p-4">
+              <h3 className="text-sm font-bold text-sand-900">
+                Primary doctor or treatment centre
+              </h3>
+              <Field label="Name">
+                <input
+                  className={inputClass}
+                  value={doctorName}
+                  onChange={(e) => setDoctorName(e.target.value)}
+                  maxLength={80}
+                  placeholder="Doctor's name"
+                />
+              </Field>
+              <Field label="Organisation">
+                <input
+                  className={inputClass}
+                  value={doctorOrganisation}
+                  onChange={(e) => setDoctorOrganisation(e.target.value)}
+                  maxLength={120}
+                  placeholder="Hospital or clinic"
+                />
+              </Field>
+              <Field label="Phone (optional)">
+                <input
+                  className={inputClass}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
+                  value={doctorPhone}
+                  onChange={(e) => setDoctorPhone(e.target.value)}
+                  maxLength={32}
+                  placeholder="+65 6772 2222"
+                />
+              </Field>
+            </section>
+          </>
+        ) : null}
+        {step === 4 ? (
+          <>
             <div>
               <p className="text-sm font-semibold text-sand-900">
                 Would you like reminders to order and take medication?
