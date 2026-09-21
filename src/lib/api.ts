@@ -289,9 +289,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       ...init,
-      headers: init?.body
-        ? { "Content-Type": "application/json", ...init?.headers }
-        : init?.headers,
+      // Uploads deliberately use multipart form data. Let the browser add its
+      // boundary; setting application/json here would corrupt the file.
+      headers:
+        init?.body && !(init.body instanceof FormData)
+          ? { "Content-Type": "application/json", ...init?.headers }
+          : init?.headers,
     });
   } catch {
     // A dead backend surfaces as a bare "Failed to fetch", which tells a
@@ -311,6 +314,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
+
+/** A server-produced candidate remains separate from an event until the user confirms it. */
+export type ImportCandidate = {
+  id: string;
+  kind: "infusion" | "bleed";
+  occurred_on: string | null;
+  occurred_at: string | null;
+  product: string | null;
+  dose_iu: number | null;
+  vials: number | null;
+  reason: "prophylaxis" | "on-demand" | "follow-up" | null;
+  bleed_location: string | null;
+  notes: string | null;
+  source: string;
+  state: "ready" | "needs_review";
+};
+
+export type ImportReadResult = { candidates: ImportCandidate[] };
+export type ImportRereadHint =
+  "day_month_year" | "number_is_vials" | "rows_are_infusions" | "rows_are_bleeds";
 
 export const api = {
   listProfiles: () => request<Profile[]>("/users"),
@@ -340,6 +363,21 @@ export const api = {
     }),
   deleteEvent: (userId: number, eventId: number) =>
     request<void>(`/users/${userId}/events/${eventId}`, { method: "DELETE" }),
+
+  /**
+   * Secure import boundary. The server is responsible for document/OCR/AI
+   * processing; no file content or credentials are sent to an AI from React.
+   */
+  readImport: (userId: number, files: File[], hints: ImportRereadHint[] = [], note = "") => {
+    const form = new FormData();
+    files.forEach((file) => form.append("files", file));
+    hints.forEach((hint) => form.append("hints", hint));
+    if (note.trim()) form.append("note", note.trim());
+    return request<ImportReadResult>(`/users/${userId}/imports/read`, {
+      method: "POST",
+      body: form,
+    });
+  },
 
   getStatus: (userId: number) => request<Status>(`/users/${userId}/status`),
 

@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { FolderUp } from "lucide-react";
 
 import { ProfileButton } from "@/components/profile/ProfileButton";
 import { DayActionsSheet, type DayFlow } from "@/components/tracker/DayActionsSheet";
 import { FactorSupplyCard, SupplyHistorySheet } from "@/components/tracker/FactorSupplyCard";
 import { FactorUseFlow, type SavedUse } from "@/components/tracker/FactorUseFlow";
 import { InventoryCard } from "@/components/tracker/InventoryCard";
+import { ImportRecordsFlow } from "@/components/tracker/ImportRecordsFlow";
 import { MissedDoseFlow } from "@/components/tracker/MissedDoseFlow";
 import { MonthCalendar } from "@/components/tracker/MonthCalendar";
 import { MoveDoseFlow } from "@/components/tracker/MoveDoseFlow";
@@ -66,6 +68,7 @@ function TrackerPage({ profileId, defaultIntervalDays }: TrackerProps) {
   /** Set when a Factor Use flow was reopened from an existing entry. */
   const [editingUseType, setEditingUseType] = useState<"on-demand" | "follow-up" | null>(null);
   const [showSupplyHistory, setShowSupplyHistory] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   /** An off-cycle dose the user just logged; the prompt offers to restart the routine from it. */
   const [shiftFrom, setShiftFrom] = useState<Date | null>(null);
 
@@ -320,7 +323,17 @@ function TrackerPage({ profileId, defaultIntervalDays }: TrackerProps) {
               Tap on a date to start tracking.
             </p>
           </div>
-          <ProfileButton />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowImport(true)}
+              className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#a98559] px-4 text-sm font-bold text-white shadow-sm outline-none transition hover:bg-[#80633e] focus-visible:ring-2 focus-visible:ring-[#6b3817] focus-visible:ring-offset-2"
+            >
+              <FolderUp className="h-7 w-7" strokeWidth={2.25} aria-hidden="true" />
+              Import records
+            </button>
+            <ProfileButton />
+          </div>
         </header>
 
         {errors.map((message) => (
@@ -447,6 +460,17 @@ function TrackerPage({ profileId, defaultIntervalDays }: TrackerProps) {
         <SupplyHistorySheet
           rows={supplyHistory(entries)}
           onClose={() => setShowSupplyHistory(false)}
+        />
+      )}
+
+      {showImport && (
+        <ImportRecordsFlow
+          profileId={profileId}
+          entries={entries}
+          onClose={() => setShowImport(false)}
+          // A no-op mutation still re-reads the authoritative ledger, so newly
+          // persisted import events appear in the calendar without a reload.
+          onPersisted={() => mutate((current) => current)}
         />
       )}
     </div>
