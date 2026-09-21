@@ -14,11 +14,20 @@ import { fromKey, shortDate } from "@/lib/tracker-dates";
 export type DoseAmount =
   { source: "pending" } | { source: "routine" } | { source: "custom"; vials: number };
 
+/** Whether a bleed started on its own or followed an injury. */
+export type BleedNature = "spontaneous" | "traumatic";
+
+export const BLEED_NATURE_LABEL: Record<BleedNature, string> = {
+  spontaneous: "Spontaneous",
+  traumatic: "Traumatic",
+};
+
 export type TrackerEntry =
   | { id: number; kind: "refill"; vials: number }
   /** The planned preventative dose. Amount always comes from the routine. */
   | { id: number; kind: "prophylaxis" }
-  | { id: number; kind: "on-demand"; vials: number }
+  /** `nature` is unset on entries logged before it was asked. */
+  | { id: number; kind: "on-demand"; vials: number; nature?: BleedNature }
   | { id: number; kind: "follow-up"; vials: number }
   /** The dose that made up for a missed one, filed on the day it was taken. */
   | { id: number; kind: "makeup"; missedDateKey: string; amount: DoseAmount }
@@ -71,7 +80,9 @@ export function entryDetail(entry: TrackerEntry, routineVials: number | undefine
         ? `Regular prophylaxis use — ${vialLabel(routineVials)}`
         : "Regular prophylaxis use";
     case "on-demand":
-      return `On-demand use — ${vialLabel(entry.vials)}`;
+      return entry.nature
+        ? `On-demand use (${entry.nature} bleed) — ${vialLabel(entry.vials)}`
+        : `On-demand use — ${vialLabel(entry.vials)}`;
     case "follow-up":
       return `Follow-up use after a bleed — ${vialLabel(entry.vials)}`;
     case "makeup":

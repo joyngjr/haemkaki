@@ -122,6 +122,7 @@ export type ApiEntryWrite = {
   id: number;
   kind: ApiEntryKind;
   vials?: number | null;
+  bleed_nature?: "spontaneous" | "traumatic" | null;
   missed_status?: "awaiting" | "skipped" | "taken" | null;
   taken_date?: string | null;
   missed_date?: string | null;

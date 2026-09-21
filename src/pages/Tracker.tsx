@@ -34,6 +34,7 @@ import {
   scheduleDoseDate,
   supplyHistory,
   totalFactorSupply,
+  type BleedNature,
   type DoseAmount,
   type TrackerEntry,
 } from "@/lib/tracker-entries";
@@ -233,6 +234,7 @@ function TrackerView({
     prophylaxis: dayEntries.some((entry) => entry.kind === "prophylaxis"),
     "on-demand": dayEntries.find((entry) => entry.kind === "on-demand")?.vials,
     "follow-up": dayEntries.find((entry) => entry.kind === "follow-up")?.vials,
+    onDemandNature: dayEntries.find((entry) => entry.kind === "on-demand")?.nature,
   };
 
   function saveProphylaxis() {
@@ -246,9 +248,9 @@ function TrackerView({
     ]);
   }
 
-  function saveCountedUse(kind: "on-demand" | "follow-up", vials: number) {
+  function saveCountedUse(kind: "on-demand" | "follow-up", vials: number, nature?: BleedNature) {
     if (!selectedKey) return;
-    putEntry(selectedKey, { id: Date.now(), kind, vials }, [
+    putEntry(selectedKey, { id: Date.now(), kind, vials, ...(nature ? { nature } : {}) }, [
       "prophylaxis",
       "on-demand",
       "follow-up",

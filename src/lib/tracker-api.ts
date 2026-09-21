@@ -28,9 +28,15 @@ function amountFromApi(entry: ApiEntry): DoseAmount | undefined {
 export function entryToApi(entry: TrackerEntry): ApiEntryWrite {
   switch (entry.kind) {
     case "refill":
-    case "on-demand":
     case "follow-up":
       return { id: entry.id, kind: entry.kind, vials: entry.vials };
+    case "on-demand":
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        vials: entry.vials,
+        bleed_nature: entry.nature ?? null,
+      };
     case "prophylaxis":
       return { id: entry.id, kind: entry.kind };
     case "makeup":
@@ -55,9 +61,17 @@ export function entryToApi(entry: TrackerEntry): ApiEntryWrite {
 export function entryFromApi(entry: ApiEntry): TrackerEntry | undefined {
   switch (entry.kind) {
     case "refill":
-    case "on-demand":
     case "follow-up":
       return entry.vials ? { id: entry.id, kind: entry.kind, vials: entry.vials } : undefined;
+    case "on-demand":
+      return entry.vials
+        ? {
+            id: entry.id,
+            kind: "on-demand",
+            vials: entry.vials,
+            ...(entry.bleed_nature ? { nature: entry.bleed_nature } : {}),
+          }
+        : undefined;
     case "prophylaxis":
       return { id: entry.id, kind: "prophylaxis" };
     case "makeup":
