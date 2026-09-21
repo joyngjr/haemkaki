@@ -1,16 +1,21 @@
 /**
- * Home's data contracts and its demo data.
+ * Home's data contracts, and the one function that builds them.
  *
- * Home is still driven by `createHomeMockData` — the API behind `@/lib/api`
- * has no columns for next-dose timing, half-life, supplies or a log ledger, so
- * wiring Home to a real profile would show a half-empty screen. Replace
- * `createHomeMockData` (and nothing else) when those land.
+ * `buildHomeData` derives everything Home shows from the active profile and
+ * the folded `/users/{id}/status`. Nothing is seeded and nothing is overlaid:
+ * before the status arrives the timings are simply absent and the hero says
+ * "not enough information", and with no profile at all Home shows nobody
+ * rather than a demo person.
+ *
+ * Two things are still demo content because nothing collects or stores them,
+ * and they are marked at their definitions rather than left to look real:
+ * `factorHalfLifeHours` and `dailyTip`.
  */
 
-import type { DoseState, StockState } from "@/components/platelet/Platelet";
-import type { Profile } from "@/lib/api";
+import type { DoseState } from "@/components/platelet/Platelet";
+import type { Profile, Status } from "@/lib/api";
 
-export type { DoseState, StockState };
+export type { DoseState };
 
 export interface HomeUser {
   firstName: string;
@@ -23,15 +28,21 @@ export interface TreatmentStatus {
   lastDoseAt?: string;
   /** ISO timestamp of the next scheduled prophylactic dose. */
   nextDoseAt?: string;
+  /**
+   * DEMO DATA. Nothing collects this — the onboarding form records a dose in
+   * IU and no half-life — so it is a textbook figure, not this patient's. It
+   * only positions the marker on the Activity card's bar.
+   */
   factorHalfLifeHours: number;
   /**
-   * Estimated days of prophylactic protection from the treatment schedule.
-   * NOT inventory coverage — Inventory may separately expose
-   * estimatedDosesRemaining / estimatedSupplyDays.
+   * Whole days until the next scheduled dose; 0 means it is due today. This is
+   * schedule cover, NOT inventory cover — the tracker shows days of supply.
    */
   estimatedProtectionDays?: number;
   medicationName?: string;
   prescribedDose?: string;
+  /** Whether a routine has been set up. Undefined until the status has loaded. */
+  hasSchedule?: boolean;
 }
 
 export interface CoverStatus {
@@ -42,38 +53,13 @@ export interface CoverStatus {
 }
 
 export interface ActivityStatus {
-  hasLoggedBleed?: boolean;
+  /** An on-demand dose within {@link RECENT_BLEED_DAYS} of today. */
+  hasLoggedBleed: boolean;
+  /** ISO timestamp (start of day, Singapore) of the most recent on-demand dose. */
   lastBleedAt?: string;
-  recentBleedLocation?: string;
 }
 
-export interface MedicationStock {
-  label: string;
-  remaining: number;
-  unit: string;
-  state: StockState;
-  estimatedDosesRemaining?: number;
-  estimatedSupplyDays?: number;
-}
-
-export interface SupplyItem {
-  id: string;
-  label: string;
-  remaining: number;
-  unit: string;
-}
-
-export type LogEntryType = "dose" | "bleed" | "stock";
-
-export interface LogEntry {
-  id: string;
-  type: LogEntryType;
-  title: string;
-  detail?: string;
-  /** ISO timestamp. */
-  occurredAt: string;
-}
-
+/** DEMO DATA. There is no tip content source and no clinical review process. */
 export interface DailyTipData {
   id: string;
   title: string;
@@ -84,29 +70,47 @@ export interface DailyTipData {
   clinicalReviewStatus?: "pending" | "reviewed";
 }
 
-export type DataLoadState = "loading" | "loaded" | "empty" | "unavailable";
-
 export interface HomeDashboardData {
   user: HomeUser;
-  treatmentStatus: TreatmentStatus | null;
+  treatmentStatus: TreatmentStatus;
   activityStatus: ActivityStatus;
-  medicationStock: MedicationStock;
-  supplyStock: SupplyItem[];
-  recentLogs: LogEntry[];
   dailyTip: DailyTipData;
-  inventoryState?: DataLoadState;
-  recentActivityState?: DataLoadState;
+  /** When the folded status was last fetched. Absent until it has been. */
   lastUpdatedAt?: string;
 }
 
 export interface AdministerDosePayload {
-  medicationName: string;
-  /** Amount actually administered for this event; never the configured regimen. */
-  administeredDose?: string;
-  administeredAt: string;
+  /** The Singapore calendar day the dose was taken, as `YYYY-MM-DD`. */
+  takenOn: string;
+}
+
+export interface MoveDosePayload {
+  /** The Singapore calendar day the next planned dose should move to, as `YYYY-MM-DD`. */
+  movedTo: string;
 }
 
 export type SaveResult = { ok: true } | { ok: false; message?: string };
+
+/**
+ * PROTOTYPE threshold: how many days an on-demand dose keeps Home in its
+ * "recent bleed" state. On-demand use is the app's own marker for a treated
+ * bleed — it is what the tracker draws the blood drop for.
+ */
+export const RECENT_BLEED_DAYS = 3;
+
+/** DEMO DATA — see `TreatmentStatus.factorHalfLifeHours`. */
+const DEMO_HALF_LIFE_HOURS = 24;
+
+/** DEMO DATA. One fixed tip until there is a reviewed content source. */
+export const DAILY_TIP: DailyTipData = {
+  id: "tip-keep-records-current",
+  title: "Keep your records current",
+  body: "Recording changes when they happen can make your next care conversation easier.",
+  sourceLabel: "HaemKakis demo content",
+  clinicalReviewStatus: "pending",
+};
+
+const DAY = 86_400_000;
 
 /** The greeting wants "Sam", not "Sam Tan". */
 function firstNameOf(name: string): string {
@@ -114,17 +118,6 @@ function firstNameOf(name: string): string {
   return first || name;
 }
 
-/**
- * Overlay the fields the API actually returns onto Home's demo data.
- *
- * `Profile` is the source of truth for who this is, how much factor is in them
- * and how many vials are at home — which between them is everything the hero
- * scene draws. Dose timings, supplies and the log ledger have no columns yet,
- * so those stay demo data until they do.
- *
- * This is an overlay rather than a replacement so a profile switch re-seeds the
- * screen without discarding anything the API cannot yet store.
- */
 function trackedProductLabel(profile: Profile): string {
   const diagnosis = profile.clinical_profile?.diagnosis;
   if (diagnosis === "factor_xi_deficiency") return "Factor XI";
@@ -133,85 +126,77 @@ function trackedProductLabel(profile: Profile): string {
   return `Factor ${profile.factor_type}`;
 }
 
-export function applyProfile(data: HomeDashboardData, profile: Profile): HomeDashboardData {
-  const medicationName = trackedProductLabel(profile);
-  return {
-    ...data,
-    user: { firstName: firstNameOf(profile.name) },
-    treatmentStatus: data.treatmentStatus
-      ? { ...data.treatmentStatus, dose: profile.dose_state, medicationName }
-      : null,
-    medicationStock: {
-      ...data.medicationStock,
-      label: medicationName,
-      remaining: profile.vials_on_hand,
-      state: profile.stock_state,
-      estimatedSupplyDays: profile.days_cover,
-    },
+/**
+ * A ledger day as an instant: midnight in Singapore on that date.
+ *
+ * The ledger records the day a dose was taken, never the minute. Pinning the
+ * instant to Singapore rather than the browser's zone keeps "today" the same
+ * day the tracker calendar shows, whichever laptop the demo runs on, and lets
+ * `home-format` recognise it as day-only and hide the "12:00 am".
+ */
+export function atStartOfSingaporeDay(dateKey: string): string {
+  return new Date(`${dateKey}T00:00:00+08:00`).toISOString();
+}
+
+/** Whole days from one day key to another; negative when `to` is earlier. */
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
+}
+
+export interface HomeDataOptions {
+  /** When `status` was fetched. */
+  fetchedAt?: string;
+}
+
+/**
+ * Everything Home shows, from what the API actually knows.
+ *
+ * `status` is null until the fold has been fetched for this profile; the
+ * profile row alone still gives the name, the factor and the dose state.
+ */
+export function buildHomeData(
+  profile: Profile,
+  status: Status | null,
+  now: Date,
+  options: HomeDataOptions = {},
+): HomeDashboardData {
+  const prophylaxis = profile.clinical_profile?.prophylactic_medication ?? null;
+  const prescribedDose =
+    prophylaxis?.dose && prophylaxis.unit ? `${prophylaxis.dose} ${prophylaxis.unit}` : undefined;
+  const medicationName = prophylaxis?.name.trim() || trackedProductLabel(profile);
+
+  const nextDoseAt = status?.next_dose ? atStartOfSingaporeDay(status.next_dose.on) : undefined;
+  // Ceiling, so a dose due at the start of the day after tomorrow reads as
+  // "2 days" this afternoon; anything already due reads as 0.
+  const protectionDays = nextDoseAt
+    ? Math.max(0, Math.ceil((Date.parse(nextDoseAt) - now.getTime()) / DAY))
+    : undefined;
+
+  const treatmentStatus: TreatmentStatus = {
+    dose: status?.dose_state ?? profile.dose_state,
+    factorHalfLifeHours: DEMO_HALF_LIFE_HOURS,
+    medicationName,
+    ...(prescribedDose ? { prescribedDose } : {}),
+    ...(status?.last_dose_on ? { lastDoseAt: atStartOfSingaporeDay(status.last_dose_on) } : {}),
+    ...(nextDoseAt ? { nextDoseAt } : {}),
+    ...(protectionDays !== undefined ? { estimatedProtectionDays: protectionDays } : {}),
+    ...(status ? { hasSchedule: status.schedule !== null } : {}),
   };
-}
 
-/** Stock derivation — replaceable by the Inventory owner's real model. */
-const STOCK_THRESHOLDS = { moderate: 5, low: 3 } as const;
+  const lastBleedOn = status?.last_bleed_on ?? null;
+  const activityStatus: ActivityStatus = {
+    hasLoggedBleed:
+      status !== null &&
+      lastBleedOn !== null &&
+      daysBetween(lastBleedOn, status.as_of) <= RECENT_BLEED_DAYS,
+    ...(lastBleedOn ? { lastBleedAt: atStartOfSingaporeDay(lastBleedOn) } : {}),
+  };
 
-export function deriveStockState(vialsOnHand: number): StockState {
-  if (vialsOnHand <= STOCK_THRESHOLDS.low) return "low";
-  if (vialsOnHand < STOCK_THRESHOLDS.moderate) return "moderate";
-  return "wellStocked";
-}
-
-const HOUR = 3_600_000;
-
-export function createHomeMockData(now: Date = new Date()): HomeDashboardData {
-  const t = now.getTime();
-  const iso = (offsetHours: number) => new Date(t + offsetHours * HOUR).toISOString();
   return {
-    user: { firstName: "Sam" },
-    treatmentStatus: {
-      dose: "covered",
-      lastDoseAt: iso(-18),
-      nextDoseAt: iso(30),
-      factorHalfLifeHours: 24,
-      estimatedProtectionDays: 2.5,
-      medicationName: "Factor VIII",
-      prescribedDose: "2,000 IU",
-    },
-    activityStatus: { hasLoggedBleed: false },
-    medicationStock: {
-      label: "Factor VIII",
-      remaining: 6,
-      unit: "vials",
-      state: "wellStocked",
-      estimatedDosesRemaining: 3,
-    },
-    supplyStock: [
-      { id: "syringes", label: "Syringes", remaining: 12, unit: "left" },
-      { id: "saline", label: "Normal saline", remaining: 8, unit: "ampoules" },
-      { id: "swabs", label: "Alcohol swabs", remaining: 24, unit: "left" },
-    ],
-    recentLogs: [
-      {
-        id: "log-1",
-        type: "dose",
-        title: "Prophylactic dose",
-        detail: "2,000 IU",
-        occurredAt: iso(-18),
-      },
-      { id: "log-2", type: "bleed", title: "Bleed recorded", occurredAt: iso(-62) },
-      {
-        id: "log-3",
-        type: "stock",
-        title: "Factor stock added",
-        detail: "+6 vials",
-        occurredAt: iso(-160),
-      },
-    ],
-    dailyTip: {
-      id: "tip-rotate-sites",
-      title: "Keep your records current",
-      body: "Recording changes when they happen can make your next care conversation easier.",
-      sourceLabel: "HaemKakis demo content",
-      clinicalReviewStatus: "pending",
-    },
+    user: { firstName: firstNameOf(profile.name) },
+    treatmentStatus,
+    activityStatus,
+    dailyTip: DAILY_TIP,
+    ...(options.fetchedAt ? { lastUpdatedAt: options.fetchedAt } : {}),
   };
 }

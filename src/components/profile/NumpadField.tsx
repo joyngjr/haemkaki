@@ -141,7 +141,7 @@ export function NumpadField({
                 type="button"
                 aria-label="Close number pad"
                 onClick={() => setOpen(false)}
-                className="absolute inset-0 bg-sand-950/45"
+                className="absolute inset-0 bg-sand-900/45"
               />
               <div
                 role="dialog"

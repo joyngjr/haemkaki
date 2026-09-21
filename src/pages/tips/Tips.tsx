@@ -1,13 +1,8 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TipCard, type TipCardData } from "@/components/tips/TipCard";
-import {
-  CommunityIcon,
-  FindMedicalHelpIcon,
-  InjectionGuideIcon,
-  MedicalIdIcon,
-} from "@/components/tips/TipIcons";
+import { FindMedicalHelpIcon, InjectionGuideIcon, MedicalIdIcon } from "@/components/tips/TipIcons";
 
-/** The entries in the 2x2 grid. Adding a tip means adding a card and a route. */
+/** The entries in the grid. Adding a tip means adding a card and a route. */
 const tipCards: TipCardData[] = [
   {
     to: "/tips/medical-id",
@@ -35,15 +30,8 @@ const tipCards: TipCardData[] = [
     iconBg: "bg-transparent",
     arrowBg: "bg-green-200",
     icon: <FindMedicalHelpIcon />,
-  },
-  {
-    to: "/tips/community",
-    title: "Community",
-    description: "Connect, ask and share with others.",
-    bg: "bg-purple-100",
-    iconBg: "bg-transparent",
-    arrowBg: "bg-purple-200",
-    icon: <CommunityIcon />,
+    // Three cards in two columns: the last one takes the full row.
+    wide: true,
   },
 ];
 

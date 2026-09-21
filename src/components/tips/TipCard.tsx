@@ -12,6 +12,8 @@ export type TipCardData = {
   arrowBg: string;
   /** One of the exports from ./TipIcons. */
   icon: React.ReactNode;
+  /** Span both columns of the grid. */
+  wide?: boolean;
 };
 
 /** One tile in the 2x2 grid on the Tips index. */
@@ -19,7 +21,7 @@ export function TipCard({ card }: { card: TipCardData }) {
   return (
     <Link
       to={card.to}
-      className={`${card.bg} rounded-[28px] p-5 shadow-lg flex flex-col justify-between min-h-[170px] transition-transform active:scale-95`}
+      className={`${card.bg} ${card.wide ? "col-span-2" : ""} rounded-[28px] p-5 shadow-lg flex flex-col justify-between min-h-[170px] transition-transform active:scale-95`}
     >
       <div className={`${card.iconBg} h-12 w-12 rounded-xl flex items-center justify-center`}>
         {card.icon}

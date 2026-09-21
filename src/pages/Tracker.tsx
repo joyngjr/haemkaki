@@ -7,105 +7,135 @@ import { FactorUseFlow, type SavedUse } from "@/components/tracker/FactorUseFlow
 import { InventoryCard } from "@/components/tracker/InventoryCard";
 import { MissedDoseFlow } from "@/components/tracker/MissedDoseFlow";
 import { MonthCalendar } from "@/components/tracker/MonthCalendar";
+import { MoveDoseFlow } from "@/components/tracker/MoveDoseFlow";
+import { PlanAheadCard } from "@/components/tracker/PlanAheadCard";
 import { RefillSheet } from "@/components/tracker/RefillSheet";
 import { RoutineCard } from "@/components/tracker/RoutineCard";
 import { SavedEntriesPanel } from "@/components/tracker/SavedEntriesPanel";
-import { useRoutine, type RoutineProps } from "@/components/tracker/useRoutine";
-import { getSingaporeToday, isScheduledProphylaxisDate, toKey } from "@/lib/tracker-dates";
+import { ScheduleShiftPrompt } from "@/components/tracker/ScheduleShiftPrompt";
+import { useLedger } from "@/components/tracker/useLedger";
+import { usePlans } from "@/components/tracker/usePlans";
+import { useSchedule } from "@/components/tracker/useSchedule";
+import { useStatus } from "@/components/tracker/useStatus";
 import {
-  latestDoseDate,
+  frequencyOf,
+  frequencyToApi,
+  fromKey,
+  getSingaporeToday,
+  monthGridRange,
+  shiftedFrequency,
+  toKey,
+} from "@/lib/tracker-dates";
+import {
+  recordProphylaxis,
   supplyHistory,
-  totalFactorSupply,
-  withRoutineStartDose,
+  withEntry,
   type DoseAmount,
   type EntryMap,
   type TrackerEntry,
 } from "@/lib/tracker-entries";
+import { useProfiles } from "@/state/profile-context";
 
-type TrackerProps = RoutineProps & {
-  /** Minimum factor supply buffer, in vials, set during profile creation. Undefined until that flow exists. */
-  minimumFactorSupplyVials?: number;
+type TrackerProps = {
+  /** Whose ledger to load. Undefined before any profile exists; the page then reads empty. */
+  profileId?: number;
+  /** Prefills a first routine's interval from the onboarding form's "times per week". */
+  defaultIntervalDays?: number;
 };
 
+/** The doses a routine is counted from: a planned dose taken, or one made up later. */
+const ROUTINE_DOSE_KINDS = new Set<TrackerEntry["kind"]>(["prophylaxis", "makeup"]);
+
 /**
- * The calendar, the supply summary, the routine, and the sheets for logging a
- * day. State lives here; every card and sheet is a component under
+ * The calendar, the supply summary, the routine, the plans, and the sheets
+ * for logging a day. Every card and sheet is a component under
  * `@/components/tracker`.
  *
- * Entries are held in memory only — nothing is persisted yet, and the routine
- * props are unset until the profile-creation flow lands.
+ * Four hooks own the data and nothing is derived in the page:
+ * `useLedger` for the entries (with what the API charged for each),
+ * `useSchedule` for the routine and the doses it plans in the visible grid,
+ * `usePlans` for the temporary changes to it, and `useStatus` for the fold —
+ * vials on hand, the run-out date and the order advice — re-read whenever
+ * any of the other three writes.
  */
-export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerProps = {}) {
+function TrackerPage({ profileId, defaultIntervalDays }: TrackerProps) {
   const today = useMemo(() => getSingaporeToday(), []);
-  const { routine, setVials, setIntervalDays, setStartDate } = useRoutine(routineProps);
-
   const [viewMonth, setViewMonth] = useState(today);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [flow, setFlow] = useState<DayFlow | null>(null);
   /** Set when a Factor Use flow was reopened from an existing entry. */
   const [editingUseType, setEditingUseType] = useState<"on-demand" | "follow-up" | null>(null);
-  const [stored, setStored] = useState<EntryMap>({});
   const [showSupplyHistory, setShowSupplyHistory] = useState(false);
+  /** An off-cycle dose the user just logged; the prompt offers to restart the routine from it. */
+  const [shiftFrom, setShiftFrom] = useState<Date | null>(null);
 
-  // The routine's own start date implies a dose; it is derived rather than
-  // written so editing the routine can't strand a stale entry.
-  const entries = useMemo(
-    () => withRoutineStartDose(stored, routine.startDate, today),
-    [stored, routine.startDate, today],
+  const { entries, mutate, version: ledgerVersion, error: ledgerError } = useLedger(profileId);
+  const range = useMemo(() => monthGridRange(viewMonth), [viewMonth]);
+  const plans = usePlans(profileId);
+  // The planned doses follow the plans, so a plan write re-reads the window.
+  const schedule = useSchedule(profileId, range, plans.version);
+  const { status, error: statusError } = useStatus(
+    profileId,
+    ledgerVersion + schedule.version + plans.version,
   );
+  const routineFrequency = schedule.series ? frequencyOf(schedule.series) : undefined;
 
   const selectedKey = selectedDate ? toKey(selectedDate) : null;
   const dayEntries = selectedKey ? (entries[selectedKey] ?? []) : [];
   const isFutureDate = Boolean(selectedDate && selectedDate.getTime() > today.getTime());
+  const isPastDate = Boolean(selectedDate && selectedDate.getTime() < today.getTime());
+  const plannedOnSelected = selectedKey ? schedule.occurrences[selectedKey] : undefined;
+  // A planned dose can be moved until its day is settled — by a logged dose or
+  // a missed-dose record — and a day that has passed cannot be planned again.
+  // A plan's dose follows the plan and is not offered.
+  const canMovePlanned =
+    Boolean(plannedOnSelected && plannedOnSelected.schedule_id !== null) &&
+    !isPastDate &&
+    dayEntries.every((entry) => entry.kind === "refill");
 
-  const factorSupply = totalFactorSupply(entries, routine.vials);
-  const isFactorSupplyLow =
-    minimumFactorSupplyVials !== undefined && factorSupply <= minimumFactorSupplyVials;
-  const scheduleAnchorDate = useMemo(
-    () => latestDoseDate(entries, routine.startDate),
-    [entries, routine.startDate],
+  const errors = [ledgerError, schedule.error, statusError].filter((message): message is string =>
+    Boolean(message),
   );
-
-  // Orders are placed a week before the month they cover.
-  const nextOrderDate = useMemo(() => {
-    const date = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-    date.setDate(date.getDate() - 7);
-    return date;
-  }, [today]);
-  const daysToNextOrder = Math.round(
-    (nextOrderDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
-  );
-
-  const recommendedOrderVials = useMemo(() => {
-    if (!routine.vials || !routine.intervalDays || !scheduleAnchorDate) return undefined;
-    if (minimumFactorSupplyVials === undefined) return undefined;
-    const monthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-    let plannedDoses = 0;
-    for (const day = new Date(monthStart); day <= monthEnd; day.setDate(day.getDate() + 1)) {
-      if (isScheduledProphylaxisDate(day, scheduleAnchorDate, routine.intervalDays)) plannedDoses++;
-    }
-    return Math.max(0, plannedDoses * routine.vials + minimumFactorSupplyVials - factorSupply);
-  }, [
-    routine.vials,
-    routine.intervalDays,
-    scheduleAnchorDate,
-    minimumFactorSupplyVials,
-    factorSupply,
-    today,
-  ]);
 
   /** Replace the entries on one day. */
   function updateDay(dateKey: string, update: (current: TrackerEntry[]) => TrackerEntry[]) {
-    setStored((current) => ({ ...current, [dateKey]: update(entries[dateKey] ?? []) }));
+    mutate((current) => ({ ...current, [dateKey]: update(current[dateKey] ?? []) }));
   }
 
   /** Add an entry, replacing any existing one of the same kinds. */
   function putEntry(dateKey: string, entry: TrackerEntry, replaces: TrackerEntry["kind"][]) {
-    updateDay(dateKey, (current) => [
-      ...current.filter((item) => !replaces.includes(item.kind)),
-      entry,
-    ]);
+    mutate((current) => withEntry(current, dateKey, entry, replaces));
+  }
+
+  /**
+   * After a routine-sized dose lands on `dateKey`: if nothing was planned
+   * there, no plan covers the day, and no later routine dose is on record,
+   * offer to count the cycle from this dose instead. Backfilled history is
+   * left alone — only the latest dose can put a routine off its cycle.
+   */
+  function considerShift(dateKey: string, ledger: EntryMap) {
+    if (!schedule.series || !routineFrequency) return;
+    if (dateKey < schedule.series.start_on) return;
+    if (dateKey < range.since || dateKey > range.until) return;
+    if (schedule.occurrences[dateKey]) return;
+    if (plans.plans.some((plan) => plan.startKey <= dateKey && dateKey <= plan.endKey)) return;
+    const laterDose = Object.entries(ledger).some(
+      ([key, dayEntries]) =>
+        key > dateKey && dayEntries.some((entry) => ROUTINE_DOSE_KINDS.has(entry.kind)),
+    );
+    if (!laterDose) setShiftFrom(fromKey(dateKey));
+  }
+
+  /** "Shift all future doses": a new series counted from the off-cycle dose. */
+  async function answerShift(shift: boolean) {
+    const from = shiftFrom;
+    setShiftFrom(null);
+    if (!shift || !from || !schedule.series || !routineFrequency) return;
+    await schedule.replace({
+      start_on: toKey(from),
+      ...frequencyToApi(shiftedFrequency(routineFrequency, from)),
+      vials: schedule.series.vials,
+    });
   }
 
   function closeFlows() {
@@ -140,13 +170,11 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
 
   function saveProphylaxis() {
     if (!selectedKey) return;
-    // A confirmed dose supersedes any "Missed Dose" record for the same day.
-    putEntry(selectedKey, { id: Date.now(), kind: "prophylaxis" }, [
-      "prophylaxis",
-      "on-demand",
-      "follow-up",
-      "missed",
-    ]);
+    // The same rule Home's "Taken" button applies: a confirmed dose supersedes
+    // any "Missed Dose" record for the same day.
+    const dateKey = selectedKey;
+    mutate((current) => recordProphylaxis(current, dateKey, Date.now()));
+    considerShift(dateKey, entries);
   }
 
   function saveCountedUse(kind: "on-demand" | "follow-up", vials: number) {
@@ -179,9 +207,9 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
   /** Drop the made-up dose a missed entry points at, wherever it was filed. */
   function clearMakeup(missedDateKey: string, takenDateKey: string | undefined) {
     if (!takenDateKey) return;
-    setStored((current) => ({
+    mutate((current) => ({
       ...current,
-      [takenDateKey]: (entries[takenDateKey] ?? []).filter(
+      [takenDateKey]: (current[takenDateKey] ?? []).filter(
         (entry) => !(entry.kind === "makeup" && entry.missedDateKey === missedDateKey),
       ),
     }));
@@ -194,10 +222,10 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
     const previousKey = missed?.kind === "missed" ? missed.takenDateKey : undefined;
     if (previousKey && previousKey !== takenKey) clearMakeup(selectedKey, previousKey);
     updateMissed((entry) => ({ ...entry, status: "taken", takenDateKey: takenKey }));
-    setStored((current) => ({
+    mutate((current) => ({
       ...current,
       [takenKey]: [
-        ...(entries[takenKey] ?? []).filter(
+        ...(current[takenKey] ?? []).filter(
           (entry) => !(entry.kind === "makeup" && entry.missedDateKey === selectedKey),
         ),
         {
@@ -216,15 +244,18 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
     const takenKey = missed?.kind === "missed" ? missed.takenDateKey : undefined;
     if (!takenKey) return;
     updateMissed((entry) => ({ ...entry, amount }));
-    setStored((current) => ({
+    mutate((current) => ({
       ...current,
-      [takenKey]: (entries[takenKey] ?? []).map((entry) =>
+      [takenKey]: (current[takenKey] ?? []).map((entry) =>
         entry.kind === "makeup" && entry.missedDateKey === selectedKey
           ? { ...entry, amount }
           : entry,
       ),
     }));
     closeFlows();
+    // The made-up dose is now complete, and it was taken on a day the routine
+    // did not plan — the same question as a prophylaxis dose logged off-cycle.
+    considerShift(takenKey, entries);
   }
 
   function missedSkipped() {
@@ -256,21 +287,23 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
     }
     if (entry.kind === "makeup") {
       // Deleting the made-up dose retracts the answer about the missed one too.
-      setStored((current) => ({
+      mutate((current) => ({
         ...current,
-        [entry.missedDateKey]: (entries[entry.missedDateKey] ?? []).filter(
+        [entry.missedDateKey]: (current[entry.missedDateKey] ?? []).filter(
           (item) => item.kind !== "missed",
         ),
       }));
     }
-    // The routine's start date is what puts a dose there, so clear it instead.
-    if (
-      entry.kind === "prophylaxis" &&
-      routine.startDate &&
-      selectedKey === toKey(routine.startDate)
-    ) {
-      setStartDate(undefined);
-    }
+  }
+
+  async function moveDose(date: Date) {
+    if (!plannedOnSelected) return;
+    if (await schedule.move(plannedOnSelected, toKey(date))) closeAll();
+  }
+
+  async function restoreDose() {
+    if (!plannedOnSelected) return;
+    if (await schedule.restore(plannedOnSelected)) closeAll();
   }
 
   return (
@@ -290,14 +323,22 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           <ProfileButton />
         </header>
 
+        {errors.map((message) => (
+          <p
+            key={message}
+            role="status"
+            className="mb-4 rounded-2xl border border-[#e7c3bf] bg-[#fdeceb] px-4 py-3 text-sm font-semibold text-[#9c3b34]"
+          >
+            {message}
+          </p>
+        ))}
+
         <MonthCalendar
           month={viewMonth}
           today={today}
           selectedDate={selectedDate}
           entries={entries}
-          scheduleAnchorDate={scheduleAnchorDate}
-          routineIntervalDays={routine.intervalDays}
-          routineStartDate={routine.startDate}
+          planned={schedule.occurrences}
           onMonthChange={setViewMonth}
           onSelectDate={(date) => {
             setSelectedDate(date);
@@ -306,23 +347,33 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
         />
 
         <FactorSupplyCard
-          vialsRemaining={factorSupply}
-          isLow={isFactorSupplyLow}
-          nextOrderDate={nextOrderDate}
-          isOrderNeededAsap={isFactorSupplyLow && daysToNextOrder > 0}
-          isNextOrderDateSoon={daysToNextOrder >= 0 && daysToNextOrder <= 3}
-          recommendedOrderVials={recommendedOrderVials}
+          vialsRemaining={status?.vials_on_hand ?? 0}
+          hasSchedule={Boolean(status?.schedule)}
+          runsOutOn={status?.runs_out_on ? fromKey(status.runs_out_on) : null}
+          order={status?.order ?? null}
+          isLoading={status === null}
           onShowHistory={() => setShowSupplyHistory(true)}
         />
 
-        <InventoryCard />
+        <InventoryCard profileId={profileId} />
 
         <RoutineCard
-          routine={routine}
+          series={schedule.series}
           today={today}
-          onIntervalDaysChange={setIntervalDays}
-          onVialsChange={setVials}
-          onStartDateChange={setStartDate}
+          defaultIntervalDays={defaultIntervalDays}
+          onReplace={schedule.replace}
+          onRemove={schedule.remove}
+        />
+
+        <PlanAheadCard
+          plans={plans.plans}
+          today={today}
+          routineFrequency={routineFrequency}
+          routineVials={schedule.series?.vials}
+          error={plans.error}
+          onAdd={plans.add}
+          onUpdate={plans.update}
+          onRemove={plans.remove}
         />
       </main>
 
@@ -331,16 +382,13 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           <DayActionsSheet
             date={selectedDate}
             isFuture={isFutureDate}
+            planned={plannedOnSelected}
+            canMovePlanned={canMovePlanned}
             activeFlow={flow}
             onPick={openFlow}
             onClose={closeAll}
           />
-          <SavedEntriesPanel
-            entries={dayEntries}
-            routineVials={routine.vials}
-            onEdit={editEntry}
-            onDelete={deleteEntry}
-          />
+          <SavedEntriesPanel entries={dayEntries} onEdit={editEntry} onDelete={deleteEntry} />
         </>
       )}
 
@@ -376,12 +424,63 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
         />
       )}
 
+      {selectedDate && flow === "move" && plannedOnSelected && (
+        <MoveDoseFlow
+          occurrence={plannedOnSelected}
+          today={today}
+          onMove={moveDose}
+          onRestore={restoreDose}
+          onBack={closeFlows}
+          onClose={closeAll}
+        />
+      )}
+
+      {shiftFrom && routineFrequency && (
+        <ScheduleShiftPrompt
+          doseDate={shiftFrom}
+          frequency={shiftedFrequency(routineFrequency, shiftFrom)}
+          onAnswer={(shift) => void answerShift(shift)}
+        />
+      )}
+
       {showSupplyHistory && (
         <SupplyHistorySheet
-          rows={supplyHistory(entries, routine.vials)}
+          rows={supplyHistory(entries)}
           onClose={() => setShowSupplyHistory(false)}
         />
       )}
     </div>
+  );
+}
+
+/* ===================================================================== */
+/* Tracker — the adapter between the page and the active profile         */
+/* ===================================================================== */
+
+/**
+ * "3 times per week" as a day interval, to prefill a first routine.
+ *
+ * Not exact, and cannot be: a 3x/week schedule really runs 2, 2, 3 days
+ * apart. The nearest whole day is what a cycle can draw, and never less than
+ * daily; the routine's frequency editor offers fixed weekdays for the exact
+ * version. The form stores the frequency as prose; the number leads it.
+ */
+function intervalDaysFromFrequency(frequency: string | undefined): number | undefined {
+  const perWeek = Number.parseFloat(frequency ?? "");
+  if (!Number.isFinite(perWeek) || perWeek <= 0) return undefined;
+  return Math.max(1, Math.round(7 / perWeek));
+}
+
+export function Tracker() {
+  const { activeProfile } = useProfiles();
+  const frequency = activeProfile?.clinical_profile?.prophylactic_medication?.frequency;
+  return (
+    <TrackerPage
+      // Remount on a profile switch: the page holds the selected day and any
+      // open sheet, and neither means anything for the person you just became.
+      key={activeProfile?.id ?? "none"}
+      profileId={activeProfile?.id}
+      defaultIntervalDays={intervalDaysFromFrequency(frequency)}
+    />
   );
 }

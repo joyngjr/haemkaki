@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 
 import { Platelet } from "@/components/platelet/Platelet";
-import { DAYS, isScheduledProphylaxisDate, monthGrid, toKey } from "@/lib/tracker-dates";
+import { DAYS, monthGrid, toKey } from "@/lib/tracker-dates";
 import type { EntryMap } from "@/lib/tracker-entries";
+
+import type { OccurrenceMap } from "./useSchedule";
 
 import { BleedDropIcon, ChevronLeftIcon, ChevronRightIcon } from "./TrackerIcons";
 
@@ -11,10 +13,8 @@ type MonthCalendarProps = {
   today: Date;
   selectedDate: Date | null;
   entries: EntryMap;
-  /** The dose the prophylaxis schedule counts forward from. */
-  scheduleAnchorDate: Date | undefined;
-  routineIntervalDays: number | undefined;
-  routineStartDate: Date | undefined;
+  /** The routine's planned doses for this grid, keyed by the day they sit on. */
+  planned: OccurrenceMap;
   onMonthChange: (month: Date) => void;
   onSelectDate: (date: Date) => void;
 };
@@ -27,9 +27,7 @@ export function MonthCalendar({
   today,
   selectedDate,
   entries,
-  scheduleAnchorDate,
-  routineIntervalDays,
-  routineStartDate,
+  planned,
   onMonthChange,
   onSelectDate,
 }: MonthCalendarProps) {
@@ -103,17 +101,10 @@ export function MonthCalendar({
             );
             const hasMissedDose = dayEntries.some((entry) => entry.kind === "missed");
             const hasBleed = dayEntries.some((entry) => entry.kind === "on-demand");
-            // A routine start date in the future is a plan, not a logged dose.
-            const isFutureRoutineStart = Boolean(
-              routineStartDate &&
-              key === toKey(routineStartDate) &&
-              routineStartDate.getTime() > today.getTime(),
-            );
-            const isPlanned =
-              !hasFactorUse &&
-              !hasMissedDose &&
-              (isScheduledProphylaxisDate(date, scheduleAnchorDate, routineIntervalDays) ||
-                isFutureRoutineStart);
+            // A planned dose shows until the day is settled by a logged dose
+            // or a missed-dose record. A moved dose gets a dashed ring.
+            const plannedDose = planned[key];
+            const isPlanned = !hasFactorUse && !hasMissedDose && Boolean(plannedDose);
             // The trailing week is shorter so the card doesn't end on empty space.
             const isLastRow = index >= days.length - 7;
             return (
@@ -137,8 +128,14 @@ export function MonthCalendar({
                     )}
                     {isPlanned && (
                       <i
-                        className={`h-2.5 w-2.5 rounded-full border-2 bg-transparent ${isSelected ? "border-white" : "border-[#8df5c0]"}`}
-                        aria-label="Planned prophylaxis dose"
+                        className={`h-2.5 w-2.5 rounded-full border-2 bg-transparent ${plannedDose?.moved ? "border-dashed" : ""} ${isSelected ? "border-white" : "border-[#8df5c0]"}`}
+                        aria-label={
+                          plannedDose?.moved
+                            ? "Planned dose, moved here"
+                            : plannedDose?.plan_id !== null
+                              ? "Planned dose from a plan"
+                              : "Planned prophylaxis dose"
+                        }
                       />
                     )}
                     {hasMissedDose && (

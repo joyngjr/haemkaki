@@ -2,8 +2,8 @@
  * Kaki — the Home screen's platelet mascot.
  *
  * Same geometry as `@/components/platelet/Platelet`, but tinted per
- * {@link DoseState} and animated, so the hero scene and the nav button read as
- * one character. `Platelet` stays the flat version the tracker calendar uses.
+ * {@link DoseState} and animated. `Platelet` stays the flat version the tracker
+ * calendar uses.
  */
 
 import {
@@ -12,7 +12,6 @@ import {
   type KakiPalette,
 } from "@/components/platelet/kaki-palette";
 import type { DoseState } from "@/components/platelet/Platelet";
-import { cn } from "@/lib/utils";
 
 const SPIKES: Record<DoseState, string[]> = {
   covered: [
@@ -50,7 +49,7 @@ const BODY: Record<DoseState, { strokeWidth: number; radius: number }> = {
   veryLow: { strokeWidth: 20, radius: 38 },
 };
 
-export { KAKI_BOB_DURATION, KAKI_PALETTE };
+export { KAKI_BOB_DURATION };
 
 function KakiFace({ state, palette }: { state: DoseState; palette: KakiPalette }) {
   const ink = palette.ink;
@@ -142,25 +141,5 @@ export function KakiBody({ state, palette }: { state: DoseState; palette?: KakiP
       </g>
       <KakiFace state={state} palette={colours} />
     </g>
-  );
-}
-
-const KAKI_LABELS: Record<DoseState, string> = {
-  covered: "Kaki looking cheerful — protection on track",
-  low: "Kaki looking calm — protection tapering",
-  veryLow: "Kaki looking attentive — dose needs attention",
-};
-
-/** Standalone Kaki for use outside the scene (nav button, list rows). */
-export function Kaki({ state, className }: { state: DoseState; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 200 200"
-      role="img"
-      aria-label={KAKI_LABELS[state]}
-      className={cn("h-auto w-full", className)}
-    >
-      <KakiBody state={state} />
-    </svg>
   );
 }

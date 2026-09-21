@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { api, type Profile, type ProfileDraft } from "@/lib/api";
 import { ProfileContext, type ProfileStatus } from "@/state/profile-context";
 
+/** An older build cached whole profiles under this prefix; only the API holds them now. */
 const LEGACY_PROFILE_PREFIX = "hackitrx.profileDetails.";
-const LEGACY_ACTIVE_KEY = "hackitrx.activeProfileId";
+/** Which household member the app is showing. The profiles themselves always come from the API. */
+const ACTIVE_KEY = "hackitrx.activeProfileId";
 
 function clearLegacyProfileStorage(): void {
   try {
@@ -12,15 +14,33 @@ function clearLegacyProfileStorage(): void {
       const key = window.localStorage.key(index);
       if (key?.startsWith(LEGACY_PROFILE_PREFIX)) window.localStorage.removeItem(key);
     }
-    window.localStorage.removeItem(LEGACY_ACTIVE_KEY);
   } catch {
     // Storage can be unavailable in private browsing. Nothing is written here.
   }
 }
 
+function readActiveId(): number | null {
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_KEY);
+    const id = raw === null ? Number.NaN : Number(raw);
+    return Number.isInteger(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveId(id: number | null): void {
+  try {
+    if (id === null) window.localStorage.removeItem(ACTIVE_KEY);
+    else window.localStorage.setItem(ACTIVE_KEY, String(id));
+  } catch {
+    // Selection then lasts for the session only, which is what it was before.
+  }
+}
+
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(readActiveId);
   const [status, setStatus] = useState<ProfileStatus>("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +81,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const selectProfile = useCallback((id: number) => {
     setActiveId(id);
+    writeActiveId(id);
   }, []);
 
   const createProfile = useCallback(
@@ -82,10 +103,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const deleteProfile = useCallback(async (id: number) => {
     await api.deleteProfile(id);
     setProfiles((current) => current.filter((profile) => profile.id !== id));
-    setActiveId((current) => (current === id ? null : current));
+    setActiveId((current) => {
+      if (current !== id) return current;
+      writeActiveId(null);
+      return null;
+    });
   }, []);
 
-  // Selection is session-only; profiles themselves always come from the API.
+  // The remembered id may belong to a profile deleted from another device;
+  // the first profile is the fallback, as it always was.
   const activeProfile = useMemo(
     () => profiles.find((p) => p.id === activeId) ?? profiles[0] ?? null,
     [profiles, activeId],
