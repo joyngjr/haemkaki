@@ -1,11 +1,6 @@
 import { createContext, useContext } from "react";
 
-import type {
-  AdministerDosePayload,
-  HomeDashboardData,
-  LogBleedPayload,
-  SaveResult,
-} from "@/lib/home-data";
+import type { AdministerDosePayload, HomeDashboardData, SaveResult } from "@/lib/home-data";
 
 export type HomeDataContextValue = {
   data: HomeDashboardData;
@@ -14,7 +9,7 @@ export type HomeDataContextValue = {
   /** True until the profile list resolves, so Home can hold the skeleton. */
   isLoading: boolean;
   administerDose: (payload: AdministerDosePayload) => Promise<SaveResult>;
-  logBleed: (payload: LogBleedPayload) => Promise<SaveResult>;
+  rescheduleDose: (scheduledAt: string) => void;
 };
 
 export const HomeDataContext = createContext<HomeDataContextValue | null>(null);

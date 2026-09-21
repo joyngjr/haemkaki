@@ -19,11 +19,15 @@ export type MedicationDetails = {
   unit: string;
   frequency: string;
   administration: string;
+  buffer_days: string;
+  /** Backward-compatible storage for sections containing more than one medication. */
+  items_json?: string;
 };
 
 export type ClinicalProfile = {
   diagnosis: DiagnosisType;
   sex: string;
+  weight_kg: number | null;
   date_of_birth: string | null;
   has_drug_allergies: boolean;
   drug_allergy_details: string | null;

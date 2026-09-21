@@ -222,7 +222,7 @@ WFH Table 6-2 provides population-level regimen examples for **standard-half-lif
     - _Option A (Weekly):_ **1.5 mg/kg once weekly**.
     - _Option B (Every 2 weeks):_ **3.0 mg/kg once every 2 weeks**.
     - _Option C (Every 4 weeks):_ **6.0 mg/kg once every 4 weeks**.
-  - _Pharmacokinetic Profile:_ Terminal half-life is ~28–30 days. WFH describes its haemostatic potential as roughly comparable to about 15 IU/dL FVIII, but this is **not a measured FVIII level**. Standard FVIII decay calculations and aPTT-based FVIII assays must not be applied to emicizumab.
+  - _Pharmacokinetic Profile:_ Terminal half-life is ~28–30 days. WFH describes its haemostatic potential as roughly comparable to about 15 IU/dL FVIII, but this is **not a measured FVIII level**. Standard FVIII decay calculations and aPTT-based FVIII assays must not be applied to emicizumab
 
 #### 4.1.6 Prophylaxis in Inhibitor Patients Using Bypassing Agents
 

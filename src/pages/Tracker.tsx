@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { ProfileButton } from "@/components/profile/ProfileButton";
 import { DayActionsSheet, type DayFlow } from "@/components/tracker/DayActionsSheet";
 import {
   FactorSupplyCard,
@@ -364,15 +365,18 @@ function TrackerView({
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#f8f0e2] px-3 py-4 pb-24 text-[#443229] sm:px-8 sm:py-10 sm:pb-24">
       <main className="mx-auto max-w-5xl">
-        <header className="mb-4 ml-3 mt-2 sm:mb-6 sm:ml-7 sm:mt-3">
-          <h1 className="text-[26px] font-bold tracking-tight text-[#6b3817] sm:text-[38px]">
-            Tracker
-          </h1>
-          <p className="mt-1 text-[14px] leading-[1.5] text-[#806d51] sm:mt-2 sm:text-[18px]">
-            Log doses and bleeds as they happen.
-            <br />
-            Tap on a date to start tracking.
-          </p>
+        <header className="mb-4 ml-3 mt-2 flex items-start justify-between gap-3 sm:mb-6 sm:ml-7 sm:mt-3">
+          <div className="min-w-0">
+            <h1 className="text-[26px] font-bold tracking-tight text-[#6b3817] sm:text-[38px]">
+              Tracker
+            </h1>
+            <p className="mt-1 text-[14px] leading-[1.5] text-[#806d51] sm:mt-2 sm:text-[18px]">
+              Log doses and bleeds as they happen.
+              <br />
+              Tap on a date to start tracking.
+            </p>
+          </div>
+          <ProfileButton />
         </header>
 
         {data.error && (
