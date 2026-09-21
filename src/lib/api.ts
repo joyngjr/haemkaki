@@ -96,6 +96,60 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
 
+/** How often prophylaxis is due, as the backend stores it. Mirrors `Frequency` in tracker-dates. */
+export type ApiFrequency = { unit: "days"; days: number } | { unit: "week"; weekdays: number[] };
+
+/** A profile's usual routine. Every field is null until it has been set. */
+export type ApiRoutine = {
+  vials: number | null;
+  frequency: ApiFrequency | null;
+  /** `YYYY-MM-DD` */
+  start_date: string | null;
+};
+
+/** A field left out is untouched; an explicit null clears it. */
+export type ApiRoutineUpdate = Partial<ApiRoutine>;
+
+export type ApiEntryKind =
+  "refill" | "prophylaxis" | "on-demand" | "follow-up" | "makeup" | "missed";
+
+/** One tracker entry. Which fields apply depends on `kind`; see `tracker-api.ts`. */
+export type ApiEntryWrite = {
+  id: number;
+  kind: ApiEntryKind;
+  vials?: number | null;
+  missed_status?: "awaiting" | "skipped" | "taken" | null;
+  taken_date?: string | null;
+  missed_date?: string | null;
+  amount_source?: "pending" | "routine" | "custom" | null;
+  amount_vials?: number | null;
+};
+
+export type ApiEntry = ApiEntryWrite & {
+  /** The day the entry is filed under, `YYYY-MM-DD`. */
+  day: string;
+};
+
+/** The user's answers to "shift future doses?", by entry id. All null before any answer. */
+export type ApiShift = {
+  anchor_id: number | null;
+  handled_id: number | null;
+  weekday_offset: number;
+};
+
+export type ApiPlan = {
+  id: number;
+  /** `YYYY-MM-DD`, inclusive */
+  start_date: string;
+  end_date: string;
+  frequency: ApiFrequency | null;
+  vials: number | null;
+};
+
+export type ApiInventoryItem = { id: string; name: string; quantity: number };
+
+export type ApiInventory = { visible: boolean; items: ApiInventoryItem[] };
+
 export const api = {
   listProfiles: () => request<Profile[]>("/users"),
   createProfile: (draft: ProfileDraft) =>
@@ -103,4 +157,33 @@ export const api = {
   updateProfile: (id: number, patch: Partial<ProfileDraft>) =>
     request<Profile>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteProfile: (id: number) => request<void>(`/users/${id}`, { method: "DELETE" }),
+
+  getRoutine: (userId: number) => request<ApiRoutine>(`/users/${userId}/routine`),
+  updateRoutine: (userId: number, patch: ApiRoutineUpdate) =>
+    request<ApiRoutine>(`/users/${userId}/routine`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  listEntries: (userId: number) => request<ApiEntry[]>(`/users/${userId}/entries`),
+  /** Make one day hold exactly these entries; an empty list clears it. */
+  replaceDay: (userId: number, day: string, entries: ApiEntryWrite[]) =>
+    request<ApiEntry[]>(`/users/${userId}/entries/${day}`, {
+      method: "PUT",
+      body: JSON.stringify(entries),
+    }),
+
+  getShift: (userId: number) => request<ApiShift>(`/users/${userId}/shift`),
+  putShift: (userId: number, shift: ApiShift) =>
+    request<ApiShift>(`/users/${userId}/shift`, { method: "PUT", body: JSON.stringify(shift) }),
+  listPlans: (userId: number) => request<ApiPlan[]>(`/users/${userId}/plans`),
+  /** Make the profile hold exactly these plans. */
+  replacePlans: (userId: number, plans: ApiPlan[]) =>
+    request<ApiPlan[]>(`/users/${userId}/plans`, { method: "PUT", body: JSON.stringify(plans) }),
+  /** Null until the Inventory card has been changed for the first time. */
+  getInventory: (userId: number) => request<ApiInventory | null>(`/users/${userId}/inventory`),
+  putInventory: (userId: number, inventory: ApiInventory) =>
+    request<ApiInventory>(`/users/${userId}/inventory`, {
+      method: "PUT",
+      body: JSON.stringify(inventory),
+    }),
 };

@@ -1,25 +1,27 @@
 import { useState } from "react";
 
+import type { InventoryItem, InventoryState } from "@/lib/tracker-inventory";
+
 import { CloseIcon, PlusIcon } from "./TrackerIcons";
-
-type InventoryItem = { id: string; name: string; quantity: number };
-
-const DEFAULT_ITEMS: InventoryItem[] = [
-  { id: "gauze", name: "Gauze", quantity: 0 },
-  { id: "syringes", name: "Syringes", quantity: 0 },
-  { id: "saline", name: "Saline", quantity: 0 },
-];
 
 /**
  * "Inventory" — supplies other than factor (gauze, syringes, saline, and
  * whatever else gets added), tracked as a simple counted list. Collapsible:
  * dismissing it swaps the card for a one-line button so it can be brought
- * back without losing what's in it. State is local only, matching the rest
- * of the tracker — nothing here is persisted yet.
+ * back without losing what's in it. The list and whether it is shown live in
+ * the tracker's saved data; only the add-item draft is local.
  */
-export function InventoryCard() {
-  const [items, setItems] = useState<InventoryItem[]>(DEFAULT_ITEMS);
-  const [visible, setVisible] = useState(true);
+export function InventoryCard({
+  state,
+  onChange,
+}: {
+  state: InventoryState;
+  onChange: (update: (current: InventoryState) => InventoryState) => void;
+}) {
+  const { items, visible } = state;
+  const setItems = (update: (current: InventoryItem[]) => InventoryItem[]) =>
+    onChange((current) => ({ ...current, items: update(current.items) }));
+  const setVisible = (next: boolean) => onChange((current) => ({ ...current, visible: next }));
   const [isAdding, setIsAdding] = useState(false);
   const [draftName, setDraftName] = useState("");
 

@@ -16,6 +16,8 @@ import { RoutineCard } from "@/components/tracker/RoutineCard";
 import { ScheduleShiftPrompt } from "@/components/tracker/ScheduleShiftPrompt";
 import { SavedEntriesPanel } from "@/components/tracker/SavedEntriesPanel";
 import { useRoutine, type RoutineProps } from "@/components/tracker/useRoutine";
+import { CloseIcon } from "@/components/tracker/TrackerIcons";
+import { useTrackerData } from "@/components/tracker/useTrackerData";
 import type { PlanDraft } from "@/components/tracker/PlanAheadSheet";
 import {
   getSingaporeToday,
@@ -32,10 +34,10 @@ import {
   supplyHistory,
   totalFactorSupply,
   type DoseAmount,
-  type EntryMap,
   type TrackerEntry,
 } from "@/lib/tracker-entries";
-import { isPlannedProphylaxisDate, vialsOn, type PlanAhead } from "@/lib/tracker-plans";
+import { isPlannedProphylaxisDate, vialsOn } from "@/lib/tracker-plans";
+import { useProfiles } from "@/state/profile-context";
 
 type TrackerProps = RoutineProps & {
   /** Minimum factor supply buffer, in vials, set during profile creation. Undefined until that flow exists. */
@@ -43,38 +45,44 @@ type TrackerProps = RoutineProps & {
 };
 
 /**
+ * The tracker for the active profile. It is remounted when the profile changes,
+ * so one person's selection, plans and drafts never carry over to another.
+ */
+export function Tracker(props: TrackerProps = {}) {
+  const { activeProfile } = useProfiles();
+  const profileId = activeProfile?.id ?? null;
+  return <TrackerView key={profileId ?? "none"} profileId={profileId} {...props} />;
+}
+
+/**
  * The calendar, the supply summary, the routine, and the sheets for logging a
  * day. State lives here; every card and sheet is a component under
  * `@/components/tracker`.
  *
- * Entries are held in memory only — nothing is persisted yet, and the routine
- * props are unset until the profile-creation flow lands.
+ * Everything here is saved to the backend for the profile (`useTrackerData`);
+ * with no profile it stays in memory. Routine props passed in take precedence
+ * over the saved routine.
  */
-export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerProps = {}) {
+function TrackerView({
+  profileId,
+  minimumFactorSupplyVials,
+  ...routineProps
+}: TrackerProps & { profileId: number | null }) {
   const today = useMemo(() => getSingaporeToday(), []);
-  const { routine, setVials, setFrequency, setStartDate } = useRoutine(routineProps);
+  const data = useTrackerData(profileId);
+  const { entries, setEntries } = data;
+  const { routine, setVials, setFrequency, setStartDate } = useRoutine({
+    ...data.routineProps,
+    ...routineProps,
+  });
 
   const [viewMonth, setViewMonth] = useState(today);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [flow, setFlow] = useState<DayFlow | null>(null);
   /** Set when a Factor Use flow was reopened from an existing entry. */
   const [editingUseType, setEditingUseType] = useState<"on-demand" | "follow-up" | null>(null);
-  const [entries, setEntries] = useState<EntryMap>({});
   const [showSupplyHistory, setShowSupplyHistory] = useState(false);
-  /** Temporary changes to the routine over a date range. In memory only, like the entries. */
-  const [plans, setPlans] = useState<PlanAhead[]>([]);
-  /**
-   * The user's answers to "shift future doses?", tracked by entry id so that
-   * deleting a dose and logging it again is a new dose and is asked about anew.
-   * `anchorId` is the dose the schedule was shifted to; `handledId` is the
-   * latest dose already answered for; `weekdayOffset` is how far a weekly
-   * schedule has been rotated by the shifts so far.
-   */
-  const [scheduleShift, setScheduleShift] = useState<{
-    anchorId?: number;
-    handledId?: number;
-    weekdayOffset?: number;
-  }>({});
+  const { plans, setPlans, shift: scheduleShift, setShift: setScheduleShift } = data;
 
   const selectedKey = selectedDate ? toKey(selectedDate) : null;
   const dayEntries = selectedKey ? (entries[selectedKey] ?? []) : [];
@@ -367,6 +375,22 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           </p>
         </header>
 
+        {data.error && (
+          <p
+            role="alert"
+            className="mb-4 flex items-start justify-between gap-2 rounded-2xl border border-[#eee5d5] bg-[#fffaf0] px-4 py-3 text-sm text-[#cd5952]"
+          >
+            <span>{data.error}</span>
+            <button
+              onClick={data.dismissError}
+              aria-label="Dismiss"
+              className="-my-2 -mr-2 grid h-11 w-11 shrink-0 place-items-center text-[#806d51]"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </p>
+        )}
+
         <MonthCalendar
           month={viewMonth}
           today={today}
@@ -391,7 +415,7 @@ export function Tracker({ minimumFactorSupplyVials, ...routineProps }: TrackerPr
           onShowHistory={() => setShowSupplyHistory(true)}
         />
 
-        <InventoryCard />
+        <InventoryCard state={data.inventory} onChange={data.setInventory} />
 
         <RoutineCard
           routine={routine}
