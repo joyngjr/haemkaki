@@ -33,7 +33,11 @@ type Base = {
 
 export type TrackerEntry =
   | (Base & { kind: "refill"; vials: number })
-  /** The planned preventative dose. Sized by the schedule on that day; resolved by the API. */
+  /**
+   * The planned preventative dose. `vials` only when the dose carries its own
+   * count (an import from another tracker); otherwise the schedule on that day
+   * sizes it and `appliedVials` says how much, resolved by the API.
+   */
   | (Base & { kind: "prophylaxis"; vials?: number })
   | (Base & { kind: "on-demand"; vials: number })
   | (Base & { kind: "follow-up"; vials: number })
@@ -174,11 +178,10 @@ function entryFromApi(event: ApiTrackingEvent): TrackerEntry | null {
     case "refill":
       return { ...base, kind: "refill", vials: event.vials ?? 0 };
     case "prophylaxis":
-      return {
-        ...base,
-        kind: "prophylaxis",
-        ...(event.applied_vials < 0 ? { vials: -event.applied_vials } : {}),
-      };
+      // Only an explicit count is the entry's own; a routine-sized dose keeps
+      // `vials` empty and shows `appliedVials` instead, so a round-trip never
+      // freezes the routine's size into the row.
+      return { ...base, kind: "prophylaxis", ...(event.vials ? { vials: event.vials } : {}) };
     case "on-demand":
     case "follow-up":
       return { ...base, kind: event.kind, vials: event.vials ?? 0 };
@@ -224,7 +227,11 @@ export function entryToApi(entry: TrackerEntry, dateKey: string): TrackingEventD
     case "refill":
       return { kind: "refill", occurred_on: dateKey, vials: entry.vials };
     case "prophylaxis":
-      return { kind: "prophylaxis", occurred_on: dateKey };
+      return {
+        kind: "prophylaxis",
+        occurred_on: dateKey,
+        ...(entry.vials ? { vials: entry.vials } : {}),
+      };
     case "on-demand":
     case "follow-up":
       return { kind: entry.kind, occurred_on: dateKey, vials: entry.vials };

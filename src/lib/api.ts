@@ -2,6 +2,12 @@ import { type DoseState, type StockState } from "@/components/platelet/Platelet"
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
+/**
+ * The MCP server an assistant connects to — a Claude connector, or
+ * `claude mcp add --transport http haemkakis <url>`. Same origin as the API.
+ */
+export const MCP_URL = `${BASE_URL}/mcp`;
+
 export type FactorType = "VIII" | "IX" | "XI" | "acquired" | "unknown";
 
 export type DiagnosisType =
@@ -134,7 +140,8 @@ export type TrackingEvent = {
 /** What the API accepts. The shape depends on `kind`, which is why this is a union. */
 export type TrackingEventDraft =
   | { kind: "refill"; occurred_on: string; vials: number }
-  | { kind: "prophylaxis"; occurred_on: string }
+  // `vials` only when the dose carries its own count (an import); otherwise the routine sizes it.
+  | { kind: "prophylaxis"; occurred_on: string; vials?: number }
   | { kind: "on-demand"; occurred_on: string; vials: number }
   | { kind: "follow-up"; occurred_on: string; vials: number }
   | {
