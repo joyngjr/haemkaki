@@ -28,24 +28,24 @@ export function DatePicker({
         <button
           onClick={() => shiftMonth(-1)}
           aria-label="Previous month"
-          className="grid h-8 w-8 place-items-center rounded-lg text-[#806d51] transition hover:bg-[#f4ead8]"
+          className="grid h-8 w-8 place-items-center rounded-lg text-[#5C646C] transition hover:bg-[#F7F6F3]"
         >
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
-        <span className="text-sm font-bold text-[#443229]">
-          {month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+        <span className="text-sm font-bold text-[#242A2F]">
+          {month.toLocaleDateString("en-SG", { month: "long", year: "numeric" })}
         </span>
         <button
           onClick={() => shiftMonth(1)}
           aria-label="Next month"
-          className="grid h-8 w-8 place-items-center rounded-lg text-[#806d51] transition hover:bg-[#f4ead8]"
+          className="grid h-8 w-8 place-items-center rounded-lg text-[#5C646C] transition hover:bg-[#F7F6F3]"
         >
           <ChevronRightIcon className="h-4 w-4" />
         </button>
       </div>
       <div className="mt-3 grid grid-cols-7 gap-1">
         {DAYS.map((day) => (
-          <div key={day} className="text-center text-[10px] font-bold uppercase text-[#806d51]">
+          <div key={day} className="text-center text-[10px] font-bold uppercase text-[#5C646C]">
             {day[0]}
           </div>
         ))}
@@ -59,7 +59,7 @@ export function DatePicker({
               onClick={() => onSelect(date)}
               disabled={disabled}
               aria-pressed={isSelected}
-              className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${isSelected ? "bg-[#a98559] text-white" : inMonth ? "text-[#443229] hover:bg-[#f4ead8]" : "text-slate-300 hover:bg-[#f4ead8]"}`}
+              className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${isSelected ? "bg-[#274A63] text-white" : inMonth ? "text-[#242A2F] hover:bg-[#F7F6F3]" : "text-sand-400 hover:bg-[#F7F6F3]"}`}
             >
               {date.getDate()}
             </button>

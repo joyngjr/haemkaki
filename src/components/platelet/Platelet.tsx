@@ -44,24 +44,24 @@ const SPIKES: Record<DoseState, string[]> = {
 };
 
 const BODY: Record<DoseState, { fill: string; strokeWidth: number; radius: number }> = {
-  covered: { fill: "#FF7B93", strokeWidth: 24, radius: 45 },
-  low: { fill: "#F0A0AE", strokeWidth: 22, radius: 41 },
-  veryLow: { fill: "#CFA6B0", strokeWidth: 20, radius: 38 },
+  covered: { fill: "#B34A42", strokeWidth: 24, radius: 45 },
+  low: { fill: "#C2716B", strokeWidth: 22, radius: 41 },
+  veryLow: { fill: "#AE9B98", strokeWidth: 20, radius: 38 },
 };
 
 function Face({ state }: { state: DoseState }) {
   if (state === "covered") {
     return (
       <g>
-        <circle cx="70" cy="108" r="8" fill="#FF4766" opacity="0.4" />
-        <circle cx="130" cy="108" r="8" fill="#FF4766" opacity="0.4" />
-        <circle cx="82" cy="95" r="6" fill="#2D3748" />
-        <circle cx="118" cy="95" r="6" fill="#2D3748" />
+        <circle cx="70" cy="108" r="8" fill="#9B3A33" opacity="0.4" />
+        <circle cx="130" cy="108" r="8" fill="#9B3A33" opacity="0.4" />
+        <circle cx="82" cy="95" r="6" fill="#2B1210" />
+        <circle cx="118" cy="95" r="6" fill="#2B1210" />
         <circle cx="80" cy="93" r="2" fill="#FFFFFF" />
         <circle cx="116" cy="93" r="2" fill="#FFFFFF" />
         <path
           d="M 94 105 Q 100 113 106 105"
-          stroke="#2D3748"
+          stroke="#2B1210"
           strokeWidth="3"
           fill="none"
           strokeLinecap="round"
@@ -73,13 +73,13 @@ function Face({ state }: { state: DoseState }) {
   if (state === "low") {
     return (
       <g>
-        <circle cx="72" cy="108" r="7" fill="#FF4766" opacity="0.22" />
-        <circle cx="128" cy="108" r="7" fill="#FF4766" opacity="0.22" />
-        <ellipse cx="82" cy="96" rx="6" ry="3.5" fill="#2D3748" />
-        <ellipse cx="118" cy="96" rx="6" ry="3.5" fill="#2D3748" />
+        <circle cx="72" cy="108" r="7" fill="#9B3A33" opacity="0.22" />
+        <circle cx="128" cy="108" r="7" fill="#9B3A33" opacity="0.22" />
+        <ellipse cx="82" cy="96" rx="6" ry="3.5" fill="#2B1210" />
+        <ellipse cx="118" cy="96" rx="6" ry="3.5" fill="#2B1210" />
         <path
           d="M 75 87 Q 82 84 89 87"
-          stroke="#2D3748"
+          stroke="#2B1210"
           strokeWidth="2.5"
           fill="none"
           strokeLinecap="round"
@@ -87,7 +87,7 @@ function Face({ state }: { state: DoseState }) {
         />
         <path
           d="M 111 87 Q 118 84 125 87"
-          stroke="#2D3748"
+          stroke="#2B1210"
           strokeWidth="2.5"
           fill="none"
           strokeLinecap="round"
@@ -95,7 +95,7 @@ function Face({ state }: { state: DoseState }) {
         />
         <path
           d="M 92 109 Q 96 105.5 100 109 Q 104 112.5 108 109"
-          stroke="#2D3748"
+          stroke="#2B1210"
           strokeWidth="3"
           fill="none"
           strokeLinecap="round"
@@ -110,21 +110,21 @@ function Face({ state }: { state: DoseState }) {
     <g>
       <path
         d="M 74 94 Q 82 103 90 94"
-        stroke="#2D3748"
+        stroke="#2B1210"
         strokeWidth="3.5"
         fill="none"
         strokeLinecap="round"
       />
       <path
         d="M 110 94 Q 118 103 126 94"
-        stroke="#2D3748"
+        stroke="#2B1210"
         strokeWidth="3.5"
         fill="none"
         strokeLinecap="round"
       />
       <path
         d="M 92 114 Q 100 104 108 114"
-        stroke="#2D3748"
+        stroke="#2B1210"
         strokeWidth="3"
         fill="none"
         strokeLinecap="round"

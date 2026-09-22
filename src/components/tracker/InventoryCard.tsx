@@ -1,16 +1,31 @@
 import { useState } from "react";
 
+import { Card, CardTitle } from "@/components/ui/Card";
+import { FOCUS_RING } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+
 import { CloseIcon, PlusIcon } from "./TrackerIcons";
 import { useSupplies } from "./useSupplies";
 
+const STEPPER = cn(
+  "grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl border border-sand-300",
+  "bg-card text-ink-muted transition-colors hover:bg-soft disabled:opacity-40 disabled:hover:bg-card",
+);
+
 /**
- * "Inventory" — supplies other than factor (gauze, syringes, saline, and
- * whatever else gets added), tracked as a simple counted list. The list lives
- * in `/users/{id}/supplies` behind `useSupplies`; only whether the card is
- * shown is local. Dismissing it swaps the card for a one-line button so it can
- * be brought back without losing anything.
+ * "Other supplies" — everything other than factor (needles, swabs, a sharps
+ * bin, whatever else gets added), tracked as a counted list. The list lives in
+ * `/users/{id}/supplies` behind `useSupplies`; only whether the card is shown
+ * is local. Dismissing it swaps the card for a one-line button so it can be
+ * brought back without losing anything.
  */
-export function InventoryCard({ profileId }: { profileId: number | undefined }) {
+export function InventoryCard({
+  profileId,
+  className,
+}: {
+  profileId: number | undefined;
+  className?: string;
+}) {
   const { items, update, isLoading, error } = useSupplies(profileId);
   const [visible, setVisible] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -39,30 +54,33 @@ export function InventoryCard({ profileId }: { profileId: number | undefined }) 
   if (!visible) {
     return (
       <button
+        type="button"
         onClick={() => setVisible(true)}
-        className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#d8c3a0] text-sm font-bold text-[#80633e] transition hover:bg-[#f4ead8] sm:mt-6"
+        className={cn(
+          "flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-sand-300",
+          "text-sm font-medium text-ink-muted transition-colors hover:bg-soft",
+          FOCUS_RING,
+          className,
+        )}
       >
         <PlusIcon className="h-4 w-4" />
-        Add Inventory section
+        Show other supplies
       </button>
     );
   }
 
   return (
-    <section className="mt-4 overflow-hidden rounded-2xl border border-[#eee5d5] bg-[#fffaf0] p-4 shadow-[0_12px_45px_rgba(36,45,80,0.06)] sm:mt-6 sm:rounded-3xl sm:p-7">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="ml-1 text-xl font-bold tracking-tight text-[#6b3817] sm:ml-2 sm:text-2xl">
-            Inventory
-          </h2>
-          <p className="ml-1 mt-1 text-sm text-[#a8977c] sm:ml-2">
-            Other supplies needed for your treatment
-          </p>
-        </div>
+    <Card className={cn("lg:p-6", className)}>
+      <div className="flex items-center justify-between gap-2">
+        <CardTitle>Other supplies</CardTitle>
         <button
+          type="button"
           onClick={() => setVisible(false)}
-          aria-label="Remove Inventory section"
-          className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#806d51] transition hover:bg-[#f4ead8]"
+          aria-label="Hide other supplies"
+          className={cn(
+            "-my-2.5 -mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-soft",
+            FOCUS_RING,
+          )}
         >
           <CloseIcon className="h-5 w-5" />
         </button>
@@ -71,63 +89,66 @@ export function InventoryCard({ profileId }: { profileId: number | undefined }) 
       {error && (
         <p
           role="status"
-          className="mt-3 rounded-xl border border-[#e7c3bf] bg-[#fdeceb] px-3 py-2 text-sm font-semibold text-[#9c3b34]"
+          className="mt-3 rounded-xl border border-brick-200 bg-brick-50 px-3.5 py-2.5 text-sm font-medium text-brick-600"
         >
           {error}
         </p>
       )}
 
-      <div className="mt-4 space-y-2">
+      <ul className="mt-4">
         {items.map((item) => (
-          <div
-            key={item.key}
-            className="flex items-center justify-between gap-2 rounded-xl bg-[#f8f0e2] px-3 py-2"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-[#443229]">{item.name}</p>
-              <div className="flex items-center gap-2 text-xs">
+          <li key={item.key} className="flex items-center gap-3.5 py-2">
+            <span className="min-w-0 flex-grow">
+              <span className="block truncate text-[15px]">{item.name}</span>
+              <span className="flex items-center gap-2.5 text-[12.5px]">
                 {item.quantity === 0 && (
-                  <span className="font-semibold text-[#cd5952]">Out of stock</span>
+                  <span className="font-medium text-brick-600">Out of stock</span>
                 )}
                 <button
+                  type="button"
                   onClick={() => removeItem(item.key)}
                   aria-label={`Remove ${item.name}`}
-                  className="-mx-1 -my-2 px-1 py-3 text-[#806d51] underline"
+                  className={cn("-mx-1 px-1 py-1 text-ink-faint underline", FOCUS_RING)}
                 >
                   Remove
                 </button>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
+              </span>
+            </span>
+            <span
+              className={cn(
+                "w-7 shrink-0 text-right font-mono text-[17px] font-semibold",
+                item.quantity === 0 ? "text-brick-600" : "text-ink",
+              )}
+            >
+              {item.quantity}
+            </span>
+            <span className="flex shrink-0 gap-1.5">
               <button
+                type="button"
                 onClick={() => updateQuantity(item.key, -1)}
                 disabled={item.quantity === 0}
-                aria-label={`Decrease ${item.name}`}
-                className="grid h-11 w-11 place-items-center rounded-full text-xl font-bold text-[#80633e] transition hover:bg-[#f4ead8] disabled:opacity-30"
+                aria-label={`One fewer ${item.name}`}
+                className={cn(STEPPER, FOCUS_RING)}
               >
                 &minus;
               </button>
-              <span
-                className={`min-w-8 text-center text-base font-bold ${item.quantity === 0 ? "text-[#cd5952]" : "text-[#443229]"}`}
-              >
-                {item.quantity}
-              </span>
               <button
+                type="button"
                 onClick={() => updateQuantity(item.key, 1)}
-                aria-label={`Increase ${item.name}`}
-                className="grid h-11 w-11 place-items-center rounded-full text-[#80633e] transition hover:bg-[#f4ead8]"
+                aria-label={`One more ${item.name}`}
+                className={cn(STEPPER, FOCUS_RING)}
               >
-                <PlusIcon className="h-5 w-5" />
+                <PlusIcon className="h-4 w-4" />
               </button>
-            </div>
-          </div>
+            </span>
+          </li>
         ))}
         {items.length === 0 && (
-          <p className="rounded-xl bg-[#f8f0e2] px-3 py-3 text-center text-sm text-[#806d51]">
-            {isLoading ? "Loading your supplies…" : "No supplies yet. Add one below."}
-          </p>
+          <li className="rounded-xl bg-soft px-3.5 py-3 text-sm text-ink-muted">
+            {isLoading ? "Loading…" : "No supplies yet."}
+          </li>
         )}
-      </div>
+      </ul>
 
       {isAdding ? (
         <form
@@ -135,20 +156,24 @@ export function InventoryCard({ profileId }: { profileId: number | undefined }) 
             event.preventDefault();
             addItem();
           }}
-          className="mt-3 flex items-center gap-2"
+          className="mt-3.5 flex items-center gap-2"
         >
           <input
             autoFocus
             value={draftName}
             onChange={(event) => setDraftName(event.target.value)}
             placeholder="e.g. Alcohol swabs"
+            aria-label="Name of the supply to add"
             maxLength={40}
-            className="h-11 min-w-0 flex-1 rounded-xl border border-[#eee5d5] bg-white px-3 text-base text-[#443229] placeholder:text-[#a8977c] focus:outline-none focus:ring-2 focus:ring-[#a98559]"
+            className="h-12 min-w-0 flex-1 rounded-xl border border-sand-300 bg-card px-3.5 text-[15px] text-ink placeholder:text-ink-faint focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-600"
           />
           <button
             type="submit"
             disabled={!draftName.trim()}
-            className="h-11 shrink-0 rounded-xl bg-[#a98559] px-4 text-sm font-bold text-white transition disabled:opacity-40"
+            className={cn(
+              "h-12 shrink-0 rounded-xl bg-slate-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-700 disabled:bg-rail disabled:text-ink-disabled",
+              FOCUS_RING,
+            )}
           >
             Add
           </button>
@@ -159,21 +184,29 @@ export function InventoryCard({ profileId }: { profileId: number | undefined }) 
               setDraftName("");
             }}
             aria-label="Cancel"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#806d51] transition hover:bg-[#f4ead8]"
+            className={cn(
+              "grid h-12 w-12 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-soft",
+              FOCUS_RING,
+            )}
           >
             <CloseIcon className="h-5 w-5" />
           </button>
         </form>
       ) : (
         <button
+          type="button"
           onClick={() => setIsAdding(true)}
           disabled={profileId === undefined}
-          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#d8c3a0] text-sm font-bold text-[#80633e] transition hover:bg-[#f4ead8] disabled:opacity-40"
+          className={cn(
+            "mt-3.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-sand-300",
+            "text-sm font-medium text-ink-muted transition-colors hover:bg-soft disabled:opacity-40",
+            FOCUS_RING,
+          )}
         >
           <PlusIcon className="h-4 w-4" />
           Add supply
         </button>
       )}
-    </section>
+    </Card>
   );
 }

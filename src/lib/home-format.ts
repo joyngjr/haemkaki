@@ -116,3 +116,39 @@ export function formatDateTime(date: Date, now: Date, timeZone = DEFAULT_TIME_ZO
   }).format(date);
   return `${dateLabel} · ${time}`;
 }
+
+/** "Friday 25 September" — how the overview names a day it is pointing at. */
+export function formatLongDay(dateKey: string, timeZone = DEFAULT_TIME_ZONE): string {
+  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone,
+  }).format(new Date(`${dateKey}T00:00:00+08:00`));
+}
+
+/** "Thu 17 Sep" — the compact form the entry table uses. */
+export function formatShortDay(dateKey: string, timeZone = DEFAULT_TIME_ZONE): string {
+  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone,
+  }).format(new Date(`${dateKey}T00:00:00+08:00`));
+}
+
+/**
+ * "4 days", "1 day", "today" — a whole-day gap in words.
+ *
+ * Used for "last dose … ago" and for how long cover holds. Anything in the
+ * past or today reads as "today" rather than as a negative.
+ */
+export function formatDayGap(days: number): string {
+  if (days <= 0) return "today";
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/** Whole days between two `YYYY-MM-DD` keys; negative when `to` is earlier. */
+export function daysBetweenKeys(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}

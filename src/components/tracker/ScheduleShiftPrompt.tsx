@@ -21,25 +21,25 @@ export function ScheduleShiftPrompt({
   return (
     <Sheet
       tier="picker"
-      title="Your current prophylaxis routine seems to have been disrupted. Would you like to shift all future doses accordingly?"
+      title="Shift future doses?"
       onClose={() => onAnswer(false)}
       closeLabel="Keep my current schedule"
     >
-      <p className="mt-3 text-sm text-[#806d51]">
+      <p className="mt-3 text-sm text-[#5C646C]">
         {frequency.unit === "days"
-          ? `Shifting plans your next doses every ${frequency.days} day${frequency.days === 1 ? "" : "s"} from ${shortDate(doseDate)}.`
-          : `Shifting moves your weekly doses to ${weekdayList(frequency.weekdays)}, after ${shortDate(doseDate)}.`}
+          ? `Every ${frequency.days} day${frequency.days === 1 ? "" : "s"}, counted from ${shortDate(doseDate)}.`
+          : `${weekdayList(frequency.weekdays)}, from ${shortDate(doseDate)}.`}
       </p>
       <div className="mt-5 space-y-2">
         <button
           onClick={() => onAnswer(true)}
-          className="h-11 w-full rounded-xl bg-[#a98559] px-4 text-sm font-bold text-white transition hover:bg-[#80633e]"
+          className="h-11 w-full rounded-xl bg-[#274A63] px-4 text-sm font-bold text-white transition hover:bg-[#274A63]"
         >
           Yes, shift my doses
         </button>
         <button
           onClick={() => onAnswer(false)}
-          className="h-11 w-full rounded-xl border border-[#eee5d5] bg-[#f8f0e2] px-4 text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]"
+          className="h-11 w-full rounded-xl border border-[#E7E5E0] bg-[#F7F6F3] px-4 text-sm font-bold text-[#242A2F] transition hover:bg-[#F7F6F3]"
         >
           No, keep my schedule
         </button>

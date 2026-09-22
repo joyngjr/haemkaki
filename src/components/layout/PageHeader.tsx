@@ -1,19 +1,19 @@
 import { ProfileButton } from "@/components/profile/ProfileButton";
+import { cn } from "@/lib/utils";
 
 /**
- * Title block at the top of a page, with the profile switcher on the right.
+ * The title at the top of a page.
  *
- * Home has its own header instead, but it carries the same `ProfileButton` —
- * the switcher has to be reachable from every top-level route, not just Home.
+ * The profile switcher sits on the right on a phone, where there is no other
+ * way to reach it. From `lg` it lives in the top bar instead.
  */
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({ title, className }: { title: string; className?: string }) {
   return (
-    <header className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-sand-600">{subtitle}</p> : null}
-      </div>
-      <ProfileButton />
+    <header className={cn("flex items-center justify-between gap-4", className)}>
+      <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.01em] lg:text-[28px] lg:tracking-[-0.015em]">
+        {title}
+      </h1>
+      <ProfileButton className="lg:hidden" />
     </header>
   );
 }

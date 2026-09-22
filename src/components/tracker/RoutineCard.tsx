@@ -13,7 +13,7 @@ import {
 
 import { DatePicker } from "./DatePicker";
 import { FrequencyEditor } from "./FrequencyEditor";
-import { NumberPad } from "./NumberPad";
+import { NumberField } from "./NumberField";
 import { Sheet } from "./Sheet";
 import { PlayIcon, RepeatIcon, VialIcon } from "./TrackerIcons";
 
@@ -22,15 +22,21 @@ export type RoutineDraft = Omit<ScheduleDraft, "replace">;
 type RoutineCardProps = {
   series: Schedule | null;
   today: Date;
-  /** Prefills the interval for a first routine, from the onboarding form's "times per week". */
-  defaultIntervalDays?: number;
+  /** Days of cover to keep in reserve before ordering. Null until it is set. */
+  bufferDays: number | null;
   onReplace: (draft: RoutineDraft) => Promise<boolean>;
   onRemove: () => Promise<boolean>;
+  /**
+   * Stores the buffer, which lives on the profile rather than the series.
+   * Absent for a profile with nothing recorded to merge it into, and the flow
+   * then skips the question rather than asking for a number it would drop.
+   */
+  onSaveBuffer?: (days: number) => Promise<boolean>;
 };
 
 function longDate(key: string) {
   const date = fromKey(key);
-  return `${date.toLocaleDateString("en-US", { month: "short" })} ${date.getDate()}, ${date.getFullYear()}`;
+  return date.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
 }
 
 /**
@@ -42,9 +48,10 @@ function longDate(key: string) {
 export function RoutineCard({
   series,
   today,
-  defaultIntervalDays,
+  bufferDays,
   onReplace,
   onRemove,
+  onSaveBuffer,
 }: RoutineCardProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -60,29 +67,22 @@ export function RoutineCard({
 
   return (
     <>
-      <section className="mt-4 overflow-hidden rounded-2xl border border-[#eee5d5] bg-[#fffaf0] p-4 shadow-[0_12px_45px_rgba(36,45,80,0.06)] sm:mt-6 sm:rounded-3xl sm:p-7">
-        <h2 className="ml-1 text-xl font-bold tracking-tight text-[#6b3817] sm:ml-2 sm:text-2xl">
-          Your Current Routine
-        </h2>
-        <p className="ml-1 mt-1 text-sm text-[#a8977c] sm:ml-2">
-          {series
-            ? "Planned doses follow this cycle. Move a single dose from its day on the calendar."
-            : "Set one up to plan your doses and see when to order."}
-        </p>
+      <section className="overflow-hidden rounded-card border border-line bg-card p-4 sm:p-5 lg:p-6">
+        <h2 className="text-base font-semibold sm:text-[17px]">Your Current Routine</h2>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <RoutineField
-            icon={<RepeatIcon className="h-5 w-5 text-[#80633e]" />}
+            icon={<RepeatIcon className="h-5 w-5 text-[#274A63]" />}
             label="Frequency"
             value={frequency ? frequencyLabel(frequency) : "Not set"}
             detail={frequency?.unit === "week" ? weekdayList(frequency.weekdays) : undefined}
           />
           <RoutineField
-            icon={<VialIcon className="h-5 w-5 text-[#80633e]" />}
+            icon={<VialIcon className="h-5 w-5 text-[#274A63]" />}
             label="Dosage"
             value={series ? `${series.vials} vial${series.vials === 1 ? "" : "s"}` : "Not set"}
           />
           <RoutineField
-            icon={<PlayIcon className="h-5 w-5 text-[#80633e]" />}
+            icon={<PlayIcon className="h-5 w-5 text-[#274A63]" />}
             label={
               <>
                 Effective
@@ -93,39 +93,48 @@ export function RoutineCard({
             value={series ? longDate(series.start_on) : "Not set"}
           />
         </div>
+        {onSaveBuffer ? (
+          <p className="mt-3 text-xs leading-relaxed text-[#5C646C]">
+            Order buffer:{" "}
+            <span className="font-semibold text-[#242A2F]">
+              {bufferDays === null ? "Not set" : `${bufferDays} day${bufferDays === 1 ? "" : "s"}`}
+            </span>{" "}
+            — the cover you want left when it is time to order.
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => setEditing(true)}
-            className="h-11 flex-1 rounded-xl bg-[#a98559] px-4 text-sm font-bold text-white transition hover:bg-[#80633e]"
+            className="h-11 flex-1 whitespace-nowrap rounded-xl bg-[#274A63] px-4 text-sm font-bold text-white transition hover:bg-[#274A63]"
           >
             {series ? "Change routine" : "Set up routine"}
           </button>
           {series && !confirmingRemove ? (
             <button
               onClick={() => setConfirmingRemove(true)}
-              className="h-11 rounded-xl px-4 text-sm font-bold text-[#cd5952] transition hover:bg-[#f4ead8]"
+              className="h-11 whitespace-nowrap rounded-xl px-4 text-sm font-bold text-[#A63A2E] transition hover:bg-[#F7F6F3]"
             >
               Remove routine
             </button>
           ) : null}
         </div>
         {series && confirmingRemove ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#e7c3bf] bg-[#fdeceb] px-3 py-2">
-            <p className="text-sm text-[#9c3b34]">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#EBD3CE] bg-[#FBF1EF] px-3 py-2">
+            <p className="text-sm text-[#A63A2E]">
               Remove this routine? Doses you have logged stay.
             </p>
             <div className="flex gap-1">
               <button
                 onClick={() => setConfirmingRemove(false)}
                 disabled={busy}
-                className="h-9 rounded-lg px-3 text-sm font-bold text-[#806d51] hover:bg-[#f4ead8] disabled:opacity-40"
+                className="h-9 rounded-lg px-3 text-sm font-bold text-[#5C646C] hover:bg-[#F7F6F3] disabled:opacity-40"
               >
                 Keep
               </button>
               <button
                 onClick={() => void remove()}
                 disabled={busy}
-                className="h-9 rounded-lg bg-[#cd5952] px-3 text-sm font-bold text-white disabled:opacity-40"
+                className="h-9 rounded-lg bg-[#A63A2E] px-3 text-sm font-bold text-white disabled:opacity-40"
               >
                 {busy ? "Removing…" : "Remove"}
               </button>
@@ -138,10 +147,15 @@ export function RoutineCard({
         <RoutineFlow
           series={series}
           today={today}
-          defaultIntervalDays={defaultIntervalDays}
-          onSave={async (draft) => {
+          bufferDays={bufferDays}
+          asksForBuffer={Boolean(onSaveBuffer)}
+          onSave={async (draft, buffer) => {
+            // The series first: the buffer is only meaningful against a
+            // routine, and a failed schedule write should not leave one set.
             const ok = await onReplace(draft);
-            if (ok) setEditing(false);
+            if (!ok) return;
+            if (buffer !== null && onSaveBuffer) await onSaveBuffer(buffer);
+            setEditing(false);
           }}
           onClose={() => setEditing(false)}
         />
@@ -163,46 +177,62 @@ function RoutineField({
   detail?: string | undefined;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 rounded-xl bg-[#f8f0e2] px-2 py-3 text-center">
+    <div className="flex flex-col items-center gap-1.5 rounded-xl bg-[#F7F6F3] px-2 py-3 text-center">
       {icon}
-      <span className="flex min-h-8 items-center text-xs leading-tight text-[#806d51]">
+      <span className="flex min-h-8 items-center text-xs leading-tight text-[#5C646C]">
         {label}
       </span>
-      <span className="text-sm font-bold text-[#443229]">{value}</span>
-      {detail ? <span className="-mt-1 text-xs text-[#806d51]">{detail}</span> : null}
+      <span className="text-sm font-bold text-[#242A2F]">{value}</span>
+      {detail ? <span className="-mt-1 text-xs text-[#5C646C]">{detail}</span> : null}
     </div>
   );
 }
 
-type Step = "start" | "frequency" | "vials";
+type Step = "start" | "frequency" | "vials" | "buffer";
 
 /**
- * The three questions a routine is made of, asked in order. Saving replaces
- * the series outright: a new start date is a permanent shift of the cycle.
+ * The questions a routine is made of, asked in order. Saving replaces the
+ * series outright: a new start date is a permanent shift of the cycle.
+ *
+ * The buffer is the last of them. It is not part of the series — it is stored
+ * on the profile — but it is asked here because a number of days of cover only
+ * means something once there is a routine to count doses from.
  */
 function RoutineFlow({
   series,
   today,
-  defaultIntervalDays,
+  bufferDays,
+  asksForBuffer,
   onSave,
   onClose,
 }: {
   series: Schedule | null;
   today: Date;
-  defaultIntervalDays?: number;
-  onSave: (draft: RoutineDraft) => Promise<void>;
+  bufferDays: number | null;
+  asksForBuffer: boolean;
+  onSave: (draft: RoutineDraft, bufferDays: number | null) => Promise<void>;
   onClose: () => void;
 }) {
   const [step, setStep] = useState<Step>("start");
   const [start, setStart] = useState<Date>(series ? fromKey(series.start_on) : today);
   const [pickerMonth, setPickerMonth] = useState(series ? fromKey(series.start_on) : today);
-  const [frequency, setFrequency] = useState<Frequency | undefined>(() => {
-    if (series) return frequencyOf(series);
-    return defaultIntervalDays ? { unit: "days", days: defaultIntervalDays } : undefined;
-  });
+  const [frequency, setFrequency] = useState<Frequency | undefined>(() =>
+    series ? frequencyOf(series) : undefined,
+  );
   const [vials, setVials] = useState(series ? String(series.vials) : "");
+  // Whole days: the fold rounds a fraction up anyway, and the pad is digits.
+  const [buffer, setBuffer] = useState(bufferDays === null ? "" : String(Math.ceil(bufferDays)));
   const [saving, setSaving] = useState(false);
   const eyebrow = series ? "Change routine" : "Set up routine";
+
+  function save(bufferToSave: number | null) {
+    if (saving || !frequency) return;
+    setSaving(true);
+    void onSave(
+      { start_on: toKey(start), ...frequencyToApi(frequency), vials: Number(vials) },
+      bufferToSave,
+    ).finally(() => setSaving(false));
+  }
 
   if (step === "start") {
     return (
@@ -212,9 +242,6 @@ function RoutineFlow({
         title="When does this routine start?"
         onClose={onClose}
       >
-        <p className="mt-2 text-xs text-[#806d51]">
-          Doses are planned from this day on. Doses you have already logged stay as they are.
-        </p>
         <DatePicker
           month={pickerMonth}
           selected={start}
@@ -250,33 +277,47 @@ function RoutineFlow({
     );
   }
 
+  if (step === "vials") {
+    const last = !asksForBuffer;
+    return (
+      <Sheet
+        tier="action"
+        eyebrow={eyebrow}
+        title="How many vials per dose?"
+        onBack={() => setStep("frequency")}
+        backLabel="Back to frequency"
+        onClose={onClose}
+      >
+        <NumberField
+          label="Vials per dose"
+          value={vials}
+          onChange={setVials}
+          confirmLabel={
+            last ? (saving ? "Saving…" : series ? "Start new routine" : "Start routine") : "Next"
+          }
+          onConfirm={() => (last ? save(null) : setStep("buffer"))}
+        />
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet
       tier="action"
       eyebrow={eyebrow}
-      title="How many vials per dose?"
-      onBack={() => setStep("frequency")}
-      backLabel="Back to frequency"
+      title="How much cover do you want left when you order?"
+      onBack={() => setStep("vials")}
+      backLabel="Back to dosage"
       onClose={onClose}
     >
-      <NumberPad
-        value={vials}
-        onChange={setVials}
-        hint={
-          series
-            ? "Saving starts a new routine in place of the current one."
-            : "Enter your usual dosage in vials."
-        }
+      <NumberField
+        label="Days of cover"
+        value={buffer}
+        onChange={setBuffer}
+        suffix="days"
+        hint="Your order-by date is this far ahead of the day your supply runs out. 7 means order with about a week of doses left."
         confirmLabel={saving ? "Saving…" : series ? "Start new routine" : "Start routine"}
-        onConfirm={() => {
-          if (saving || !frequency) return;
-          setSaving(true);
-          void onSave({
-            start_on: toKey(start),
-            ...frequencyToApi(frequency),
-            vials: Number(vials),
-          }).finally(() => setSaving(false));
-        }}
+        onConfirm={() => save(buffer === "" ? null : Number(buffer))}
       />
     </Sheet>
   );

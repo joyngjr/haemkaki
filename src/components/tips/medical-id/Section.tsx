@@ -1,5 +1,11 @@
-/** A labelled white card grouping one set of Medical ID fields. */
-export function SectionCard({
+/**
+ * One labelled block of Medical ID fields.
+ *
+ * Every section lives inside the single card the page renders, so the block
+ * draws its own top rule instead of floating as a card of its own — a
+ * responder reads one document, not six.
+ */
+export function Section({
   icon,
   iconBg,
   title,
@@ -15,7 +21,7 @@ export function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[20px] border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="border-t border-gray-100 px-4 py-4 md:px-6">
       <div className="flex items-center gap-2.5">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
@@ -30,7 +36,7 @@ export function SectionCard({
   );
 }
 
-/** One label-over-value pair inside a SectionCard. */
+/** One label-over-value pair inside a Section. */
 export function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="mb-3 last:mb-0">

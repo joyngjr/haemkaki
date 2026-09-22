@@ -6,6 +6,10 @@ today's dose, a calendar tracker for doses, the routine and supply, and a
 resources section with an injection guide, a medical ID card and a map of
 nearby help.
 
+On a phone those are three tabs. From `lg` (1024px) the web version puts
+everything on one page instead — no tabs or sidebar, just a top bar with the
+account switcher in the top right corner.
+
 There is no authentication. A "profile" is just a name someone picks on the
 device, and anyone holding the phone can switch between everyone in a household.
 The one chosen last is remembered on the device.
@@ -54,17 +58,24 @@ src/
   main.tsx                     React root
   index.css                    Tailwind directives, base styles, reduced motion
   pages/
-    Home.tsx                   the home screen: Kaki's scene, cover and next
-                               dose, the dose-action panel, activity, daily tip
-    Tracker.tsx                calendar, factor supply, inventory, routine
-    tips/Tips.tsx              the resources index
+    Home.tsx                   the phone's Home tab: the status card (Kaki's
+                               scene, cover left, vials at home, the dose and
+                               order buttons) and recent entries
+    Dashboard.tsx              the web version from `lg`: the status card, the
+                               tracker's cards and Resources on one page
+    Tracker.tsx                calendar, factor supply, inventory, routine; a
+                               `layout` prop decides where the cards go
+    tips/Tips.tsx              the phone's Resources tab
     tips/MedicalId.tsx         emergency card: diagnosis, contacts, call links
     tips/FindMedicalHelp.tsx   Leaflet map of hospitals, pharmacies, polyclinics
+    tips/ImportTracker.tsx     the connector address and the steps for importing via an assistant
     tips/injection/            injection guide + one page per route
                                (intravenous, subcutaneous, port-a-cath)
   components/
-    layout/                    AppLayout shell, PageHeader, BackLink
-    nav/                       BottomNav — the three-tab bar
+    layout/                    AppLayout shell (and the desktop top bar),
+                               PageHeader, BackLink
+    nav/                       BottomNav — the tab bar on a phone; the web
+                               version has no tabs
     tracker/                   calendar, day sheets (incl. MoveDoseFlow),
                                supply, inventory, routine and Plan Ahead cards,
                                DatePicker, FrequencyEditor (every N days or
@@ -74,18 +85,24 @@ src/
                                it), useStatus (the fold) and useSupplies (the
                                inventory list)
     platelet/                  the platelet mascot: Platelet (flat, for the
-                               calendar) and Kaki (tinted + animated, for Home)
+                               calendar), StatusScene (Kaki at home, the status
+                               card's scene) and Kaki
     profile/                   profile button, sheet, avatar, add-profile form
     tips/find-medical-help/    HealthMap, MapLegend, map marker icons
     tips/injection/            headers, step lists, type cards for the guide
     tips/medical-id/           section cards and call links
-    tips/                      tip cards and icons
-    ui/                        Callout, ChevronRight
+    tips/                      tip cards, icons, and ResourceSections (the
+                               parts of Resources both layouts use)
+    ui/                        Button, Card, Stat, StatusDot, Callout,
+                               ChevronRight
   lib/
     api.ts                     the ONLY place that reads VITE_API_URL; wraps
                                fetch and mirrors the backend's schemas —
                                profiles, events, schedules, status, supplies
-    nav.ts                     NAV_ITEMS — the three routed tabs
+    nav.ts                     NAV_ITEMS — the phone's three tabs
+    use-media-query.ts         useIsDesktop — which of the two layouts to show
+    scroll.ts                  scrollToSection and useScrollToHash, for
+                               "/tracker#supply" and the one-page sections
     home-data.ts               Home's data contracts and buildHomeData, which
                                derives the screen from a profile + its status
     tracker-entries.ts         the TrackerEntry union, the shared "log a dose"
@@ -104,7 +121,8 @@ src/
                                active one in localStorage
     profile-context.ts         the context and its hook
     HomeDataProvider.tsx       Home's state, above the router: the folded
-                               status per profile and the "Taken" write
+                               status per profile, the "Log dose" and "Move"
+                               writes, and writeVersion so the tracker follows
     home-context.ts            the context and its hook
 ```
 
@@ -116,23 +134,24 @@ utilities are the phone layout, `sm:`/`md:` adapt upward. Use the `brand-*` and
 
 ## Core features
 
-| Feature                                                                                                     | State                                                                                                                                                                       |
-| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Profiles — create, switch, edit, delete a household member                                                  | Backed by the API (`/users`)                                                                                                                                                |
-| Tracker calendar — month grid, per-day markers, and logging a refill, a use or a missed dose against a date | Backed by the API (`/users/{id}/events`); survives a refresh                                                                                                                |
-| Missed-dose follow-up — whether it was taken or skipped, and the day it was actually taken                  | Backed by the API                                                                                                                                                           |
-| Factor supply — vials remaining, the low-supply warning, recent activity                                    | Folded from the ledger by the API, not counted in the page                                                                                                                  |
-| Recommended order — run-out date, order-by date, vials to order, and a "?" showing the working              | Folded by the API from vials on hand, the planned doses and the profile's buffer days; the breakdown comes from `/status` too                                               |
-| Current routine — every N days or on fixed weekdays from a start date, vials per dose                       | A recurring series in the API (`/users/{id}/schedules`). Changing it starts a new series; removing it keeps logged doses                                                    |
-| Plan Ahead — a different frequency and/or dosage over a date range (travel, illness)                        | Backed by the API (`/users/{id}/plans`); the calendar, run-out date and order follow it. Plans cannot overlap                                                               |
-| Off-cycle dose prompt — "shift all future doses?" after a routine dose is logged on an unplanned day        | Yes restarts the series from that day (rotating a weekly routine's days); no leaves the cycle alone                                                                         |
-| Move one planned dose                                                                                       | From the day's sheet on the calendar, or "Move dose" on Home; a calendar exception on the series, shown as a dashed ring. A plan's dose follows the plan and is not movable |
-| Inventory — gauze, syringes, saline and whatever else                                                       | Backed by the API (`/users/{id}/supplies`); survives a refresh                                                                                                              |
-| Home — Kaki's scene, cover and next dose, activity                                                          | Real, from `/users/{id}/status`: dose state, last/next dose, recent bleed. Demo: the half-life behind the activity bar, the daily tip                                       |
-| Home — "Taken" / "I took it"                                                                                | Writes a prophylaxis event to the ledger on the chosen day; the tracker shows it too                                                                                        |
-| Home — "Move dose"                                                                                          | Moves the next planned dose as a calendar exception; the tracker shows the same move                                                                                        |
-| Medical ID                                                                                                  | Real: name, diagnosis, severity, DOB, medication, drug allergies, blood type, emergency contact, primary doctor — all from the profile                                      |
-| Tips — injection guide, find medical help map                                                               | Static content                                                                                                                                                              |
+| Feature                                                                                                         | State                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profiles — create, switch, edit, delete a household member                                                      | Backed by the API (`/users`)                                                                                                                                                                                                                                        |
+| Tracker calendar — month grid, per-day markers, and logging a refill or a factor use against a date             | Backed by the API (`/users/{id}/events`); survives a refresh                                                                                                                                                                                                        |
+| Missed doses — a planned day already past with no factor use on it                                              | Derived, never logged: from the routine and the ledger in the page, and from `status.missed_doses` on Home. Logging the dose on that day, or a "missed dose taken late" naming it, takes the mark off                                                               |
+| Factor supply — vials remaining, the low-supply warning, recent activity                                        | Folded from the ledger by the API, not counted in the page                                                                                                                                                                                                          |
+| Recommended order — run-out date, order-by date, vials to order, and a "?" showing the working                  | Folded by the API from vials on hand, the planned doses and the profile's buffer days; the breakdown comes from `/status` too. Advice only: the app places no order and talks to no pharmacy — the user buys through their centre and logs the delivery as a refill |
+| Current routine — every N days or on fixed weekdays from a start date, vials per dose                           | A recurring series in the API (`/users/{id}/schedules`). Changing it starts a new series; removing it keeps logged doses                                                                                                                                            |
+| Plan Ahead — a different frequency and/or dosage over a date range (travel, illness)                            | Backed by the API (`/users/{id}/plans`); the calendar, run-out date and order follow it. Plans cannot overlap                                                                                                                                                       |
+| Off-cycle dose prompt — "shift all future doses?" after a routine dose is logged on an unplanned day            | Yes restarts the series from that day (rotating a weekly routine's days); no leaves the cycle alone                                                                                                                                                                 |
+| Move one planned dose                                                                                           | From the day's sheet on the calendar, or "Move" on the status card; a calendar exception on the series, shown as a dashed ring. A plan's dose follows the plan and is not movable                                                                                   |
+| Inventory — gauze, syringes, saline and whatever else                                                           | Backed by the API (`/users/{id}/supplies`); survives a refresh                                                                                                                                                                                                      |
+| Status card — Kaki's scene, cover left, vials at home, and running low / out of factor with "How much to order" | Real, from `/users/{id}/status`: dose state, last/next dose, recent bleed, vials and the order advice. Demo: the half-life behind the meter. No separate supply banner: the card's status word, room and vials figure carry it                                      |
+| Status card — "Log dose" / "I took it"                                                                          | Writes a prophylaxis event to the ledger on the chosen day; the tracker shows it too                                                                                                                                                                                |
+| Status card — "Move"                                                                                            | Moves the next planned dose as a calendar exception; the tracker shows the same move                                                                                                                                                                                |
+| Web version — everything on one page from `lg`, account switcher in the top right                               | `Dashboard.tsx`. `/tracker` and `/tips` redirect to their section of the page; the Resources subpages stay pages of their own                                                                                                                                       |
+| Medical ID                                                                                                      | Real: name, diagnosis, severity, DOB, medication, drug allergies, blood type, emergency contact, primary doctor — all from the profile                                                                                                                              |
+| Tips — injection guide, find medical help map                                                                   | Static content                                                                                                                                                                                                                                                      |
 
 ## Common issues
 

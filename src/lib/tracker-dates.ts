@@ -20,7 +20,7 @@ export function fromKey(key: string) {
 
 /** "Sep 12" — the short form used inside entry text. */
 export function shortDate(date: Date) {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
 }
 
 /* ------------------------------------------------------------------ */

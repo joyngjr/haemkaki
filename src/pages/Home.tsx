@@ -1,67 +1,67 @@
 /**
- * HaemKakis — Home screen
- * =======================
+ * HaemKakis — Home
+ * ================
  *
- * This pass implements the team's final Home scope + the low-friction dose
- * workflow from patient survey feedback:
- *  - REMOVED: Inventory card, Recent Activity card, Quick Log, centre Actions
- *    button. Not replaced with new permanent cards.
- *  - Bottom navigation: exactly Home / Tracker / Resources.
- *  - Profile moved to the header (top-right), via the shared `ProfileButton`
- *    that Tracker and `PageHeader` also carry — the switcher is no longer in
- *    the tab bar, so every top-level header has to offer it.
- *  - Kaki's tap panel is now a short, state-aware explanation only — no
- *    numeric details, no action buttons.
- *  - New: a contextual dose-action area (Taken / Change time / I took it /
- *    Update schedule / Remind me later) that only appears when relevant.
+ * The status card and the last few entries. On a phone this is the Home tab;
+ * from `lg` the same status card heads the one-page layout in `Dashboard.tsx`,
+ * beside the tracker's cards.
  *
- * CLINICAL BOUNDARY: the cover estimate and activity timing logic in this file
- * are PROTOTYPE / DEMO heuristics based on recorded schedule timing only.
- * They are not measured factor levels, not pharmacokinetic guidance, and not
- * clinically validated. They are isolated in `getCoverStatus` and
- * `getActivitySafety` so clinically validated logic can replace them without
- * touching any component.
+ * The card answers the two questions its scene draws: is the schedule on time
+ * (Kaki and his shield, the cover figure, the meter), and is there factor at
+ * home (the room, the vials figure). When the cupboard runs low or empty the
+ * card says so itself — in its status word, its vials figure and an order
+ * button — rather than in a banner stacked above it.
+ *
+ * CLINICAL BOUNDARY: the interval position in this file is a PROTOTYPE / DEMO
+ * heuristic based on recorded schedule timing only. It is not a measured
+ * factor level, not pharmacokinetic guidance, and not clinically validated.
+ * It is isolated in `getIntervalPosition` so clinically validated logic can
+ * replace it without touching any component.
  *
  * INTEGRATION BOUNDARY:
  *  - <HomeScreen /> (default export) adapts the shared `HomeDataProvider`
  *    state to <HomePage />'s props. It is the only place routing lives.
- *  - <HomePage /> is pure presentation: give it `HomeDashboardData` +
- *    `HomeActions` and it never touches state, storage, or a router.
+ *  - <HomePage /> and <StatusCard /> are presentation: give them
+ *    `HomeDashboardData` + `HomeActions` and they never touch shared state,
+ *    storage, or a router.
  *  - `onRecordDose` writes a prophylaxis event to the same ledger the tracker
  *    edits, on the Singapore day the user picks. The ledger records days, not
  *    minutes, so the sheet asks for a date and nothing else.
- *  - `onRescheduleDose` moves the NEXT planned dose to another day, as a
- *    calendar exception on the routine — the same thing the tracker does from
- *    a day's sheet. Tracker owns the routine, so Home does not offer to change
- *    the cycle itself.
  *  - `activityStatus.hasLoggedBleed` is an on-demand dose within the last few
  *    days, folded by the API from the tracker's ledger (`last_bleed_on`).
  */
 
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Clock3, Lightbulb, PersonStanding, ShieldCheck, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { KAKI_BOB_DURATION, KakiBody } from "@/components/platelet/Kaki";
+import { coverageFromDose, type Supply as SceneSupply } from "@/components/platelet/scene-state";
+import { StatusScene } from "@/components/platelet/StatusScene";
 import { ProfileButton } from "@/components/profile/ProfileButton";
+import { ProfileSheet } from "@/components/profile/ProfileSheet";
+import { Card, CardHeaderRow } from "@/components/ui/Card";
+import { CriticalButton, OutlineButton, PrimaryButton } from "@/components/ui/Button";
+import { Meter, Stat } from "@/components/ui/Stat";
+import { StatusDot } from "@/components/ui/StatusDot";
 import {
-  formatDate,
-  formatDateTime,
-  formatNextDose,
+  daysBetweenKeys,
+  formatDayGap,
+  formatLongDay,
+  formatShortDay,
   getDayPeriod,
   isOverdue,
 } from "@/lib/home-format";
-import { INK, INK_MUTED, STATUS_TONE_CLASSES, SURFACE_RAISED, type StatusTone } from "@/lib/theme";
+import { FOCUS_RING, INK, INK_MUTED } from "@/lib/theme";
 import { getSingaporeTodayKey } from "@/lib/tracker-dates";
 import { cn } from "@/lib/utils";
 import type {
   ActivityStatus,
-  CoverStatus,
-  DailyTipData,
   DoseState,
   HomeDashboardData,
   HomeUser,
+  LedgerEntrySummary,
   SaveResult,
+  SupplyStatus,
   TreatmentStatus,
 } from "@/lib/home-data";
 import { useHomeData } from "@/state/home-context";
@@ -71,408 +71,429 @@ import { useProfiles } from "@/state/profile-context";
 /* 1. Data contracts                                                      */
 /* ===================================================================== */
 
-/**
- * Logical destinations Home can request. Home never knows URLs — reconcile
- * these keys with the team's router in one place.
- */
 export interface RecordDosePayload {
   /** The Singapore calendar day the dose was taken, as `YYYY-MM-DD`. */
   takenOn: string;
 }
 
-export interface RescheduleDosePayload {
-  /** The Singapore calendar day the next planned dose should move to, as `YYYY-MM-DD`. */
-  movedTo: string;
-}
-
 /** Every side effect Home can trigger. The host app implements these. */
 export interface HomeActions {
-  /** Handles both the "Taken" (prospective) and "I took it" (retrospective) flows. */
+  /** Handles both the "Log dose" (prospective) and "I took it" (retrospective) flows. */
   onRecordDose: (payload: RecordDosePayload) => Promise<SaveResult>;
-  /** Moves the next planned dose to another day. The routine's cycle is unchanged. */
-  onRescheduleDose: (payload: RescheduleDosePayload) => Promise<SaveResult>;
   /** Optional: hook into real notification infra. Home always defers the prompt locally either way. */
   onRemindLater?: () => void;
-  onOpenActivity: () => void;
+  /** "See all" on the recent entries. Omitted where the calendar is already on the page. */
+  onOpenActivity?: () => void;
   onOpenTreatmentSetup: () => void;
+  /** The tracker's "Factor at home" card, with the order advice. */
+  onOpenSupply: () => void;
 }
 
 export interface HomePageProps {
   data: HomeDashboardData;
   actions: HomeActions;
-  /** Injectable clock so relative times are deterministic in demos/tests. */
+  /** Injectable clock so relative times are deterministic in demos. */
   now?: Date;
 }
 
 /* ===================================================================== */
-/* 3. Prototype logic — replaceable, NOT clinically validated             */
+/* 2. Prototype logic — replaceable, NOT clinically validated             */
 /* ===================================================================== */
 
-/**
- * PROTOTYPE / DEMO LOGIC — NOT CLINICALLY VALIDATED PK GUIDANCE.
- * Describes recorded schedule context only; never a measured factor level.
- */
-function getCoverStatus(
-  treatment: TreatmentStatus | null,
-  activity: ActivityStatus,
-  now: Date,
-): CoverStatus {
-  if (!treatment || !treatment.lastDoseAt) {
-    return {
-      state: "unavailable",
-      source: "unavailable",
-      supportingText: "Not enough treatment information",
-    };
-  }
-  if (activity.hasLoggedBleed) {
-    return {
-      state: "needsReview",
-      displayValue: "Review context",
-      source: "scheduleEstimate",
-      supportingText: "Recent bleed recorded",
-    };
-  }
-  if (treatment.nextDoseAt && isOverdue(treatment.nextDoseAt, now)) {
-    return {
-      state: "needsReview",
-      displayValue: "Needs review",
-      source: "scheduleEstimate",
-      supportingText: "Recorded schedule needs attention",
-    };
-  }
-  if (typeof treatment.estimatedProtectionDays !== "number") {
-    return {
-      state: "unavailable",
-      source: "unavailable",
-      supportingText: "Schedule estimate unavailable",
-    };
-  }
-  const days = treatment.estimatedProtectionDays;
-  return {
-    state: treatment.dose === "covered" ? "estimated" : "approaching",
-    displayValue: days === 0 ? "Due today" : `${days} ${days === 1 ? "day" : "days"}`,
-    source: "scheduleEstimate",
-    supportingText: "Schedule estimate",
-  };
-}
-
-type ActivitySafetyStatus = "protected" | "transitioning" | "caution";
-
-interface ActivitySafetyResult {
+interface IntervalPosition {
   hoursSinceLastDose: number;
-  /** 0–100, position of the marker on the cover bar. */
+  /** 0–100, how far through the recorded interval the meter sits. */
   position: number;
-  status: ActivitySafetyStatus;
-  title: string;
-  guidance: string;
 }
 
 /**
  * PROTOTYPE / DEMO LOGIC — rough "where am I in my recorded interval"
- * position from elapsed time + half-life, purely to give the UI a bounded
- * visual range. Replace the body only; ActivityCard must not change.
+ * position from elapsed time + half-life, purely to give the meter a bounded
+ * visual range. Replace the body only; nothing above reads its internals.
  */
-function getActivitySafety(input: {
+function getIntervalPosition(input: {
   treatment: Pick<TreatmentStatus, "lastDoseAt" | "factorHalfLifeHours"> | null;
   activity: ActivityStatus;
   now: Date;
-}): ActivitySafetyResult {
+}): IntervalPosition {
   const { treatment, activity, now } = input;
-  if (!treatment?.lastDoseAt) {
-    return {
-      hoursSinceLastDose: 0,
-      position: 0,
-      status: "caution",
-      title: "Not enough information yet",
-      guidance: "Add your treatment information to show timing context here.",
-    };
-  }
+  if (!treatment?.lastDoseAt) return { hoursSinceLastDose: 0, position: 0 };
+
   const elapsedMs = now.getTime() - new Date(treatment.lastDoseAt).getTime();
   const hoursSinceLastDose = Math.max(0, Math.round(elapsedMs / 3_600_000));
   const halfLife = treatment.factorHalfLifeHours > 0 ? treatment.factorHalfLifeHours : 24;
   /** Two half-lives bounds the visual range of demo data. */
   const position = Math.min(100, Math.max(0, (hoursSinceLastDose / halfLife / 2) * 100));
 
-  if (activity.hasLoggedBleed) {
-    return {
-      hoursSinceLastDose,
-      position: Math.max(position, 78),
-      status: "caution",
-      title: "Recent bleed recorded",
-      guidance: "A recent bleed may affect your activity plans.",
-    };
-  }
-  if (position < 50) {
-    return {
-      hoursSinceLastDose,
-      position,
-      status: "protected",
-      title: "Earlier in your recorded treatment interval",
-      guidance:
-        "Individual protection can vary. Follow your personal care plan and check with your care team if you're unsure.",
-    };
-  }
-  if (position < 75) {
-    return {
-      hoursSinceLastDose,
-      position,
-      status: "transitioning",
-      title: "Later in your recorded treatment interval",
-      guidance:
-        "Individual protection can vary. Follow your personal care plan and check with your care team if you're unsure.",
-    };
-  }
+  // A recorded bleed pushes the meter well along whatever the clock says.
   return {
     hoursSinceLastDose,
-    position,
-    status: "caution",
-    title: "Your recorded schedule needs attention",
-    guidance:
-      "Follow your personal care plan and check with your care team if you're unsure what to do.",
+    position: activity.hasLoggedBleed ? Math.max(position, 78) : position,
   };
 }
 
 /* ===================================================================== */
-/* 4. Kaki — mascot state mapping (presentation only, retunable)          */
+/* 3. Status vocabulary — one word for the whole card                     */
 /* ===================================================================== */
 
-type SceneStatusId = "recentBleed" | "doseOverdue" | "doseApproaching" | "onTrack";
+/** The schedule on its own. It tints the cover figure and the meter. */
+type DoseStatus = "recentBleed" | "overdue" | "dueToday" | "onTrack";
 
-const SCENE_STATUS_LABEL: Record<SceneStatusId, string> = {
-  recentBleed: "Recent bleed logged",
-  doseOverdue: "Check your dose",
-  doseApproaching: "Dose coming up",
-  onTrack: "On track",
-};
+/** The cupboard on its own: fine, worth ordering soon, or empty. */
+type SupplyNeed = "ok" | "low" | "out";
 
-const SCENE_STATUS_TONE: Record<SceneStatusId, StatusTone> = {
-  onTrack: "protected",
-  doseApproaching: "transitioning",
-  doseOverdue: "caution",
-  recentBleed: "caution",
+type StatusId = DoseStatus | "runningLow" | "outOfFactor";
+
+const STATUS_TEXT: Record<StatusId, { label: string; ink: string; dot: string }> = {
+  onTrack: { label: "On track", ink: "text-moss-700", dot: "bg-moss-600" },
+  dueToday: { label: "Due today", ink: "text-ochre-700", dot: "bg-ochre-600" },
+  runningLow: { label: "Running low", ink: "text-ochre-700", dot: "bg-ochre-600" },
+  overdue: { label: "Overdue", ink: "text-brick-600", dot: "bg-brick-600" },
+  recentBleed: { label: "Recent bleed", ink: "text-brick-600", dot: "bg-brick-600" },
+  outOfFactor: { label: "Out of factor", ink: "text-brick-600", dot: "bg-brick-600" },
 };
 
 const DOSE_SEVERITY: Record<DoseState, 0 | 1 | 2> = { covered: 0, low: 1, veryLow: 2 };
 
-/** Priority model, highest first. Replaceable in one place. */
-function resolveSceneStatus(ctx: {
-  dose: DoseState;
-  hasRecentBleed?: boolean | undefined;
-}): SceneStatusId {
-  if (ctx.hasRecentBleed === true) return "recentBleed";
-  if (DOSE_SEVERITY[ctx.dose] >= 2) return "doseOverdue";
-  if (DOSE_SEVERITY[ctx.dose] === 1) return "doseApproaching";
+/** Priority model for the schedule, highest first. Replaceable in one place. */
+function resolveDoseStatus(ctx: { dose: DoseState; hasRecentBleed: boolean }): DoseStatus {
+  if (ctx.hasRecentBleed) return "recentBleed";
+  if (DOSE_SEVERITY[ctx.dose] >= 2) return "overdue";
+  if (DOSE_SEVERITY[ctx.dose] === 1) return "dueToday";
   return "onTrack";
 }
 
-/* ===================================================================== */
-/* 6. FactorScene — the homely hero scene                                 */
-/* ===================================================================== */
-
-const ROOM = {
-  wallTop: "#FDF4DE",
-  wallBottom: "#EADFCF",
-  floor: "#DCCBB7",
-  wood: "#9D826F",
-  plant: "#849B82",
-  light: "#FFF3D0",
-  text: "#433229",
-};
-
-interface FactorSceneProps {
-  dose: DoseState;
-  hasRecentBleed?: boolean;
-  sceneStatus?: SceneStatusId;
-  onKakiTap?: () => void;
-  expanded?: boolean;
-  controlsId?: string;
-  className?: string;
+/**
+ * The rule the tracker's supply card tints its figure by: out at zero, low
+ * for the last three vials or once the order-by date has arrived. Unknown —
+ * the status still loading — reads as fine rather than as empty.
+ */
+function supplyNeedOf(supply: SupplyStatus | null): SupplyNeed {
+  if (!supply) return "ok";
+  if (supply.vialsOnHand <= 0) return "out";
+  return supply.vialsOnHand <= 3 || supply.order?.due === true ? "low" : "ok";
 }
 
-/** Kaki-focused, inventory-free scene. All clinical context arrives via props. */
-function FactorScene({
-  dose,
-  hasRecentBleed,
-  sceneStatus,
-  onKakiTap,
-  expanded,
-  controlsId,
-  className,
-}: FactorSceneProps) {
-  const uid = useId();
-  const wallId = `wall-${uid}`;
-  const lightId = `light-${uid}`;
-  const status = sceneStatus ?? resolveSceneStatus({ dose, hasRecentBleed });
-  const [tapped, setTapped] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
+/**
+ * The card's one status word. An empty cupboard outranks everything, because
+ * it blocks the next dose whatever the schedule says; running low sits under
+ * the brick states but above "due today".
+ */
+function resolveStatus(dose: DoseStatus, supply: SupplyNeed): StatusId {
+  if (supply === "out") return "outOfFactor";
+  if (dose === "recentBleed" || dose === "overdue") return dose;
+  return supply === "low" ? "runningLow" : dose;
+}
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+/** The tone the meter and the cover figure take, from the schedule alone. */
+function toneOf(dose: DoseStatus): "teal" | "caution" | "critical" {
+  if (dose === "onTrack") return "teal";
+  return dose === "dueToday" ? "caution" : "critical";
+}
 
-  const handleTap = () => {
-    window.clearTimeout(timer.current);
-    setTapped(true);
-    timer.current = window.setTimeout(() => setTapped(false), 600);
-    onKakiTap?.();
-  };
+/** The room the scene furnishes, from the same reading as the status word. */
+const SCENE_SUPPLY: Record<SupplyNeed, SceneSupply> = { ok: "stocked", low: "low", out: "empty" };
+
+/** The line under a low vials figure: the day the fold advises ordering by. */
+function orderNote(supply: SupplyStatus): string | undefined {
+  if (supply.order) {
+    return supply.order.due ? "Order now" : `Order by ${formatShortDay(supply.order.byOn)}`;
+  }
+  return supply.runsOutOn ? `Runs out ${formatShortDay(supply.runsOutOn)}` : undefined;
+}
+
+/* ===================================================================== */
+/* 4. Home sections                                                       */
+/* ===================================================================== */
+
+export function HomeHeader({ user, now }: { user: HomeUser; now: Date }) {
+  const dateLine = new Intl.DateTimeFormat("en-SG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(now);
 
   return (
-    <div className={cn("relative overflow-hidden", className)}>
-      <svg viewBox="0 0 600 390" className="block h-auto w-full" aria-hidden="true">
-        <defs>
-          <linearGradient id={wallId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={ROOM.wallTop} />
-            <stop offset="100%" stopColor={ROOM.wallBottom} />
-          </linearGradient>
-          <radialGradient id={lightId} cx="0.4" cy="0.45" r="0.6">
-            <stop offset="0%" stopColor={ROOM.light} stopOpacity="0.9" />
-            <stop offset="100%" stopColor={ROOM.light} stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <rect width="600" height="390" fill={`url(#${wallId})`} />
-        <rect y="286" width="600" height="104" fill={ROOM.floor} />
-        <rect y="284" width="600" height="4" fill={ROOM.wood} opacity="0.14" />
-
-        {/* Window */}
-        <g opacity="0.5">
-          <rect
-            x="48"
-            y="48"
-            width="112"
-            height="126"
-            rx="10"
-            fill={ROOM.light}
-            stroke={ROOM.wood}
-            strokeWidth="4"
-          />
-          <line
-            x1="104"
-            y1="48"
-            x2="104"
-            y2="174"
-            stroke={ROOM.wood}
-            strokeWidth="3"
-            opacity="0.45"
-          />
-          <line
-            x1="48"
-            y1="111"
-            x2="160"
-            y2="111"
-            stroke={ROOM.wood}
-            strokeWidth="3"
-            opacity="0.45"
-          />
-        </g>
-        <ellipse cx="240" cy="214" rx="230" ry="165" fill={`url(#${lightId})`} />
-
-        {/* Plant */}
-        <g>
-          <path d="M 519 288 L 526 242 Q 549 251 539 288 Z" fill={ROOM.plant} />
-          <path d="M 526 268 Q 499 245 494 260 Q 506 282 527 280 Z" fill={ROOM.plant} />
-          <path
-            d="M 529 259 Q 554 237 564 250 Q 554 274 531 276 Z"
-            fill={ROOM.plant}
-            opacity="0.82"
-          />
-          <path
-            d="M 505 288 h 48 l -7 36 a 6 6 0 0 1 -6 5 h -22 a 6 6 0 0 1 -6 -5 Z"
-            fill={ROOM.wood}
-          />
-        </g>
-
-        {/* Shadow + Kaki */}
-        <ellipse cx="310" cy="335" rx="98" ry="15" fill={ROOM.wood} opacity="0.25" />
-        <g transform="translate(163 76) scale(1.48)">
-          <g
-            className={cn("animate-platelet-bob", tapped && "animate-kaki-pop")}
-            style={tapped ? undefined : { animationDuration: KAKI_BOB_DURATION[dose] }}
-          >
-            <KakiBody state={dose} />
-          </g>
-        </g>
-      </svg>
-
-      {/* Single most relevant status — one pill, never competing badges. */}
-      <div className="pointer-events-none absolute inset-x-4 top-4 flex">
-        <span
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold shadow-sm backdrop-blur-sm",
-            SURFACE_RAISED + "/90",
-          )}
-          style={{ color: ROOM.text }}
-        >
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full",
-              STATUS_TONE_CLASSES[SCENE_STATUS_TONE[status]].dot,
-            )}
-            aria-hidden="true"
-          />
-          {SCENE_STATUS_LABEL[status]}
-        </span>
+    <header className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] lg:text-[28px] lg:tracking-[-0.015em]">
+          {getDayPeriod(now)}, {user.firstName}
+        </h1>
+        <p className="mt-1.5 text-sm text-ink-muted lg:text-[15px]">{dateLine}</p>
       </div>
+      {/* From `lg` the switcher sits in the top bar instead. */}
+      <ProfileButton className="lg:hidden" />
+    </header>
+  );
+}
 
-      <button
-        type="button"
-        onClick={handleTap}
-        aria-label={`Kaki: ${SCENE_STATUS_LABEL[status]}. Show why Kaki looks this way.`}
-        aria-expanded={expanded}
-        aria-controls={controlsId}
-        className="absolute left-[24%] top-[21%] h-[67%] w-[55%] rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-      />
-      <p className="sr-only">
-        Kaki reflects recorded treatment context, not a measured factor level.
-      </p>
+/** The one-line status: a dot, the word, and what regimen it refers to. */
+function StatusLine({
+  status,
+  regimen,
+  className,
+}: {
+  status: StatusId;
+  regimen: string;
+  className?: string;
+}) {
+  const { label, ink, dot } = STATUS_TEXT[status];
+  return (
+    <div className={cn("flex items-center gap-2.5", className)}>
+      <span className={cn("h-2.5 w-2.5 rounded-full", dot)} aria-hidden="true" />
+      <span className={cn("text-[15px] font-semibold", ink)}>{label}</span>
+      <span className="ml-auto truncate text-[13.5px] text-ink-subtle">{regimen}</span>
     </div>
   );
 }
 
-/* ===================================================================== */
-/* 7. Shared UI bits (minimal, dependency-free)                           */
-/* ===================================================================== */
-
-function PrimaryButton({
+/**
+ * The card itself — the scene, the two figures that matter, the meter, and
+ * the sentence that says what the meter means.
+ *
+ * On a phone it stacks; from `lg` the scene sits beside the figures.
+ */
+function StatusHero({
+  treatmentStatus,
+  activityStatus,
+  supplyStatus,
+  doseStatus,
+  supply,
+  now,
   children,
-  className,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: {
+  treatmentStatus: TreatmentStatus;
+  activityStatus: ActivityStatus;
+  supplyStatus: SupplyStatus | null;
+  doseStatus: DoseStatus;
+  supply: SupplyNeed;
+  now: Date;
+  /** The action row — which buttons appear is decided by `StatusActions`. */
+  children?: ReactNode;
+}) {
+  const status = resolveStatus(doseStatus, supply);
+  const { position } = getIntervalPosition({
+    treatment: treatmentStatus,
+    activity: activityStatus,
+    now,
+  });
+  const tone = toneOf(doseStatus);
+
+  const coverDays = treatmentStatus.estimatedProtectionDays;
+  const regimen = [treatmentStatus.medicationName, treatmentStatus.prescribedDose]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <button
-      type="button"
-      className={cn(
-        "min-h-11 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50",
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
+    <Card padded={false} aria-label="Treatment and supply" className="overflow-hidden">
+      <div className="lg:flex lg:items-center lg:gap-5 lg:p-6 xl:gap-6">
+        <div className="lg:w-[260px] lg:shrink-0 xl:w-[356px]">
+          <StatusLine status={status} regimen={regimen} className="px-4 pb-3.5 pt-4 lg:hidden" />
+          <StatusScene
+            coverage={coverageFromDose(treatmentStatus.dose)}
+            supply={SCENE_SUPPLY[supply]}
+            className="lg:overflow-hidden lg:rounded-2xl"
+          />
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col px-4 pb-4 pt-5 sm:px-5 lg:p-0">
+          <StatusLine status={status} regimen={regimen} className="hidden lg:flex" />
+
+          <div className="flex gap-6 lg:mt-4">
+            <Stat
+              label="Cover left"
+              value={coverDays === undefined ? "—" : coverDays}
+              unit={coverDays === undefined ? undefined : coverDays === 1 ? "day" : "days"}
+              tone={tone === "teal" ? "ink" : tone === "caution" ? "caution" : "critical"}
+              size="lg"
+              className="flex-1"
+            />
+            <Stat
+              label="Vials at home"
+              value={supplyStatus?.vialsOnHand ?? "—"}
+              unit={supplyStatus ? "left" : undefined}
+              tone={supply === "out" ? "critical" : supply === "low" ? "caution" : "ink"}
+              note={supply === "low" && supplyStatus ? orderNote(supplyStatus) : undefined}
+              size="lg"
+              className="flex-1"
+            />
+          </div>
+
+          <Meter
+            percent={position}
+            tone={tone}
+            className="mt-5"
+            label="How far through your recorded dose interval you are"
+          />
+          <DoseSentence treatmentStatus={treatmentStatus} />
+
+          {children}
+        </div>
+      </div>
+    </Card>
   );
 }
 
-function OutlineButton({
-  children,
-  className,
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+/**
+ * "Last dose 4 days ago, on Thursday. Next one due Friday 25 September."
+ *
+ * Every clause is dropped rather than guessed at when the fold does not know
+ * it, so a fresh profile reads as a short sentence instead of a wrong one.
+ */
+function DoseSentence({ treatmentStatus }: { treatmentStatus: TreatmentStatus }) {
+  const todayKey = getSingaporeTodayKey();
+  const lastKey = treatmentStatus.lastDoseAt
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(
+        new Date(treatmentStatus.lastDoseAt),
+      )
+    : null;
+  const nextKey = treatmentStatus.nextDoseAt
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(
+        new Date(treatmentStatus.nextDoseAt),
+      )
+    : null;
+
+  if (!lastKey && !nextKey) {
+    // `hasSchedule` is undefined until the status arrives; say nothing till then.
+    if (treatmentStatus.hasSchedule === undefined) return null;
+    return (
+      <p className={cn("mt-2.5 text-[13.5px] leading-relaxed", INK_MUTED)}>No doses logged yet.</p>
+    );
+  }
+
+  const gap = lastKey ? daysBetweenKeys(lastKey, todayKey) : null;
+  const weekday = lastKey
+    ? new Intl.DateTimeFormat("en-SG", { weekday: "long", timeZone: "Asia/Singapore" }).format(
+        new Date(`${lastKey}T00:00:00+08:00`),
+      )
+    : null;
+
   return (
-    <button
-      type="button"
-      className={cn(
-        "min-h-11 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50",
-        className,
+    <p className={cn("mt-2.5 text-[13.5px] leading-relaxed lg:text-[14.5px]", INK_MUTED)}>
+      {lastKey ? (
+        <>
+          Last dose {gap === 0 ? "today" : `${formatDayGap(gap ?? 0)} ago`}
+          {gap !== 0 && weekday ? `, on ${weekday}` : ""}.{" "}
+        </>
+      ) : null}
+      {nextKey ? (
+        <>
+          {nextKey < todayKey ? "Was due" : "Next one due"}{" "}
+          <strong className={cn("font-semibold", INK)}>{formatLongDay(nextKey)}</strong>.
+        </>
+      ) : (
+        <>No dose planned yet.</>
       )}
-      {...rest}
-    >
-      {children}
-    </button>
+    </p>
   );
 }
+
+const ENTRY_LABEL: Record<
+  LedgerEntrySummary["kind"],
+  { label: string; mark: "taken" | "missed" | "bleed" }
+> = {
+  prophylaxis: { label: "Dose taken", mark: "taken" },
+  makeup: { label: "Dose made up", mark: "taken" },
+  "on-demand": { label: "Bleed treated", mark: "bleed" },
+  "follow-up": { label: "Follow-up dose", mark: "taken" },
+  // Not an entry at all — a planned day the ledger has nothing for.
+  missed: { label: "Dose missed", mark: "missed" },
+  refill: { label: "Refill", mark: "taken" },
+};
+
+/** Vials as the ledger charged them — "2 vials", and nothing at all for zero. */
+function vialsLabel(appliedVials: number): string {
+  const count = Math.abs(appliedVials);
+  if (!count) return "—";
+  return `${count} ${count === 1 ? "vial" : "vials"}`;
+}
+
+/**
+ * The last few things recorded. A phone shows a short list; from `lg` the same
+ * rows become a table with the columns a clinic conversation asks for.
+ */
+export function RecentEntries({
+  entries,
+  onOpenTracker,
+}: {
+  entries: LedgerEntrySummary[];
+  /** "See all". Left out where the calendar is already on the page. */
+  onOpenTracker?: () => void;
+}) {
+  const rows = entries.slice(0, 4);
+
+  return (
+    <Card className="lg:p-6">
+      <CardHeaderRow
+        title="Recent entries"
+        action={
+          onOpenTracker ? (
+            <button
+              type="button"
+              onClick={onOpenTracker}
+              className={cn("text-sm font-medium text-teal-700 hover:text-teal-800", FOCUS_RING)}
+            >
+              See all
+            </button>
+          ) : undefined
+        }
+      />
+
+      {rows.length === 0 ? (
+        <p className={cn("mt-4 text-sm leading-relaxed", INK_MUTED)}>Nothing logged yet.</p>
+      ) : (
+        <>
+          {/* Desktop column headings; the phone list needs none. */}
+          <div className="mt-4 hidden border-b border-line pb-2.5 text-[13.5px] text-ink-subtle lg:grid lg:grid-cols-[1.3fr_1.2fr_0.9fr]">
+            <span>Date</span>
+            <span>Entry</span>
+            <span>Amount</span>
+          </div>
+
+          <ul className="mt-3 lg:mt-0">
+            {rows.map((entry) => {
+              const meta = ENTRY_LABEL[entry.kind];
+              return (
+                <li
+                  key={entry.key}
+                  className="flex items-center gap-3.5 py-3 lg:grid lg:grid-cols-[1.3fr_1.2fr_0.9fr] lg:items-center lg:gap-0 lg:border-b lg:border-line-soft lg:py-3.5 lg:last:border-0"
+                >
+                  <StatusDot kind={meta.mark} className="lg:hidden" />
+                  <span className="hidden text-[14.5px] lg:block">
+                    {formatShortDay(entry.occurredOn)}
+                  </span>
+                  <span className="flex min-w-0 flex-grow flex-col gap-0.5 lg:flex-row lg:items-center lg:gap-2.5">
+                    <StatusDot kind={meta.mark} className="hidden lg:block" />
+                    <span className="text-[15px] lg:text-[14.5px]">{meta.label}</span>
+                    <span className="text-[13px] text-ink-faint lg:hidden">
+                      {formatShortDay(entry.occurredOn)}
+                    </span>
+                  </span>
+                  <span className="text-sm text-ink-muted lg:text-[14.5px]">
+                    {vialsLabel(entry.appliedVials)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/* ===================================================================== */
+/* 5. Low-friction dose workflow                                          */
+/*                                                                        */
+/* A lightweight sheet so this file stays dependency-free. If the team    */
+/* repo grows a shared accessible Dialog, swap this for it — the props    */
+/* below are the whole contract.                                          */
+/* ===================================================================== */
 
 function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <div>
-      <label htmlFor={id} className="text-sm font-semibold text-stone-700">
+      <label htmlFor={id} className="text-[13.5px] font-medium text-ink-muted">
         {label}
       </label>
       <div className="mt-2">{children}</div>
@@ -480,300 +501,21 @@ function Field({ id, label, children }: { id: string; label: string; children: R
   );
 }
 
-const INPUT_CLASS =
-  "min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-500";
-
-/* ===================================================================== */
-/* 8. Home sections                                                       */
-/* ===================================================================== */
-
-function HomeHeader({
-  user,
-  now,
-  lastUpdatedAt,
-}: {
-  user: HomeUser;
-  now: Date;
-  lastUpdatedAt?: string;
-}) {
-  return (
-    <header className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className={cn("break-words text-[26px] font-bold leading-tight", INK)}>
-          Good {getDayPeriod(now).toLowerCase()}, {user.firstName}
-        </h1>
-        <p className={cn("mt-1 text-sm font-medium", INK_MUTED)}>{formatDate(now)}</p>
-        {lastUpdatedAt ? (
-          <p className={cn("mt-1 text-xs", INK_MUTED)}>
-            Last updated {formatDate(new Date(lastUpdatedAt))}
-          </p>
-        ) : null}
-      </div>
-      <ProfileButton />
-    </header>
-  );
-}
-
-function TreatmentStats({
-  treatmentStatus,
-  cover,
-  now,
-}: {
-  treatmentStatus: TreatmentStatus | null;
-  cover: CoverStatus;
-  now: Date;
-}) {
-  const nextDose = formatNextDose(treatmentStatus?.nextDoseAt, now);
-  const coverTone =
-    cover.state === "estimated"
-      ? STATUS_TONE_CLASSES.protected.soft
-      : cover.state === "approaching"
-        ? STATUS_TONE_CLASSES.transitioning.soft
-        : STATUS_TONE_CLASSES.caution.soft;
-  return (
-    <div className="grid grid-cols-2 divide-x divide-black/10 px-3 py-4">
-      <div className="min-w-0 px-2">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn("flex h-7 w-7 items-center justify-center rounded-full", coverTone)}
-            aria-hidden="true"
-          >
-            <ShieldCheck className="h-4 w-4" />
-          </span>
-          <p className={cn("text-xs font-semibold", INK_MUTED)}>Cover</p>
-        </div>
-        <p className={cn("mt-2 break-words text-lg font-bold", INK)}>
-          {cover.displayValue ?? "Unavailable"}
-        </p>
-        <p className={cn("mt-0.5 text-xs", INK_MUTED)}>{cover.supportingText}</p>
-      </div>
-      <div className="min-w-0 px-3">
-        <div className="flex items-center gap-2">
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-brand-700"
-            aria-hidden="true"
-          >
-            <Clock3 className="h-4 w-4" />
-          </span>
-          <p className={cn("text-xs font-semibold", INK_MUTED)}>Next dose</p>
-        </div>
-        <p className={cn("mt-2 break-words text-base font-bold leading-tight", INK)}>
-          {nextDose.day}
-        </p>
-        {nextDose.dateTime ? (
-          <p className={cn("mt-1 text-sm font-semibold", INK_MUTED)}>{nextDose.dateTime}</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Short, state-aware answer to "why does Kaki look like this?" — derived from
- * the SAME cover/activity state driving the rest of Home. No numeric details,
- * no action buttons: those live in TreatmentStats and DoseActionPanel instead.
- */
-function KakiExplanation({
-  activityStatus,
-  cover,
-}: {
-  activityStatus: ActivityStatus;
-  cover: CoverStatus;
-}) {
-  const text = activityStatus.hasLoggedBleed
-    ? "A recent bleed has been recorded."
-    : cover.state === "needsReview"
-      ? "Your recorded treatment schedule needs attention."
-      : cover.state === "approaching"
-        ? "Your next recorded dose is coming up."
-        : "Your recorded treatment schedule is on track.";
-
-  return (
-    <>
-      <p className={cn("mt-2 text-sm", INK_MUTED)}>{text}</p>
-      <p className={cn("mt-3 text-xs leading-5", INK_MUTED)}>
-        Cover is based on your recorded treatment schedule and is not a measured factor level.
-      </p>
-    </>
-  );
-}
-
-function TreatmentHero({
-  treatmentStatus,
-  activityStatus,
-  now,
-  actions,
-}: {
-  treatmentStatus: TreatmentStatus;
-  activityStatus: ActivityStatus;
-  now: Date;
-  actions: HomeActions;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const disclosureId = useId();
-  const cover = getCoverStatus(treatmentStatus, activityStatus, now);
-  const visualDose = activityStatus.hasLoggedBleed ? "veryLow" : treatmentStatus.dose;
-
-  return (
-    <section
-      aria-label="Treatment context"
-      className={cn("mt-5 overflow-hidden rounded-2xl border border-black/10", SURFACE_RAISED)}
-    >
-      <FactorScene
-        dose={visualDose}
-        {...(activityStatus.hasLoggedBleed !== undefined
-          ? { hasRecentBleed: activityStatus.hasLoggedBleed }
-          : {})}
-        onKakiTap={() => setExpanded((value) => !value)}
-        expanded={expanded}
-        controlsId={disclosureId}
-      />
-      <div
-        id={disclosureId}
-        hidden={!expanded}
-        className="border-t border-black/10 bg-brand-50/50 px-5 py-4"
-      >
-        <h2 className={cn("font-bold", INK)}>Why does Kaki look like this?</h2>
-        <KakiExplanation activityStatus={activityStatus} cover={cover} />
-      </div>
-      <TreatmentStats treatmentStatus={treatmentStatus} cover={cover} now={now} />
-      <DoseActionPanel treatmentStatus={treatmentStatus} now={now} actions={actions} />
-    </section>
-  );
-}
-
-function ActivityCard({
-  treatmentStatus,
-  activityStatus,
-  now,
-  onOpen,
-}: {
-  treatmentStatus: TreatmentStatus | null;
-  activityStatus: ActivityStatus;
-  now: Date;
-  onOpen: () => void;
-}) {
-  const result = getActivitySafety({ treatment: treatmentStatus, activity: activityStatus, now });
-  const tone = STATUS_TONE_CLASSES[result.status];
-  return (
-    <section
-      aria-labelledby="activity-title"
-      className="mt-4 rounded-2xl border border-brand-100 bg-brand-50/60 p-5"
-    >
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex min-h-11 w-full items-center justify-start gap-3 rounded-lg p-0 text-left"
-      >
-        <span
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-            tone.soft,
-          )}
-          aria-hidden="true"
-        >
-          <PersonStanding className="h-5 w-5" />
-        </span>
-        <span>
-          <span id="activity-title" className={cn("block text-lg font-bold", INK)}>
-            Activity
-          </span>
-          <span className={cn("block whitespace-normal text-sm font-normal", INK_MUTED)}>
-            {activityStatus.hasLoggedBleed
-              ? activityStatus.lastBleedAt
-                ? `${result.title} · ${formatDateTime(new Date(activityStatus.lastBleedAt), now)}`
-                : result.title
-              : `${result.hoursSinceLastDose}h since your last recorded dose`}
-          </span>
-        </span>
-      </button>
-      {!activityStatus.hasLoggedBleed && treatmentStatus?.lastDoseAt ? (
-        <div className="mt-4" aria-label="Position within recorded treatment interval">
-          <div className="relative h-2 rounded-full bg-black/10">
-            <span
-              className={cn("absolute left-0 top-0 h-2 rounded-full", tone.solid)}
-              style={{ width: `${result.position}%` }}
-            />
-            <span
-              className={cn(
-                "absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm",
-                tone.solid,
-              )}
-              style={{ left: `${result.position}%` }}
-            />
-          </div>
-          <div className={cn("mt-2 flex justify-between text-[11px] font-medium", INK_MUTED)}>
-            <span>Earlier in interval</span>
-            <span>Later in interval</span>
-          </div>
-        </div>
-      ) : null}
-      <p className={cn("mt-4 text-sm leading-6", INK_MUTED)}>{result.guidance}</p>
-      {activityStatus.hasLoggedBleed ? (
-        <button
-          type="button"
-          className="mt-1 min-h-11 px-0 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline"
-          onClick={onOpen}
-        >
-          View bleed information
-        </button>
-      ) : null}
-      <p className={cn("mt-2 text-xs leading-5", INK_MUTED)}>
-        Treatment timing only — not a measured factor concentration.
-      </p>
-    </section>
-  );
-}
-
-function DailyTip({ tip }: { tip: DailyTipData }) {
-  return (
-    <section
-      aria-labelledby="daily-tip-title"
-      className="mt-5 flex gap-3 border-t border-black/10 px-1 py-5"
-    >
-      <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700"
-        aria-hidden="true"
-      >
-        <Lightbulb className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className={cn("text-xs font-semibold uppercase tracking-wide", INK_MUTED)}>Daily tip</p>
-        <h2 id="daily-tip-title" className={cn("mt-1 text-base font-bold tracking-[-0.01em]", INK)}>
-          {tip.title}
-        </h2>
-        <p className={cn("mt-1 text-sm leading-6", INK_MUTED)}>{tip.body}</p>
-        {tip.sourceLabel ? (
-          <p className={cn("mt-2 text-xs", INK_MUTED)}>
-            Source: {tip.sourceLabel}
-            {tip.clinicalReviewStatus === "pending" ? " · Clinical review pending" : ""}
-          </p>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-/* ===================================================================== */
-/* 9. Low-friction dose workflow                                          */
-/*                                                                      */
-/* Lightweight bottom sheet so this file stays dependency-free. If the   */
-/* team repo has a shared accessible Sheet/Dialog primitive, swap this   */
-/* for it — the props below are the whole contract.                      */
-/* ===================================================================== */
+const INPUT_CLASS = cn(
+  "h-12 w-full rounded-xl border border-sand-300 bg-card px-3.5 text-[15px] text-ink",
+  "focus:border-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-600",
+);
 
 function BottomSheet({
   open,
   onClose,
   title,
-  description,
   returnFocusRef,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
-  description: string;
   returnFocusRef?: RefObject<HTMLButtonElement>;
   children: ReactNode;
 }) {
@@ -798,25 +540,26 @@ function BottomSheet({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
+    // Bottom sheet on a phone, a centred dialog from `sm` where there is room.
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
+      <div className="absolute inset-0 bg-ink/40" aria-hidden="true" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-black/10 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+        className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-card border border-line bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-card sm:pb-5"
       >
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className={cn("text-lg font-bold", INK)}>{title}</h2>
-            <p className={cn("mt-1 text-sm", INK_MUTED)}>{description}</p>
-          </div>
+          <h2 className={cn("text-lg font-semibold", INK)}>{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-stone-100"
+            className={cn(
+              "-mr-1.5 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-soft",
+              FOCUS_RING,
+            )}
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -830,9 +573,9 @@ function BottomSheet({
 type SaveState = "idle" | "submitting" | "success" | "failure";
 
 /**
- * Handles BOTH "Taken" (prospective, defaults to today) and "I took it"
- * (retrospective) — same shape, different wording per the product distinction
- * between "not taken" and "taken but not yet recorded."
+ * Handles BOTH "Log dose" (prospective, defaults to today) and "I took it"
+ * (retrospective) — the product distinguishes "not taken" from "taken but not
+ * yet recorded", and both end in the same entry.
  *
  * Only the day is asked for. The ledger files a dose under a Singapore
  * calendar date and never records a time or an amount — a prophylaxis dose is
@@ -840,12 +583,10 @@ type SaveState = "idle" | "submitting" | "success" | "failure";
  * would collect something nothing stores.
  */
 function RecordDoseSheet({
-  mode,
   treatmentStatus,
   onClose,
   onConfirm,
 }: {
-  mode: "taken" | "retrospective";
   treatmentStatus: TreatmentStatus;
   onClose: () => void;
   onConfirm: HomeActions["onRecordDose"];
@@ -858,7 +599,7 @@ function RecordDoseSheet({
   const submit = async () => {
     if (saveState === "submitting") return;
     if (!takenOn || takenOn > today) {
-      setFailureMessage("Enter the day the dose was taken — today or earlier.");
+      setFailureMessage("Pick today or an earlier day.");
       setSaveState("failure");
       return;
     }
@@ -874,16 +615,10 @@ function RecordDoseSheet({
   };
 
   return (
-    <BottomSheet
-      open
-      onClose={onClose}
-      title="Record dose"
-      description={mode === "taken" ? "Log your routine dose." : "Log the dose you already took."}
-    >
+    <BottomSheet open onClose={onClose} title="Log dose">
       {saveState === "success" ? (
         <div className="py-8" role="status">
-          <p className={cn("text-lg font-bold", INK)}>Dose recorded</p>
-          <p className={cn("mt-1 text-sm", INK_MUTED)}>It is on your tracker calendar too.</p>
+          <p className={cn("text-lg font-semibold", INK)}>Dose logged</p>
           <PrimaryButton className="mt-5 w-full" onClick={onClose}>
             Done
           </PrimaryButton>
@@ -892,11 +627,9 @@ function RecordDoseSheet({
         <div className="mt-5 space-y-5">
           <div>
             <p className={cn("font-semibold", INK)}>{treatmentStatus.medicationName}</p>
-            <p className={cn("text-sm", INK_MUTED)}>
-              {treatmentStatus.prescribedDose
-                ? `Usual dose: ${treatmentStatus.prescribedDose}`
-                : "Your routine prophylaxis dose"}
-            </p>
+            {treatmentStatus.prescribedDose ? (
+              <p className={cn("text-sm", INK_MUTED)}>{treatmentStatus.prescribedDose}</p>
+            ) : null}
           </div>
           <Field id="dose-record-day" label="Taken on">
             <input
@@ -912,7 +645,7 @@ function RecordDoseSheet({
             />
           </Field>
           {saveState === "failure" ? (
-            <p role="alert" className={cn("text-sm font-medium", INK)}>
+            <p role="alert" className="text-sm font-medium text-brick-600">
               {failureMessage}
             </p>
           ) : null}
@@ -938,104 +671,11 @@ function RecordDoseSheet({
   );
 }
 
-/** "Move dose" — one sheet for both the upcoming and the overdue entry point. */
-function RescheduleSheet({
-  currentScheduledAt,
-  onClose,
-  onConfirm,
-}: {
-  currentScheduledAt?: string;
-  onClose: () => void;
-  onConfirm: HomeActions["onRescheduleDose"];
-}) {
-  const today = getSingaporeTodayKey();
-  const [movedTo, setMovedTo] = useState(() => {
-    const planned = currentScheduledAt
-      ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(
-          new Date(currentScheduledAt),
-        )
-      : today;
-    return planned >= today ? planned : today;
-  });
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [failureMessage, setFailureMessage] = useState("");
+/* ===================================================================== */
+/* 6. The status card and its buttons                                     */
+/* ===================================================================== */
 
-  const confirm = async () => {
-    if (saveState === "submitting") return;
-    if (!movedTo || movedTo < today) {
-      setFailureMessage("Pick today or a later day.");
-      setSaveState("failure");
-      return;
-    }
-    setSaveState("submitting");
-    const result = await onConfirm({ movedTo });
-    if (result.ok) setSaveState("success");
-    else {
-      setFailureMessage(result.message ?? "We couldn't move the dose. Your routine is unchanged.");
-      setSaveState("failure");
-    }
-  };
-
-  return (
-    <BottomSheet
-      open
-      onClose={onClose}
-      title="Move dose"
-      description="Move your next planned dose to another day. The rest of your routine stays as it is."
-    >
-      {saveState === "success" ? (
-        <div className="py-8" role="status">
-          <p className={cn("text-lg font-bold", INK)}>Dose moved</p>
-          <p className={cn("mt-1 text-sm", INK_MUTED)}>Your tracker calendar shows it too.</p>
-          <PrimaryButton className="mt-5 w-full" onClick={onClose}>
-            Done
-          </PrimaryButton>
-        </div>
-      ) : (
-        <div className="mt-5 space-y-5">
-          <Field id="reschedule-day" label="New day">
-            <input
-              id="reschedule-day"
-              type="date"
-              min={today}
-              value={movedTo}
-              onChange={(event) => {
-                setMovedTo(event.target.value);
-                setSaveState("idle");
-              }}
-              className={INPUT_CLASS}
-            />
-          </Field>
-          {saveState === "failure" ? (
-            <p role="alert" className={cn("text-sm font-medium", INK)}>
-              {failureMessage}
-            </p>
-          ) : null}
-          {/* This moves one dose only. Changing the recurring routine lives on
-              Tracker, which is the screen that owns the schedule. */}
-          <div className="flex gap-3">
-            <OutlineButton className="flex-1" onClick={onClose}>
-              Cancel
-            </OutlineButton>
-            <PrimaryButton
-              className="flex-1"
-              disabled={saveState === "submitting"}
-              onClick={confirm}
-            >
-              {saveState === "submitting"
-                ? "Moving…"
-                : saveState === "failure"
-                  ? "Try again"
-                  : "Confirm"}
-            </PrimaryButton>
-          </div>
-        </div>
-      )}
-    </BottomSheet>
-  );
-}
-
-function getDoseActionState(
+function doseActionState(
   nextDoseAt: string | undefined,
   now: Date,
 ): "upcoming" | "needsAttention" | null {
@@ -1045,109 +685,137 @@ function getDoseActionState(
 }
 
 /**
- * The one new permanent-ish area on Home — except it isn't permanent: it only
- * renders when there's something worth doing right now, and stays out of the
- * way otherwise. No streaks, no missed-dose counters, no guilt language.
+ * The buttons at the foot of the status card — only what is worth doing now.
+ * No streaks, no missed-dose counters, no guilt language.
+ *
+ * Ordering joins the dose button once the cupboard runs low. When it is
+ * empty, ordering becomes the thing to do: it takes the primary slot, in
+ * brick, and the dose button steps down to an outline beneath it.
  */
-function DoseActionPanel({
+function StatusActions({
   treatmentStatus,
+  supply,
   now,
-  actions,
+  onRecord,
+  onSetUpRoutine,
+  onOrder,
+  onRemindLater,
 }: {
   treatmentStatus: TreatmentStatus;
+  supply: SupplyNeed;
   now: Date;
-  actions: HomeActions;
+  onRecord: () => void;
+  onSetUpRoutine: () => void;
+  onOrder: () => void;
+  onRemindLater?: () => void;
 }) {
-  const [recordMode, setRecordMode] = useState<"taken" | "retrospective" | null>(null);
-  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
 
-  const state = getDoseActionState(treatmentStatus.nextDoseAt, now);
+  // Without a routine there is no order advice either, so this is the only ask.
   if (treatmentStatus.hasSchedule === false) {
     return (
-      <div className="border-t border-black/10 px-5 py-4">
-        <p className={cn("text-sm font-semibold", INK)}>No routine set up yet</p>
-        <p className={cn("mt-1 text-sm", INK_MUTED)}>
-          Set one up on the tracker to plan your doses and see when to order.
-        </p>
-        <PrimaryButton className="mt-3 w-full" onClick={actions.onOpenTreatmentSetup}>
-          Set up routine
-        </PrimaryButton>
-      </div>
+      <PrimaryButton className="mt-5 w-full" onClick={onSetUpRoutine}>
+        Set up routine
+      </PrimaryButton>
     );
   }
-  if (!state) return null;
-  if (state === "needsAttention" && dismissedFor === treatmentStatus.nextDoseAt) return null;
 
+  const state = doseActionState(treatmentStatus.nextDoseAt, now);
+  const overdue = state === "needsAttention";
+  const showDose = state !== null && !(overdue && dismissedFor === treatmentStatus.nextDoseAt);
+  const out = supply === "out";
+  const RecordButton = out ? OutlineButton : PrimaryButton;
+  const OrderButton = out ? CriticalButton : OutlineButton;
+
+  const order =
+    supply === "ok" ? null : (
+      <OrderButton className="w-full" onClick={onOrder}>
+        How much to order
+      </OrderButton>
+    );
+  const dose = showDose ? (
+    <RecordButton className="w-full" onClick={onRecord}>
+      {overdue ? "I took it" : "Log dose"}
+    </RecordButton>
+  ) : null;
+
+  if (!order && !dose) return null;
   return (
-    <div className="border-t border-black/10 px-5 py-4">
-      {state === "upcoming" ? (
-        <>
-          <div className="flex gap-3">
-            <PrimaryButton className="flex-1" onClick={() => setRecordMode("taken")}>
-              Taken
-            </PrimaryButton>
-            <OutlineButton className="flex-1" onClick={() => setRescheduleOpen(true)}>
-              Move dose
-            </OutlineButton>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className={cn("text-sm font-semibold", INK)}>Dose record needs attention</p>
-          <div className="mt-3 flex gap-3">
-            <PrimaryButton className="flex-1" onClick={() => setRecordMode("retrospective")}>
-              I took it
-            </PrimaryButton>
-            <OutlineButton className="flex-1" onClick={() => setRescheduleOpen(true)}>
-              Move dose
-            </OutlineButton>
-          </div>
-          <button
-            type="button"
-            className="mt-2 min-h-11 text-sm font-semibold text-brand-700"
-            onClick={() => {
-              setDismissedFor(treatmentStatus.nextDoseAt ?? null);
-              actions.onRemindLater?.();
-            }}
-          >
-            Remind me later
-          </button>
-        </>
-      )}
-
-      {recordMode !== null ? (
-        <RecordDoseSheet
-          mode={recordMode}
-          treatmentStatus={treatmentStatus}
-          onClose={() => setRecordMode(null)}
-          onConfirm={actions.onRecordDose}
-        />
-      ) : null}
-      {rescheduleOpen ? (
-        <RescheduleSheet
-          {...(treatmentStatus.nextDoseAt
-            ? { currentScheduledAt: treatmentStatus.nextDoseAt }
-            : {})}
-          onClose={() => setRescheduleOpen(false)}
-          onConfirm={actions.onRescheduleDose}
-        />
+    <div className="mt-5 flex flex-col gap-2.5">
+      {out ? order : dose}
+      {out ? dose : order}
+      {showDose && overdue ? (
+        <button
+          type="button"
+          className={cn("min-h-11 self-start text-sm font-medium text-teal-700", FOCUS_RING)}
+          onClick={() => {
+            setDismissedFor(treatmentStatus.nextDoseAt ?? null);
+            onRemindLater?.();
+          }}
+        >
+          Remind me later
+        </button>
       ) : null}
     </div>
   );
 }
 
+/**
+ * The status card with the sheets its buttons open. It is the heart of Home
+ * on a phone, and the head of the one-page layout from `lg`.
+ */
+export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
+  const [recordOpen, setRecordOpen] = useState(false);
+
+  const { treatmentStatus, activityStatus, supplyStatus } = data;
+  const doseStatus = resolveDoseStatus({
+    dose: treatmentStatus.dose,
+    hasRecentBleed: activityStatus.hasLoggedBleed,
+  });
+  const supply = supplyNeedOf(supplyStatus);
+
+  return (
+    <>
+      <StatusHero
+        treatmentStatus={treatmentStatus}
+        activityStatus={activityStatus}
+        supplyStatus={supplyStatus}
+        doseStatus={doseStatus}
+        supply={supply}
+        now={now}
+      >
+        <StatusActions
+          treatmentStatus={treatmentStatus}
+          supply={supply}
+          now={now}
+          onRecord={() => setRecordOpen(true)}
+          onSetUpRoutine={actions.onOpenTreatmentSetup}
+          onOrder={actions.onOpenSupply}
+          onRemindLater={actions.onRemindLater}
+        />
+      </StatusHero>
+
+      {recordOpen ? (
+        <RecordDoseSheet
+          treatmentStatus={treatmentStatus}
+          onClose={() => setRecordOpen(false)}
+          onConfirm={actions.onRecordDose}
+        />
+      ) : null}
+    </>
+  );
+}
+
 /* ===================================================================== */
-/* 11. HomePage — pure presentation composition                           */
+/* 7. HomePage — the phone's Home tab                                     */
 /* ===================================================================== */
 
-function HomeSkeleton() {
+export function HomeSkeleton() {
   return (
     <div className="animate-pulse space-y-4" aria-label="Loading Home">
-      <div className="h-16 rounded bg-black/5" />
-      <div className="h-80 rounded-2xl bg-black/5" />
-      <div className="h-24 rounded-2xl bg-black/5" />
-      <div className="h-20 rounded bg-black/5" />
+      <div className="h-16 rounded-xl bg-rail" />
+      <div className="h-80 rounded-card bg-rail" />
+      <div className="h-40 rounded-card bg-rail" />
     </div>
   );
 }
@@ -1155,58 +823,48 @@ function HomeSkeleton() {
 export function HomePage({ data, actions, now = new Date() }: HomePageProps) {
   return (
     <div className="px-4 pt-7 sm:px-1">
-      <HomeHeader
-        user={data.user}
-        now={now}
-        {...(data.lastUpdatedAt ? { lastUpdatedAt: data.lastUpdatedAt } : {})}
-      />
-      <TreatmentHero
-        treatmentStatus={data.treatmentStatus}
-        activityStatus={data.activityStatus}
-        now={now}
-        actions={actions}
-      />
-      <ActivityCard
-        treatmentStatus={data.treatmentStatus}
-        activityStatus={data.activityStatus}
-        now={now}
-        onOpen={actions.onOpenActivity}
-      />
-      <DailyTip tip={data.dailyTip} />
+      <HomeHeader user={data.user} now={now} />
+      <div className="mt-5 flex flex-col gap-4">
+        <StatusCard data={data} actions={actions} now={now} />
+        <RecentEntries entries={data.recentEntries} onOpenTracker={actions.onOpenActivity} />
+      </div>
     </div>
   );
 }
 
 /* ===================================================================== */
-/* 13. HomeScreen — the adapter between the page and the shared state    */
-/*                                                                      */
-/* The only place routing and the providers are touched. <HomePage />   */
-/* and every component above stay unchanged.                            */
+/* 8. HomeScreen — the adapter between the page and the shared state      */
+/*                                                                        */
+/* The only place routing and the providers are touched. <HomePage />     */
+/* and every component above stay unchanged.                              */
 /* ===================================================================== */
 
-function EmptyHome({ message }: { message: string }) {
+/** Nobody to show yet: the first profile is one button away. */
+export function EmptyHome({ error }: { error: string | null }) {
+  const [adding, setAdding] = useState(false);
+
   return (
-    <div className="px-4 pt-7 sm:px-1">
+    <div className="px-4 pt-7 sm:px-1 lg:px-0 lg:pt-8">
       <header className="flex items-start justify-between gap-3">
-        <h1 className={cn("text-[26px] font-bold leading-tight", INK)}>Welcome</h1>
-        <ProfileButton />
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] lg:text-[28px]">Welcome</h1>
+        <ProfileButton className="lg:hidden" />
       </header>
-      <section className={cn("mt-5 rounded-2xl border border-black/10 p-5", SURFACE_RAISED)}>
-        <p className={cn("text-sm leading-6", INK_MUTED)}>{message}</p>
-      </section>
+      {error ? (
+        <Card className="mt-5 lg:max-w-xl">
+          <p className={cn("text-sm leading-relaxed", INK_MUTED)}>{error}</p>
+        </Card>
+      ) : (
+        <PrimaryButton className="mt-5 w-full sm:w-auto" onClick={() => setAdding(true)}>
+          Add a profile
+        </PrimaryButton>
+      )}
+      <ProfileSheet open={adding} startWith="add" onClose={() => setAdding(false)} />
     </div>
   );
 }
 
 export function HomeScreen({ now }: { now?: Date }) {
-  const {
-    data,
-    now: contextNow,
-    isLoading,
-    administerDose,
-    moveNextDose,
-    refreshStatus,
-  } = useHomeData();
+  const { data, now: contextNow, isLoading, administerDose, refreshStatus } = useHomeData();
   const { error } = useProfiles();
   const navigate = useNavigate();
   const clock = now ?? contextNow;
@@ -1224,23 +882,14 @@ export function HomeScreen({ now }: { now?: Date }) {
       </div>
     );
   }
-  if (!data) {
-    return (
-      <EmptyHome
-        message={
-          error ??
-          "No profile yet. Tap the profile button to add the first person in your household."
-        }
-      />
-    );
-  }
+  if (!data) return <EmptyHome error={error} />;
 
   const actions: HomeActions = {
     onRecordDose: ({ takenOn }) => administerDose({ takenOn }),
-    onRescheduleDose: ({ movedTo }) => moveNextDose({ movedTo }),
     onRemindLater: () => undefined,
     onOpenActivity: () => navigate("/tracker"),
-    onOpenTreatmentSetup: () => navigate("/tracker"),
+    onOpenTreatmentSetup: () => navigate("/tracker#routine"),
+    onOpenSupply: () => navigate("/tracker#supply"),
   };
 
   return <HomePage data={data} actions={actions} now={clock} />;

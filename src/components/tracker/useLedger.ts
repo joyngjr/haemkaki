@@ -69,7 +69,11 @@ export type Ledger = {
   error: string | null;
 };
 
-export function useLedger(profileId: number | undefined): Ledger {
+/**
+ * `reloadKey` re-reads the ledger when something outside the tracker wrote to
+ * it — the status card's "Log dose", on the one-page desktop layout.
+ */
+export function useLedger(profileId: number | undefined, reloadKey = 0): Ledger {
   const [entries, setEntries] = useState<EntryMap>({});
   const [version, setVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,7 +124,7 @@ export function useLedger(profileId: number | undefined): Ledger {
     return () => {
       cancelled = true;
     };
-  }, [profileId, adopt]);
+  }, [profileId, reloadKey, adopt]);
 
   const mutate = useCallback(
     (updater: (current: EntryMap) => EntryMap) => {

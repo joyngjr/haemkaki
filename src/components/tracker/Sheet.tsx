@@ -13,14 +13,14 @@ export type SheetTier = "day" | "action" | "picker";
 
 const TIER_CLASS: Record<SheetTier, string> = {
   // The day sheet is the only tier that dims what's behind it.
-  day: "z-[70] bg-[#443229]/25",
+  day: "z-[70] bg-[#242A2F]/25",
   action: "z-[80]",
   picker: "z-[90]",
 };
 
 type SheetProps = {
   tier: SheetTier;
-  /** Small label above the title, e.g. "Missed Dose". */
+  /** Small label above the title, e.g. "Factor Use". */
   eyebrow?: string;
   title?: string;
   onClose: () => void;
@@ -46,7 +46,7 @@ const OFFSET_CLASS: Record<NonNullable<SheetProps["offset"]>, string> = {
 };
 
 const ROUND_BUTTON =
-  "grid h-8 w-8 place-items-center rounded-full text-[#806d51] hover:bg-[#f4ead8]";
+  "grid h-8 w-8 place-items-center rounded-full text-[#5C646C] hover:bg-[#F7F6F3]";
 
 export function Sheet({
   tier,
@@ -68,17 +68,15 @@ export function Sheet({
       <aside
         onClick={(event) => event.stopPropagation()}
         // Nudged up on phones so the panel clears the tab bar and the thumb.
-        className={`w-full max-w-md rounded-3xl border border-[#eee5d5] bg-[#fffaf0] p-5 shadow-2xl sm:p-6 ${
+        className={`w-full max-w-md rounded-3xl border border-[#E7E5E0] bg-[#FFFFFF] p-5 shadow-2xl sm:p-6 ${
           offset === "center" || offset === "top" ? "-translate-y-14 sm:translate-y-0" : ""
         }`}
       >
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <div>
-              {eyebrow ? <p className="text-sm font-medium text-[#806d51]">{eyebrow}</p> : null}
-              {title ? (
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-[#3b281c]">{title}</h2>
-              ) : null}
+              {eyebrow ? <p className="text-sm font-medium text-[#5C646C]">{eyebrow}</p> : null}
+              {title ? <h2 className="mt-1 text-lg font-semibold text-ink">{title}</h2> : null}
             </div>
             {aside}
           </div>
@@ -105,7 +103,7 @@ export function SheetOption({
   description,
   onClick,
   pressed,
-  ringColor = "#8df5c0",
+  ringColor = "#2C7A70",
   trailing,
 }: {
   title: string;
@@ -120,11 +118,11 @@ export function SheetOption({
       onClick={onClick}
       aria-pressed={pressed}
       style={pressed ? { boxShadow: `0 0 0 2px ${ringColor}` } : undefined}
-      className={`relative w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left transition hover:bg-[#f4ead8] ${trailing ? "pr-12" : ""}`}
+      className={`relative w-full rounded-2xl border border-[#E7E5E0] bg-[#F7F6F3] p-4 text-left transition hover:bg-[#F7F6F3] ${trailing ? "pr-12" : ""}`}
     >
-      <span className="block text-sm font-bold text-[#443229]">{title}</span>
+      <span className="block text-sm font-bold text-[#242A2F]">{title}</span>
       {description ? (
-        <span className="mt-1 block text-xs text-[#806d51]">{description}</span>
+        <span className="mt-1 block text-xs text-[#5C646C]">{description}</span>
       ) : null}
       {trailing}
     </button>
