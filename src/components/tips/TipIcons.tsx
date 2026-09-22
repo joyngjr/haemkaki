@@ -1,4 +1,4 @@
-/** The glyphs on the four cards of the Tips index. */
+/** The glyphs on the cards of the Tips index. */
 export function MedicalIdIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-white">
@@ -46,27 +46,6 @@ export function FindMedicalHelpIcon() {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="9.5" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-export function CommunityIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-purple-600">
-      <circle cx="9" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="17" cy="9" r="2" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M4 19c0-2.8 2.2-5 5-5s5 2.2 5 5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 15c2.2 0 4 1.8 4 4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
     </svg>
   );
 }

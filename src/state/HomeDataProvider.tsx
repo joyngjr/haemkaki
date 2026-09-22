@@ -1,107 +1,143 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { applyDiff } from "@/components/tracker/useLedger";
+import { api, type Status } from "@/lib/api";
 import {
-  applyProfile,
-  createHomeMockData,
-  deriveStockState,
+  buildHomeData,
   type AdministerDosePayload,
-  type HomeDashboardData,
+  type MoveDosePayload,
   type SaveResult,
 } from "@/lib/home-data";
-import type { Profile } from "@/lib/api";
+import { entriesFromApi, recordProphylaxis } from "@/lib/tracker-entries";
 import { HomeDataContext, type HomeDataContextValue } from "@/state/home-context";
 import { useProfiles } from "@/state/profile-context";
 
 /**
- * Home's dashboard state, held above the router so routed screens can share it.
+ * Home's dashboard state, held above the router so routed screens share it.
  *
- * The active profile from `@/lib/api` supplies the fields the API actually has
- * — the name, factor type, dose state, stock state and vial count, which is
- * everything the hero scene draws. The rest (dose timings, supplies, the log
- * ledger) has no columns yet and stays demo data, so this file is still the one
- * place mock data and mutations live.
+ * Everything shown is derived: the active profile says who this is, and
+ * `/users/{id}/status` says what the event ledger folds to — the last and
+ * next dose, the dose state, the last treated bleed. Nothing is seeded, so a
+ * profile with no ledger reads as "not enough information" rather than as a
+ * demo person, and no profile at all reads as nobody.
  *
- * Dose and schedule writes are session-local: they are not sent back to the
- * API, and the tracker keeps its own ledger.
+ * "Taken" writes a prophylaxis event through the same diff-and-re-read path
+ * the tracker uses, so the two screens can never disagree about a day. "Move
+ * dose" moves the next planned dose as a calendar exception on the routine,
+ * which the tracker shows the same way.
  */
 
-const HOUR = 3_600_000;
+type LoadedStatus = { profileId: number; status: Status; fetchedAt: string };
 
 export function HomeDataProvider({ now, children }: { now?: Date; children: ReactNode }) {
-  const clock = useMemo(() => now ?? new Date(), [now]);
-  const { activeProfile, status } = useProfiles();
-  const [data, setData] = useState<HomeDashboardData>(() => createHomeMockData(clock));
+  const { activeProfile, status: profileStatus } = useProfiles();
+  const [clock, setClock] = useState(() => now ?? new Date());
+  const [loaded, setLoaded] = useState<LoadedStatus | null>(null);
+  /** Only the newest request may land, so a slow response for the previous profile is dropped. */
+  const ticket = useRef(0);
 
-  // Re-seed from the API whenever the active profile loads or changes. Done
-  // during render rather than in an effect — React re-runs this component
-  // immediately without committing, so the screen never paints one profile's
-  // data under another's name. Session edits since the last switch are
-  // intentionally overlaid, not merged.
-  const [seededFrom, setSeededFrom] = useState<Profile | null>(null);
-  if (activeProfile && activeProfile !== seededFrom) {
-    setSeededFrom(activeProfile);
-    setData((current) => applyProfile(current, activeProfile));
-  }
+  const profileId = activeProfile?.id;
+  // A profile save returns the profile re-folded, so its `updated_at` moving
+  // is the cue that the status may have moved too (the routine, for one).
+  const profileVersion = activeProfile?.updated_at;
 
-  const value = useMemo<HomeDataContextValue>(() => {
-    const administerDose = async (payload: AdministerDosePayload): Promise<SaveResult> => {
-      setData((current) => {
-        if (!current.treatmentStatus) return current;
-        const remaining = Math.max(0, current.medicationStock.remaining - 1);
-        const nextDoseAt = new Date(
-          new Date(payload.administeredAt).getTime() + 48 * HOUR,
-        ).toISOString();
-        return {
-          ...current,
-          lastUpdatedAt: payload.administeredAt,
-          treatmentStatus: {
-            ...current.treatmentStatus,
-            dose: "covered",
-            lastDoseAt: payload.administeredAt,
-            nextDoseAt,
-            estimatedProtectionDays: 2.5,
-          },
-          activityStatus: { hasLoggedBleed: false },
-          medicationStock: {
-            ...current.medicationStock,
-            remaining,
-            state: deriveStockState(remaining),
-            estimatedDosesRemaining: Math.floor(remaining / 2),
-          },
-          recentLogs: [
-            {
-              id: `dose-${Date.now()}`,
-              type: "dose",
-              title: "Prophylactic dose",
-              ...(payload.administeredDose ? { detail: payload.administeredDose } : {}),
-              occurredAt: payload.administeredAt,
-            },
-            ...current.recentLogs,
-          ],
-        };
-      });
-      return { ok: true };
-    };
-
-    const rescheduleDose = (scheduledAt: string) => {
-      setData((current) =>
-        current.treatmentStatus
-          ? {
-              ...current,
-              treatmentStatus: { ...current.treatmentStatus, nextDoseAt: scheduledAt },
-            }
-          : current,
+  const load = useCallback(
+    (id: number) => {
+      const mine = ++ticket.current;
+      return api.getStatus(id).then(
+        (status) => {
+          if (mine !== ticket.current) return;
+          setLoaded({ profileId: id, status, fetchedAt: new Date().toISOString() });
+          setClock(now ?? new Date());
+        },
+        () => {
+          // Deliberately quiet. Home is a summary; the tracker says out loud
+          // when the API is unreachable, and the profile row still draws the
+          // hero without the timings.
+        },
       );
-    };
+    },
+    [now],
+  );
 
-    return {
+  useEffect(() => {
+    if (profileId !== undefined) void load(profileId);
+  }, [profileId, profileVersion, load]);
+
+  const refreshStatus = useCallback(async () => {
+    if (profileId !== undefined) await load(profileId);
+  }, [profileId, load]);
+
+  const administerDose = useCallback(
+    async ({ takenOn }: AdministerDosePayload): Promise<SaveResult> => {
+      if (profileId === undefined) {
+        return { ok: false, message: "Choose a profile before recording a dose." };
+      }
+      try {
+        // Only that day is loaded: the diff never touches an entry it was not
+        // shown, and the rule applied is the tracker's own.
+        const before = entriesFromApi(
+          await api.listEvents(profileId, { since: takenOn, until: takenOn }),
+        );
+        await applyDiff(profileId, before, recordProphylaxis(before, takenOn, Date.now()));
+      } catch (cause) {
+        return {
+          ok: false,
+          message: cause instanceof Error ? cause.message : "Could not save the dose.",
+        };
+      }
+      await load(profileId);
+      return { ok: true };
+    },
+    [profileId, load],
+  );
+
+  const moveNextDose = useCallback(
+    async ({ movedTo }: MoveDosePayload): Promise<SaveResult> => {
+      const next = loaded && loaded.profileId === profileId ? loaded.status.next_dose : null;
+      if (profileId === undefined || !next) {
+        return { ok: false, message: "There is no planned dose to move." };
+      }
+      if (next.schedule_id === null) {
+        // A plan's doses follow the plan; only the routine's can be moved one at a time.
+        return {
+          ok: false,
+          message: "This dose comes from a plan. Change the plan on the tracker instead.",
+        };
+      }
+      try {
+        await api.moveOccurrence(profileId, next.schedule_id, next.original_on, movedTo);
+      } catch (cause) {
+        return {
+          ok: false,
+          message: cause instanceof Error ? cause.message : "Could not move the dose.",
+        };
+      }
+      await load(profileId);
+      return { ok: true };
+    },
+    [profileId, loaded, load],
+  );
+
+  const data = useMemo(() => {
+    if (!activeProfile) return null;
+    const status = loaded?.profileId === activeProfile.id ? loaded : null;
+    return buildHomeData(activeProfile, status?.status ?? null, clock, {
+      ...(status ? { fetchedAt: status.fetchedAt } : {}),
+    });
+  }, [activeProfile, loaded, clock]);
+
+  const value = useMemo<HomeDataContextValue>(
+    () => ({
       data,
       now: clock,
-      isLoading: status === "loading",
+      isLoading: profileStatus === "loading",
       administerDose,
-      rescheduleDose,
-    };
-  }, [data, clock, status]);
+      moveNextDose,
+      refreshStatus,
+    }),
+    [data, clock, profileStatus, administerDose, moveNextDose, refreshStatus],
+  );
 
   return <HomeDataContext.Provider value={value}>{children}</HomeDataContext.Provider>;
 }

@@ -7,7 +7,7 @@ const KEY_CLASS = "h-10 rounded-lg bg-[#f8f0e2] text-sm font-bold transition hov
 export function NumberPad({
   value,
   onChange,
-  maxLength = 3,
+  maxLength = 2,
   hint,
   suffix,
   confirmLabel,
@@ -15,7 +15,11 @@ export function NumberPad({
 }: {
   value: string;
   onChange: (next: string) => void;
-  /** 3 for vial counts, 2 for a dosing interval in days. */
+  /**
+   * 2 everywhere today: the API caps a vial count at `VIALS_MAX` (99) and a
+   * dosing interval at 90 days, and a pad that can enter 518 vials only
+   * produces a 422 the user cannot act on.
+   */
   maxLength?: number;
   hint?: string;
   /** Unit rendered inside the display, e.g. "days". */

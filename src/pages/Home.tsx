@@ -27,12 +27,15 @@
  *    state to <HomePage />'s props. It is the only place routing lives.
  *  - <HomePage /> is pure presentation: give it `HomeDashboardData` +
  *    `HomeActions` and it never touches state, storage, or a router.
- *  - `onRescheduleDose` moves the NEXT dose only. There is no recurring
- *    schedule in `HomeDataProvider` to edit — Tracker owns the routine — so
- *    Home does not offer to change one.
- *  - `activityStatus.hasLoggedBleed` drives the "recent bleed" states below,
- *    but nothing sets it any more: Tracker keeps its own bleed ledger and the
- *    two are not connected yet. Those branches stay unreachable until they are.
+ *  - `onRecordDose` writes a prophylaxis event to the same ledger the tracker
+ *    edits, on the Singapore day the user picks. The ledger records days, not
+ *    minutes, so the sheet asks for a date and nothing else.
+ *  - `onRescheduleDose` moves the NEXT planned dose to another day, as a
+ *    calendar exception on the routine — the same thing the tracker does from
+ *    a day's sheet. Tracker owns the routine, so Home does not offer to change
+ *    the cycle itself.
+ *  - `activityStatus.hasLoggedBleed` is an on-demand dose within the last few
+ *    days, folded by the API from the tracker's ledger (`last_bleed_on`).
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -41,8 +44,15 @@ import { useNavigate } from "react-router-dom";
 
 import { KAKI_BOB_DURATION, KakiBody } from "@/components/platelet/Kaki";
 import { ProfileButton } from "@/components/profile/ProfileButton";
-import { formatDate, formatDateTime, formatNextDose, getDayPeriod } from "@/lib/home-format";
+import {
+  formatDate,
+  formatDateTime,
+  formatNextDose,
+  getDayPeriod,
+  isOverdue,
+} from "@/lib/home-format";
 import { INK, INK_MUTED, STATUS_TONE_CLASSES, SURFACE_RAISED, type StatusTone } from "@/lib/theme";
+import { getSingaporeTodayKey } from "@/lib/tracker-dates";
 import { cn } from "@/lib/utils";
 import type {
   ActivityStatus,
@@ -55,6 +65,7 @@ import type {
   TreatmentStatus,
 } from "@/lib/home-data";
 import { useHomeData } from "@/state/home-context";
+import { useProfiles } from "@/state/profile-context";
 
 /* ===================================================================== */
 /* 1. Data contracts                                                      */
@@ -65,23 +76,21 @@ import { useHomeData } from "@/state/home-context";
  * these keys with the team's router in one place.
  */
 export interface RecordDosePayload {
-  /** ISO timestamp of the actual administration time (prospective or retrospective). */
-  administeredAt: string;
-  /** Amount actually administered for this event; this never changes the usual regimen. */
-  administeredDose?: string;
+  /** The Singapore calendar day the dose was taken, as `YYYY-MM-DD`. */
+  takenOn: string;
 }
 
 export interface RescheduleDosePayload {
-  /** ISO timestamp of the new scheduled time. */
-  newScheduledAt: string;
+  /** The Singapore calendar day the next planned dose should move to, as `YYYY-MM-DD`. */
+  movedTo: string;
 }
 
 /** Every side effect Home can trigger. The host app implements these. */
 export interface HomeActions {
   /** Handles both the "Taken" (prospective) and "I took it" (retrospective) flows. */
   onRecordDose: (payload: RecordDosePayload) => Promise<SaveResult>;
-  /** Moves the next scheduled dose. There is no recurring-schedule model to edit yet. */
-  onRescheduleDose: (payload: RescheduleDosePayload) => void;
+  /** Moves the next planned dose to another day. The routine's cycle is unchanged. */
+  onRescheduleDose: (payload: RescheduleDosePayload) => Promise<SaveResult>;
   /** Optional: hook into real notification infra. Home always defers the prompt locally either way. */
   onRemindLater?: () => void;
   onOpenActivity: () => void;
@@ -93,7 +102,6 @@ export interface HomePageProps {
   actions: HomeActions;
   /** Injectable clock so relative times are deterministic in demos/tests. */
   now?: Date;
-  isLoading?: boolean;
 }
 
 /* ===================================================================== */
@@ -124,8 +132,7 @@ function getCoverStatus(
       supportingText: "Recent bleed recorded",
     };
   }
-  const nextDose = treatment.nextDoseAt ? new Date(treatment.nextDoseAt) : null;
-  if (nextDose && !Number.isNaN(nextDose.getTime()) && nextDose.getTime() < now.getTime()) {
+  if (treatment.nextDoseAt && isOverdue(treatment.nextDoseAt, now)) {
     return {
       state: "needsReview",
       displayValue: "Needs review",
@@ -140,12 +147,10 @@ function getCoverStatus(
       supportingText: "Schedule estimate unavailable",
     };
   }
+  const days = treatment.estimatedProtectionDays;
   return {
     state: treatment.dose === "covered" ? "estimated" : "approaching",
-    displayValue:
-      treatment.estimatedProtectionDays >= 1
-        ? `${treatment.estimatedProtectionDays} days`
-        : `${Math.round(treatment.estimatedProtectionDays * 24)} hours`,
+    displayValue: days === 0 ? "Due today" : `${days} ${days === 1 ? "day" : "days"}`,
     source: "scheduleEstimate",
     supportingText: "Schedule estimate",
   };
@@ -599,7 +604,7 @@ function TreatmentHero({
   now,
   actions,
 }: {
-  treatmentStatus: TreatmentStatus | null;
+  treatmentStatus: TreatmentStatus;
   activityStatus: ActivityStatus;
   now: Date;
   actions: HomeActions;
@@ -607,26 +612,7 @@ function TreatmentHero({
   const [expanded, setExpanded] = useState(false);
   const disclosureId = useId();
   const cover = getCoverStatus(treatmentStatus, activityStatus, now);
-  const visualDose = activityStatus.hasLoggedBleed ? "veryLow" : (treatmentStatus?.dose ?? "low");
-
-  if (!treatmentStatus) {
-    return (
-      <section
-        aria-labelledby="treatment-setup-title"
-        className={cn("mt-5 border-y border-black/10 p-5", SURFACE_RAISED)}
-      >
-        <h2 id="treatment-setup-title" className={cn("text-lg font-bold", INK)}>
-          Treatment information isn't set up yet.
-        </h2>
-        <p className={cn("mt-2 text-sm", INK_MUTED)}>
-          Add your treatment details before Home shows schedule context.
-        </p>
-        <PrimaryButton className="mt-4" onClick={actions.onOpenTreatmentSetup}>
-          Set up treatment
-        </PrimaryButton>
-      </section>
-    );
-  }
+  const visualDose = activityStatus.hasLoggedBleed ? "veryLow" : treatmentStatus.dose;
 
   return (
     <section
@@ -694,7 +680,9 @@ function ActivityCard({
           </span>
           <span className={cn("block whitespace-normal text-sm font-normal", INK_MUTED)}>
             {activityStatus.hasLoggedBleed
-              ? result.title
+              ? activityStatus.lastBleedAt
+                ? `${result.title} · ${formatDateTime(new Date(activityStatus.lastBleedAt), now)}`
+                : result.title
               : `${result.hoursSinceLastDose}h since your last recorded dose`}
           </span>
         </span>
@@ -841,68 +829,41 @@ function BottomSheet({
 
 type SaveState = "idle" | "submitting" | "success" | "failure";
 
-function toLocalInputValue(date: Date) {
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
 /**
- * Handles BOTH "Taken" (prospective, defaults to now) and "I took it"
- * (retrospective) — same shape, different heading/default per the product
- * distinction between "not taken" and "taken but not yet recorded."
- * Medication/dose are read from the treatment profile, never re-typed here.
+ * Handles BOTH "Taken" (prospective, defaults to today) and "I took it"
+ * (retrospective) — same shape, different wording per the product distinction
+ * between "not taken" and "taken but not yet recorded."
+ *
+ * Only the day is asked for. The ledger files a dose under a Singapore
+ * calendar date and never records a time or an amount — a prophylaxis dose is
+ * always the routine's, exactly as on the tracker — so asking for more here
+ * would collect something nothing stores.
  */
 function RecordDoseSheet({
   mode,
   treatmentStatus,
-  now,
   onClose,
   onConfirm,
 }: {
   mode: "taken" | "retrospective";
   treatmentStatus: TreatmentStatus;
-  now: Date;
   onClose: () => void;
   onConfirm: HomeActions["onRecordDose"];
 }) {
-  const usualDose = treatmentStatus.prescribedDose ?? "";
-  const usualDoseMatch = usualDose.match(/^\s*([\d,.]+)\s*(.*?)\s*$/);
-  const usualDoseValue = usualDoseMatch?.[1].replace(/,/g, "") ?? "";
-  const doseUnit = usualDoseMatch?.[2] ?? "";
-
-  const [time, setTime] = useState(() => toLocalInputValue(now));
-  const [isDifferentDose, setIsDifferentDose] = useState(false);
-  const [doseValue, setDoseValue] = useState(usualDoseValue);
-  const [doseError, setDoseError] = useState("");
+  const today = getSingaporeTodayKey();
+  const [takenOn, setTakenOn] = useState(today);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [failureMessage, setFailureMessage] = useState("");
 
-  const hasMedication = Boolean(treatmentStatus.medicationName);
-  const title = "Record dose";
-
   const submit = async () => {
-    if (!hasMedication || saveState === "submitting") return;
-    const numericDose = Number(doseValue.replace(/,/g, ""));
-    if (
-      isDifferentDose &&
-      (!doseValue.trim() || !Number.isFinite(numericDose) || numericDose <= 0)
-    ) {
-      setDoseError("Enter a sensible positive dose amount.");
-      return;
-    }
-    if (Number.isNaN(new Date(time).getTime())) {
-      setFailureMessage("Enter the date and time the dose was taken.");
+    if (saveState === "submitting") return;
+    if (!takenOn || takenOn > today) {
+      setFailureMessage("Enter the day the dose was taken — today or earlier.");
       setSaveState("failure");
       return;
     }
     setSaveState("submitting");
-    const administeredDose = isDifferentDose
-      ? `${doseValue.trim()}${doseUnit ? ` ${doseUnit}` : ""}`
-      : usualDose || undefined;
-    const result = await onConfirm({
-      administeredAt: new Date(time).toISOString(),
-      ...(administeredDose ? { administeredDose } : {}),
-    });
+    const result = await onConfirm({ takenOn });
     if (result.ok) setSaveState("success");
     else {
       setFailureMessage(
@@ -916,99 +877,40 @@ function RecordDoseSheet({
     <BottomSheet
       open
       onClose={onClose}
-      title={title}
-      description="Review the details before saving."
+      title="Record dose"
+      description={mode === "taken" ? "Log your routine dose." : "Log the dose you already took."}
     >
       {saveState === "success" ? (
         <div className="py-8" role="status">
           <p className={cn("text-lg font-bold", INK)}>Dose recorded</p>
+          <p className={cn("mt-1 text-sm", INK_MUTED)}>It is on your tracker calendar too.</p>
           <PrimaryButton className="mt-5 w-full" onClick={onClose}>
             Done
           </PrimaryButton>
         </div>
       ) : (
         <div className="mt-5 space-y-5">
-          {hasMedication ? (
-            <div>
-              <p className={cn("font-semibold", INK)}>{treatmentStatus.medicationName}</p>
-              {treatmentStatus.prescribedDose ? (
-                <p className={cn("text-sm", INK_MUTED)}>
-                  Usual dose: {treatmentStatus.prescribedDose}
-                </p>
-              ) : null}
-            </div>
-          ) : (
+          <div>
+            <p className={cn("font-semibold", INK)}>{treatmentStatus.medicationName}</p>
             <p className={cn("text-sm", INK_MUTED)}>
-              Medication information is unavailable. Check your treatment information before
-              recording a dose.
+              {treatmentStatus.prescribedDose
+                ? `Usual dose: ${treatmentStatus.prescribedDose}`
+                : "Your routine prophylaxis dose"}
             </p>
-          )}
-          {isDifferentDose ? (
-            <>
-              <Field id="dose-administered" label="Dose administered">
-                <div className="flex items-center gap-2">
-                  <input
-                    id="dose-administered"
-                    type="text"
-                    inputMode="decimal"
-                    value={doseValue}
-                    onChange={(event) => {
-                      setDoseValue(event.target.value);
-                      setDoseError("");
-                    }}
-                    aria-invalid={Boolean(doseError)}
-                    aria-describedby={doseError ? "dose-administered-error" : undefined}
-                    className={INPUT_CLASS}
-                  />
-                  {doseUnit ? (
-                    <span className={cn("shrink-0 text-sm font-semibold", INK_MUTED)}>
-                      {doseUnit}
-                    </span>
-                  ) : null}
-                </div>
-              </Field>
-              {doseError ? (
-                <p
-                  id="dose-administered-error"
-                  role="alert"
-                  className="-mt-3 text-sm font-medium text-rose-700"
-                >
-                  {doseError}
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className="min-h-11 text-sm font-semibold text-brand-700"
-                onClick={() => {
-                  setIsDifferentDose(false);
-                  setDoseError("");
-                  setDoseValue(usualDoseValue);
-                }}
-              >
-                Use usual dose instead
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="min-h-11 text-sm font-semibold text-brand-700"
-              onClick={() => setIsDifferentDose(true)}
-            >
-              Different dose?
-            </button>
-          )}
-          <Field id="dose-record-time" label="Taken">
+          </div>
+          <Field id="dose-record-day" label="Taken on">
             <input
-              id="dose-record-time"
-              type="datetime-local"
-              value={time}
-              onChange={(event) => setTime(event.target.value)}
+              id="dose-record-day"
+              type="date"
+              max={today}
+              value={takenOn}
+              onChange={(event) => {
+                setTakenOn(event.target.value);
+                setSaveState("idle");
+              }}
               className={INPUT_CLASS}
             />
           </Field>
-          {mode === "taken" ? (
-            <p className={cn("text-xs", INK_MUTED)}>{formatDateTime(new Date(time), now)}</p>
-          ) : null}
           {saveState === "failure" ? (
             <p role="alert" className={cn("text-sm font-medium", INK)}>
               {failureMessage}
@@ -1020,7 +922,7 @@ function RecordDoseSheet({
             </OutlineButton>
             <PrimaryButton
               className="flex-1"
-              disabled={!hasMedication || saveState === "submitting"}
+              disabled={saveState === "submitting"}
               onClick={submit}
             >
               {saveState === "submitting"
@@ -1036,55 +938,99 @@ function RecordDoseSheet({
   );
 }
 
-/** "Change time" / "Update schedule" — one scheduling UI, two entry points. */
+/** "Move dose" — one sheet for both the upcoming and the overdue entry point. */
 function RescheduleSheet({
   currentScheduledAt,
-  now,
   onClose,
   onConfirm,
 }: {
   currentScheduledAt?: string;
-  now: Date;
   onClose: () => void;
   onConfirm: HomeActions["onRescheduleDose"];
 }) {
-  const [time, setTime] = useState(() =>
-    toLocalInputValue(currentScheduledAt ? new Date(currentScheduledAt) : now),
-  );
+  const today = getSingaporeTodayKey();
+  const [movedTo, setMovedTo] = useState(() => {
+    const planned = currentScheduledAt
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(
+          new Date(currentScheduledAt),
+        )
+      : today;
+    return planned >= today ? planned : today;
+  });
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [failureMessage, setFailureMessage] = useState("");
 
-  const confirm = () => {
-    onConfirm({ newScheduledAt: new Date(time).toISOString() });
-    onClose();
+  const confirm = async () => {
+    if (saveState === "submitting") return;
+    if (!movedTo || movedTo < today) {
+      setFailureMessage("Pick today or a later day.");
+      setSaveState("failure");
+      return;
+    }
+    setSaveState("submitting");
+    const result = await onConfirm({ movedTo });
+    if (result.ok) setSaveState("success");
+    else {
+      setFailureMessage(result.message ?? "We couldn't move the dose. Your routine is unchanged.");
+      setSaveState("failure");
+    }
   };
 
   return (
     <BottomSheet
       open
       onClose={onClose}
-      title="Change time"
-      description="Move your next scheduled dose."
+      title="Move dose"
+      description="Move your next planned dose to another day. The rest of your routine stays as it is."
     >
-      <div className="mt-5 space-y-5">
-        <Field id="reschedule-time" label="New time">
-          <input
-            id="reschedule-time"
-            type="datetime-local"
-            value={time}
-            onChange={(event) => setTime(event.target.value)}
-            className={INPUT_CLASS}
-          />
-        </Field>
-        {/* This moves the next dose only. Changing the recurring routine lives
-            on Tracker, which is the screen that owns the schedule. */}
-        <div className="flex gap-3">
-          <OutlineButton className="flex-1" onClick={onClose}>
-            Cancel
-          </OutlineButton>
-          <PrimaryButton className="flex-1" onClick={confirm}>
-            Confirm
+      {saveState === "success" ? (
+        <div className="py-8" role="status">
+          <p className={cn("text-lg font-bold", INK)}>Dose moved</p>
+          <p className={cn("mt-1 text-sm", INK_MUTED)}>Your tracker calendar shows it too.</p>
+          <PrimaryButton className="mt-5 w-full" onClick={onClose}>
+            Done
           </PrimaryButton>
         </div>
-      </div>
+      ) : (
+        <div className="mt-5 space-y-5">
+          <Field id="reschedule-day" label="New day">
+            <input
+              id="reschedule-day"
+              type="date"
+              min={today}
+              value={movedTo}
+              onChange={(event) => {
+                setMovedTo(event.target.value);
+                setSaveState("idle");
+              }}
+              className={INPUT_CLASS}
+            />
+          </Field>
+          {saveState === "failure" ? (
+            <p role="alert" className={cn("text-sm font-medium", INK)}>
+              {failureMessage}
+            </p>
+          ) : null}
+          {/* This moves one dose only. Changing the recurring routine lives on
+              Tracker, which is the screen that owns the schedule. */}
+          <div className="flex gap-3">
+            <OutlineButton className="flex-1" onClick={onClose}>
+              Cancel
+            </OutlineButton>
+            <PrimaryButton
+              className="flex-1"
+              disabled={saveState === "submitting"}
+              onClick={confirm}
+            >
+              {saveState === "submitting"
+                ? "Moving…"
+                : saveState === "failure"
+                  ? "Try again"
+                  : "Confirm"}
+            </PrimaryButton>
+          </div>
+        </div>
+      )}
     </BottomSheet>
   );
 }
@@ -1094,9 +1040,8 @@ function getDoseActionState(
   now: Date,
 ): "upcoming" | "needsAttention" | null {
   if (!nextDoseAt) return null;
-  const date = new Date(nextDoseAt);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.getTime() < now.getTime() ? "needsAttention" : "upcoming";
+  if (Number.isNaN(new Date(nextDoseAt).getTime())) return null;
+  return isOverdue(nextDoseAt, now) ? "needsAttention" : "upcoming";
 }
 
 /**
@@ -1118,6 +1063,19 @@ function DoseActionPanel({
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
 
   const state = getDoseActionState(treatmentStatus.nextDoseAt, now);
+  if (treatmentStatus.hasSchedule === false) {
+    return (
+      <div className="border-t border-black/10 px-5 py-4">
+        <p className={cn("text-sm font-semibold", INK)}>No routine set up yet</p>
+        <p className={cn("mt-1 text-sm", INK_MUTED)}>
+          Set one up on the tracker to plan your doses and see when to order.
+        </p>
+        <PrimaryButton className="mt-3 w-full" onClick={actions.onOpenTreatmentSetup}>
+          Set up routine
+        </PrimaryButton>
+      </div>
+    );
+  }
   if (!state) return null;
   if (state === "needsAttention" && dismissedFor === treatmentStatus.nextDoseAt) return null;
 
@@ -1130,7 +1088,7 @@ function DoseActionPanel({
               Taken
             </PrimaryButton>
             <OutlineButton className="flex-1" onClick={() => setRescheduleOpen(true)}>
-              Change time
+              Move dose
             </OutlineButton>
           </div>
         </>
@@ -1142,7 +1100,7 @@ function DoseActionPanel({
               I took it
             </PrimaryButton>
             <OutlineButton className="flex-1" onClick={() => setRescheduleOpen(true)}>
-              Update schedule
+              Move dose
             </OutlineButton>
           </div>
           <button
@@ -1162,7 +1120,6 @@ function DoseActionPanel({
         <RecordDoseSheet
           mode={recordMode}
           treatmentStatus={treatmentStatus}
-          now={now}
           onClose={() => setRecordMode(null)}
           onConfirm={actions.onRecordDose}
         />
@@ -1172,7 +1129,6 @@ function DoseActionPanel({
           {...(treatmentStatus.nextDoseAt
             ? { currentScheduledAt: treatmentStatus.nextDoseAt }
             : {})}
-          now={now}
           onClose={() => setRescheduleOpen(false)}
           onConfirm={actions.onRescheduleDose}
         />
@@ -1196,64 +1152,98 @@ function HomeSkeleton() {
   );
 }
 
-export function HomePage({ data, actions, now = new Date(), isLoading = false }: HomePageProps) {
+export function HomePage({ data, actions, now = new Date() }: HomePageProps) {
   return (
     <div className="px-4 pt-7 sm:px-1">
-      {isLoading ? (
-        <HomeSkeleton />
-      ) : (
-        <>
-          <HomeHeader
-            user={data.user}
-            now={now}
-            {...(data.lastUpdatedAt ? { lastUpdatedAt: data.lastUpdatedAt } : {})}
-          />
-          <TreatmentHero
-            treatmentStatus={data.treatmentStatus}
-            activityStatus={data.activityStatus}
-            now={now}
-            actions={actions}
-          />
-          <ActivityCard
-            treatmentStatus={data.treatmentStatus}
-            activityStatus={data.activityStatus}
-            now={now}
-            onOpen={actions.onOpenActivity}
-          />
-          <DailyTip tip={data.dailyTip} />
-        </>
-      )}
+      <HomeHeader
+        user={data.user}
+        now={now}
+        {...(data.lastUpdatedAt ? { lastUpdatedAt: data.lastUpdatedAt } : {})}
+      />
+      <TreatmentHero
+        treatmentStatus={data.treatmentStatus}
+        activityStatus={data.activityStatus}
+        now={now}
+        actions={actions}
+      />
+      <ActivityCard
+        treatmentStatus={data.treatmentStatus}
+        activityStatus={data.activityStatus}
+        now={now}
+        onOpen={actions.onOpenActivity}
+      />
+      <DailyTip tip={data.dailyTip} />
     </div>
   );
 }
 
 /* ===================================================================== */
-/* 13. HomeScreen — standalone adapter (mock data + local state)          */
+/* 13. HomeScreen — the adapter between the page and the shared state    */
 /*                                                                      */
-/* This is the ONLY place mock data and mutations live. When the team's  */
-/* backend/state lands, re-implement these callbacks and delete the      */
-/* mock; <HomePage /> and every component above stay unchanged.          */
+/* The only place routing and the providers are touched. <HomePage />   */
+/* and every component above stay unchanged.                            */
 /* ===================================================================== */
 
+function EmptyHome({ message }: { message: string }) {
+  return (
+    <div className="px-4 pt-7 sm:px-1">
+      <header className="flex items-start justify-between gap-3">
+        <h1 className={cn("text-[26px] font-bold leading-tight", INK)}>Welcome</h1>
+        <ProfileButton />
+      </header>
+      <section className={cn("mt-5 rounded-2xl border border-black/10 p-5", SURFACE_RAISED)}>
+        <p className={cn("text-sm leading-6", INK_MUTED)}>{message}</p>
+      </section>
+    </div>
+  );
+}
+
 export function HomeScreen({ now }: { now?: Date }) {
-  const { data, now: contextNow, isLoading, administerDose, rescheduleDose } = useHomeData();
+  const {
+    data,
+    now: contextNow,
+    isLoading,
+    administerDose,
+    moveNextDose,
+    refreshStatus,
+  } = useHomeData();
+  const { error } = useProfiles();
   const navigate = useNavigate();
   const clock = now ?? contextNow;
 
+  // The provider refetches on a profile change; a dose logged on the tracker
+  // in between would otherwise leave "Next dose" stale until then.
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  if (isLoading) {
+    return (
+      <div className="px-4 pt-7 sm:px-1">
+        <HomeSkeleton />
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <EmptyHome
+        message={
+          error ??
+          "No profile yet. Tap the profile button to add the first person in your household."
+        }
+      />
+    );
+  }
+
   const actions: HomeActions = {
-    onRecordDose: async (payload) =>
-      administerDose({
-        medicationName: data.treatmentStatus?.medicationName ?? "",
-        administeredAt: payload.administeredAt,
-        ...(payload.administeredDose ? { administeredDose: payload.administeredDose } : {}),
-      }),
-    onRescheduleDose: ({ newScheduledAt }) => rescheduleDose(newScheduledAt),
+    onRecordDose: ({ takenOn }) => administerDose({ takenOn }),
+    onRescheduleDose: ({ movedTo }) => moveNextDose({ movedTo }),
     onRemindLater: () => undefined,
     onOpenActivity: () => navigate("/tracker"),
     onOpenTreatmentSetup: () => navigate("/tracker"),
   };
 
-  return <HomePage data={data} actions={actions} now={clock} isLoading={isLoading} />;
+  return <HomePage data={data} actions={actions} now={clock} />;
 }
 
 export default HomeScreen;
