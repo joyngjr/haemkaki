@@ -13,7 +13,7 @@ import {
 
 import { DatePicker } from "./DatePicker";
 import { FrequencyEditor } from "./FrequencyEditor";
-import { NumberPad } from "./NumberPad";
+import { NumberField } from "./NumberField";
 import { Sheet } from "./Sheet";
 import { PlayIcon, RepeatIcon, VialIcon } from "./TrackerIcons";
 
@@ -22,10 +22,16 @@ export type RoutineDraft = Omit<ScheduleDraft, "replace">;
 type RoutineCardProps = {
   series: Schedule | null;
   today: Date;
-  /** Prefills the interval for a first routine, from the onboarding form's "times per week". */
-  defaultIntervalDays?: number;
+  /** Days of cover to keep in reserve before ordering. Null until it is set. */
+  bufferDays: number | null;
   onReplace: (draft: RoutineDraft) => Promise<boolean>;
   onRemove: () => Promise<boolean>;
+  /**
+   * Stores the buffer, which lives on the profile rather than the series.
+   * Absent for a profile with nothing recorded to merge it into, and the flow
+   * then skips the question rather than asking for a number it would drop.
+   */
+  onSaveBuffer?: (days: number) => Promise<boolean>;
 };
 
 function longDate(key: string) {
@@ -42,9 +48,10 @@ function longDate(key: string) {
 export function RoutineCard({
   series,
   today,
-  defaultIntervalDays,
+  bufferDays,
   onReplace,
   onRemove,
+  onSaveBuffer,
 }: RoutineCardProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -86,6 +93,15 @@ export function RoutineCard({
             value={series ? longDate(series.start_on) : "Not set"}
           />
         </div>
+        {onSaveBuffer ? (
+          <p className="mt-3 text-xs leading-relaxed text-[#5C646C]">
+            Order buffer:{" "}
+            <span className="font-semibold text-[#242A2F]">
+              {bufferDays === null ? "Not set" : `${bufferDays} day${bufferDays === 1 ? "" : "s"}`}
+            </span>{" "}
+            — the cover you want left when it is time to order.
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => setEditing(true)}
@@ -131,10 +147,15 @@ export function RoutineCard({
         <RoutineFlow
           series={series}
           today={today}
-          defaultIntervalDays={defaultIntervalDays}
-          onSave={async (draft) => {
+          bufferDays={bufferDays}
+          asksForBuffer={Boolean(onSaveBuffer)}
+          onSave={async (draft, buffer) => {
+            // The series first: the buffer is only meaningful against a
+            // routine, and a failed schedule write should not leave one set.
             const ok = await onReplace(draft);
-            if (ok) setEditing(false);
+            if (!ok) return;
+            if (buffer !== null && onSaveBuffer) await onSaveBuffer(buffer);
+            setEditing(false);
           }}
           onClose={() => setEditing(false)}
         />
@@ -167,35 +188,51 @@ function RoutineField({
   );
 }
 
-type Step = "start" | "frequency" | "vials";
+type Step = "start" | "frequency" | "vials" | "buffer";
 
 /**
- * The three questions a routine is made of, asked in order. Saving replaces
- * the series outright: a new start date is a permanent shift of the cycle.
+ * The questions a routine is made of, asked in order. Saving replaces the
+ * series outright: a new start date is a permanent shift of the cycle.
+ *
+ * The buffer is the last of them. It is not part of the series — it is stored
+ * on the profile — but it is asked here because a number of days of cover only
+ * means something once there is a routine to count doses from.
  */
 function RoutineFlow({
   series,
   today,
-  defaultIntervalDays,
+  bufferDays,
+  asksForBuffer,
   onSave,
   onClose,
 }: {
   series: Schedule | null;
   today: Date;
-  defaultIntervalDays?: number;
-  onSave: (draft: RoutineDraft) => Promise<void>;
+  bufferDays: number | null;
+  asksForBuffer: boolean;
+  onSave: (draft: RoutineDraft, bufferDays: number | null) => Promise<void>;
   onClose: () => void;
 }) {
   const [step, setStep] = useState<Step>("start");
   const [start, setStart] = useState<Date>(series ? fromKey(series.start_on) : today);
   const [pickerMonth, setPickerMonth] = useState(series ? fromKey(series.start_on) : today);
-  const [frequency, setFrequency] = useState<Frequency | undefined>(() => {
-    if (series) return frequencyOf(series);
-    return defaultIntervalDays ? { unit: "days", days: defaultIntervalDays } : undefined;
-  });
+  const [frequency, setFrequency] = useState<Frequency | undefined>(() =>
+    series ? frequencyOf(series) : undefined,
+  );
   const [vials, setVials] = useState(series ? String(series.vials) : "");
+  // Whole days: the fold rounds a fraction up anyway, and the pad is digits.
+  const [buffer, setBuffer] = useState(bufferDays === null ? "" : String(Math.ceil(bufferDays)));
   const [saving, setSaving] = useState(false);
   const eyebrow = series ? "Change routine" : "Set up routine";
+
+  function save(bufferToSave: number | null) {
+    if (saving || !frequency) return;
+    setSaving(true);
+    void onSave(
+      { start_on: toKey(start), ...frequencyToApi(frequency), vials: Number(vials) },
+      bufferToSave,
+    ).finally(() => setSaving(false));
+  }
 
   if (step === "start") {
     return (
@@ -240,28 +277,47 @@ function RoutineFlow({
     );
   }
 
+  if (step === "vials") {
+    const last = !asksForBuffer;
+    return (
+      <Sheet
+        tier="action"
+        eyebrow={eyebrow}
+        title="How many vials per dose?"
+        onBack={() => setStep("frequency")}
+        backLabel="Back to frequency"
+        onClose={onClose}
+      >
+        <NumberField
+          label="Vials per dose"
+          value={vials}
+          onChange={setVials}
+          confirmLabel={
+            last ? (saving ? "Saving…" : series ? "Start new routine" : "Start routine") : "Next"
+          }
+          onConfirm={() => (last ? save(null) : setStep("buffer"))}
+        />
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet
       tier="action"
       eyebrow={eyebrow}
-      title="How many vials per dose?"
-      onBack={() => setStep("frequency")}
-      backLabel="Back to frequency"
+      title="How much cover do you want left when you order?"
+      onBack={() => setStep("vials")}
+      backLabel="Back to dosage"
       onClose={onClose}
     >
-      <NumberPad
-        value={vials}
-        onChange={setVials}
+      <NumberField
+        label="Days of cover"
+        value={buffer}
+        onChange={setBuffer}
+        suffix="days"
+        hint="Your order-by date is this far ahead of the day your supply runs out. 7 means order with about a week of doses left."
         confirmLabel={saving ? "Saving…" : series ? "Start new routine" : "Start routine"}
-        onConfirm={() => {
-          if (saving || !frequency) return;
-          setSaving(true);
-          void onSave({
-            start_on: toKey(start),
-            ...frequencyToApi(frequency),
-            vials: Number(vials),
-          }).finally(() => setSaving(false));
-        }}
+        onConfirm={() => save(buffer === "" ? null : Number(buffer))}
       />
     </Sheet>
   );

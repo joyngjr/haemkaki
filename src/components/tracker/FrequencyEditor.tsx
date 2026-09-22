@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { DAYS, frequencyLabel, type Frequency } from "@/lib/tracker-dates";
 
-import { NumberPad } from "./NumberPad";
+import { NumberField } from "./NumberField";
 
 const UNITS = [
   ["days", "Every X days"],
@@ -51,7 +51,8 @@ export function FrequencyEditor({
       </div>
 
       {unit === "days" ? (
-        <NumberPad
+        <NumberField
+          label="Days between doses"
           value={days}
           onChange={setDays}
           maxLength={2}

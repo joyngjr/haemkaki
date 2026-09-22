@@ -1,11 +1,6 @@
 import { createContext, useContext } from "react";
 
-import type {
-  AdministerDosePayload,
-  HomeDashboardData,
-  MoveDosePayload,
-  SaveResult,
-} from "@/lib/home-data";
+import type { AdministerDosePayload, HomeDashboardData, SaveResult } from "@/lib/home-data";
 
 export type HomeDataContextValue = {
   /** Null until a profile is active — Home shows an empty state, not a demo person. */
@@ -14,12 +9,10 @@ export type HomeDataContextValue = {
   now: Date;
   /** True until the profile list resolves, so Home can hold the skeleton. */
   isLoading: boolean;
-  /** Bumped after `administerDose` or `moveNextDose` lands, so the tracker can re-read. */
+  /** Bumped after `administerDose` lands, so the tracker can re-read. */
   writeVersion: number;
   /** Records a prophylaxis dose in the ledger, on the given Singapore day. */
   administerDose: (payload: AdministerDosePayload) => Promise<SaveResult>;
-  /** Moves the next planned dose to another day — a calendar exception on the routine. */
-  moveNextDose: (payload: MoveDosePayload) => Promise<SaveResult>;
   /** Re-read the folded status. Home calls it on mount, and the tracker after each of its writes. */
   refreshStatus: () => Promise<void>;
 };

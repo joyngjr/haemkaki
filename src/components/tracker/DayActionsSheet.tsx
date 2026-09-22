@@ -1,18 +1,18 @@
 import type { Occurrence } from "@/lib/api";
 
 import { Sheet } from "./Sheet";
-import { MoveIcon, PlusIcon, SyringeIcon, WarningIcon } from "./TrackerIcons";
+import { MoveIcon, PlusIcon, SyringeIcon } from "./TrackerIcons";
 import { ConfusedPlatelet } from "./TrackerMascots";
 
 /** Which of the day's flows is open, if any. */
-export type DayFlow = "refill" | "use" | "missed" | "move";
+export type DayFlow = "refill" | "use" | "move";
 
 type DayActionsSheetProps = {
   date: Date;
   isFuture: boolean;
   /** The dose the routine plans for this day, if any. */
   planned: Occurrence | undefined;
-  /** A planned dose can be moved until it is settled — logged, or recorded as missed. */
+  /** A planned dose can be moved until the day holds a factor use. */
   canMovePlanned: boolean;
   activeFlow: DayFlow | null;
   onPick: (flow: DayFlow) => void;
@@ -74,14 +74,6 @@ export function DayActionsSheet({
             pressed={activeFlow === "use"}
             dot="bg-[#2C7A70]"
             onClick={() => onPick("use")}
-          />
-          <ActionRow
-            title="Missed Dose"
-            icon={<WarningIcon className="h-6 w-6" />}
-            iconClass="bg-[#B9832C]/35 text-[#8A5E14]"
-            pressed={activeFlow === "missed"}
-            dot="bg-[#B9832C]"
-            onClick={() => onPick("missed")}
           />
           {moveRow}
         </div>

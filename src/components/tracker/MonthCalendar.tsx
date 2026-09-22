@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 import type { OccurrenceMap } from "./useSchedule";
 
-import { ChevronLeftIcon, ChevronRightIcon } from "./TrackerIcons";
+import { MonthMenu } from "./MonthMenu";
 
 type MonthCalendarProps = {
   month: Date;
@@ -18,15 +18,12 @@ type MonthCalendarProps = {
   entries: EntryMap;
   /** The routine's planned doses for this grid, keyed by the day they sit on. */
   planned: OccurrenceMap;
+  /** Planned days already past with no factor use on them — derived, not logged. */
+  missed: string[];
   onMonthChange: (month: Date) => void;
   onSelectDate: (date: Date) => void;
   className?: string;
 };
-
-const NAV_BUTTON = cn(
-  "grid h-10 w-11 place-items-center rounded-xl text-ink-muted transition-colors hover:bg-soft hover:text-ink",
-  "lg:border lg:border-sand-300 lg:bg-card lg:hover:bg-soft",
-);
 
 /** Sunday … Saturday, spelled out where the cells are wide enough. */
 const LONG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -37,51 +34,28 @@ export function MonthCalendar({
   selectedDate,
   entries,
   planned,
+  missed,
   onMonthChange,
   onSelectDate,
   className,
 }: MonthCalendarProps) {
   const days = useMemo(() => monthGrid(month), [month]);
-  const monthTitle = month.toLocaleDateString("en-SG", { month: "long", year: "numeric" });
-  const shiftMonth = (amount: number) =>
-    onMonthChange(new Date(month.getFullYear(), month.getMonth() + amount, 1));
-
+  const missedDays = useMemo(() => new Set(missed), [missed]);
+  // Planned days whose dose was taken later. They are not missed, but the day
+  // itself still holds nothing, so its ring says where the dose went.
+  const madeUpDays = useMemo(
+    () =>
+      new Set(
+        Object.values(entries)
+          .flat()
+          .flatMap((entry) => (entry.kind === "makeup" ? [entry.missedDateKey] : [])),
+      ),
+    [entries],
+  );
   return (
     <Card className={cn("lg:p-6", className)}>
       <div className="flex items-center justify-between pb-3.5">
-        <h2 className="text-[17px] font-semibold lg:text-[19px]">{monthTitle}</h2>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              onMonthChange(today);
-              onSelectDate(today);
-            }}
-            className={cn(
-              "h-10 rounded-xl px-3.5 text-sm font-medium text-ink-muted transition-colors hover:bg-soft",
-              "lg:border lg:border-sand-300 lg:bg-card lg:text-ink-strong lg:hover:bg-soft",
-              FOCUS_RING,
-            )}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => shiftMonth(-1)}
-            aria-label="Previous month"
-            className={cn(NAV_BUTTON, FOCUS_RING)}
-          >
-            <ChevronLeftIcon className="h-[18px] w-[18px]" />
-          </button>
-          <button
-            type="button"
-            onClick={() => shiftMonth(1)}
-            aria-label="Next month"
-            className={cn(NAV_BUTTON, FOCUS_RING)}
-          >
-            <ChevronRightIcon className="h-[18px] w-[18px]" />
-          </button>
-        </div>
+        <MonthMenu month={month} today={today} onMonthChange={onMonthChange} />
       </div>
 
       <div className="grid grid-cols-7 gap-0.5 pb-1 lg:gap-2">
@@ -111,10 +85,13 @@ export function MonthCalendar({
               entry.kind === "follow-up" ||
               entry.kind === "makeup",
           );
-          const hasMissedDose = dayEntries.some((entry) => entry.kind === "missed");
+          // A missed dose is not an entry: it is a planned day that has passed
+          // with nothing logged on it, worked out in `Tracker.tsx` and passed in.
+          const hasMissedDose = missedDays.has(key);
           const hasBleed = dayEntries.some((entry) => entry.kind === "on-demand");
-          // A planned dose shows until the day is settled by a logged dose or a
-          // missed-dose record. A moved dose keeps a dashed ring.
+          // A planned dose shows until the day is settled by a logged dose, and
+          // after its day has passed it reads as missed instead. A moved dose
+          // keeps a dashed ring.
           const plannedDose = planned[key];
           const isPlanned = !hasFactorUse && !hasMissedDose && Boolean(plannedDose);
 
@@ -133,17 +110,20 @@ export function MonthCalendar({
                 plannedDose?.moved && "border-dashed",
                 isSelected ? "border-white" : "border-teal-600",
               ),
-              label: plannedDose?.moved
-                ? "Planned dose, moved here"
-                : plannedDose?.plan_id !== null
-                  ? "Planned dose from a plan"
-                  : "Planned prophylaxis dose",
+              label: madeUpDays.has(key)
+                ? "Planned dose, taken late"
+                : plannedDose?.moved
+                  ? "Planned dose, moved here"
+                  : plannedDose?.plan_id !== null
+                    ? "Planned dose from a plan"
+                    : "Planned prophylaxis dose",
             });
           }
           if (hasMissedDose) {
             marks.push({
               key: "missed",
               className: cn("rounded-full", isSelected ? "bg-white" : "bg-ochre-600"),
+              label: "Dose missed",
             });
           }
           if (hasBleed) {
@@ -173,7 +153,9 @@ export function MonthCalendar({
                 isSelected
                   ? "bg-slate-600 lg:border-slate-600 lg:bg-slate-50 lg:ring-1 lg:ring-inset lg:ring-slate-600"
                   : isToday
-                    ? "bg-rail lg:border-line lg:bg-soft"
+                    ? // Today is marked by its outline alone — a fill would read
+                      // as the selected day.
+                      "ring-1 ring-inset ring-slate-600 hover:bg-slate-50 lg:border-slate-600 lg:bg-card"
                     : "hover:bg-soft lg:border-line lg:bg-card",
                 !inMonth && !isSelected && "lg:bg-paper",
                 FOCUS_RING,
@@ -188,7 +170,7 @@ export function MonthCalendar({
                     : isSelected
                       ? "text-white lg:text-slate-600"
                       : isToday
-                        ? "text-ink lg:text-slate-600"
+                        ? "text-slate-600"
                         : "text-ink",
                 )}
               >

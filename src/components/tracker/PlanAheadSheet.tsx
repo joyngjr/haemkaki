@@ -11,7 +11,7 @@ import {
 import { plansOverlap, type PlanAhead, type PlanAheadDraft } from "@/lib/tracker-plans";
 
 import { FrequencyEditor } from "./FrequencyEditor";
-import { NumberPad } from "./NumberPad";
+import { NumberField } from "./NumberField";
 import { Sheet, SheetOption } from "./Sheet";
 import { ChevronLeftIcon, ChevronRightIcon } from "./TrackerIcons";
 
@@ -111,7 +111,8 @@ export function PlanAheadSheet({
         onClose={onClose}
         closeLabel={closeLabel}
       >
-        <NumberPad
+        <NumberField
+          label="Vials per dose"
           value={count}
           onChange={setCount}
           hint={

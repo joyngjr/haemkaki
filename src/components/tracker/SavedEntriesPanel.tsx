@@ -36,15 +36,12 @@ export function SavedEntriesPanel({
                 <p className="text-sm text-[#5C646C]">{entryDetail(entry)}</p>
               </div>
               <div className="flex gap-1">
-                {/* A made-up dose is edited from the missed dose it belongs to. */}
-                {entry.kind !== "makeup" && (
-                  <button
-                    onClick={() => onEdit(entry)}
-                    className="rounded-lg px-2 py-1 text-xs font-semibold text-[#274A63] hover:bg-[#F7F6F3]"
-                  >
-                    Edit
-                  </button>
-                )}
+                <button
+                  onClick={() => onEdit(entry)}
+                  className="rounded-lg px-2 py-1 text-xs font-semibold text-[#274A63] hover:bg-[#F7F6F3]"
+                >
+                  Edit
+                </button>
                 <button
                   onClick={() => onDelete(entry)}
                   className="rounded-lg px-2 py-1 text-xs font-semibold text-[#A63A2E] hover:bg-[#F7F6F3]"

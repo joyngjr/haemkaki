@@ -48,7 +48,7 @@ function Anchor({ id, children }: { id: string; children: ReactNode }) {
  * is only the greeting.
  */
 export function Dashboard() {
-  const { data, now, isLoading, administerDose, moveNextDose } = useHomeData();
+  const { data, now, isLoading, administerDose } = useHomeData();
   const { error } = useProfiles();
   useScrollToHash(data !== null);
 
@@ -64,7 +64,6 @@ export function Dashboard() {
   // Everything the status card would send you to is already on the page.
   const actions: HomeActions = {
     onRecordDose: ({ takenOn }) => administerDose({ takenOn }),
-    onRescheduleDose: ({ movedTo }) => moveNextDose({ movedTo }),
     onRemindLater: () => undefined,
     onOpenTreatmentSetup: () => scrollToSection("routine"),
     onOpenSupply: () => scrollToSection("supply"),

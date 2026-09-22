@@ -27,10 +27,6 @@
  *  - `onRecordDose` writes a prophylaxis event to the same ledger the tracker
  *    edits, on the Singapore day the user picks. The ledger records days, not
  *    minutes, so the sheet asks for a date and nothing else.
- *  - `onRescheduleDose` moves the NEXT planned dose to another day, as a
- *    calendar exception on the routine — the same thing the tracker does from
- *    a day's sheet. Tracker owns the routine, so Home does not offer to change
- *    the cycle itself.
  *  - `activityStatus.hasLoggedBleed` is an on-demand dose within the last few
  *    days, folded by the API from the tracker's ledger (`last_bleed_on`).
  */
@@ -80,17 +76,10 @@ export interface RecordDosePayload {
   takenOn: string;
 }
 
-export interface RescheduleDosePayload {
-  /** The Singapore calendar day the next planned dose should move to, as `YYYY-MM-DD`. */
-  movedTo: string;
-}
-
 /** Every side effect Home can trigger. The host app implements these. */
 export interface HomeActions {
   /** Handles both the "Log dose" (prospective) and "I took it" (retrospective) flows. */
   onRecordDose: (payload: RecordDosePayload) => Promise<SaveResult>;
-  /** Moves the next planned dose to another day. The routine's cycle is unchanged. */
-  onRescheduleDose: (payload: RescheduleDosePayload) => Promise<SaveResult>;
   /** Optional: hook into real notification infra. Home always defers the prompt locally either way. */
   onRemindLater?: () => void;
   /** "See all" on the recent entries. Omitted where the calendar is already on the page. */
@@ -407,6 +396,7 @@ const ENTRY_LABEL: Record<
   makeup: { label: "Dose made up", mark: "taken" },
   "on-demand": { label: "Bleed treated", mark: "bleed" },
   "follow-up": { label: "Follow-up dose", mark: "taken" },
+  // Not an entry at all — a planned day the ledger has nothing for.
   missed: { label: "Dose missed", mark: "missed" },
   refill: { label: "Refill", mark: "taken" },
 };
@@ -465,7 +455,7 @@ export function RecentEntries({
               const meta = ENTRY_LABEL[entry.kind];
               return (
                 <li
-                  key={entry.id}
+                  key={entry.key}
                   className="flex items-center gap-3.5 py-3 lg:grid lg:grid-cols-[1.3fr_1.2fr_0.9fr] lg:items-center lg:gap-0 lg:border-b lg:border-line-soft lg:py-3.5 lg:last:border-0"
                 >
                   <StatusDot kind={meta.mark} className="lg:hidden" />
@@ -681,99 +671,6 @@ function RecordDoseSheet({
   );
 }
 
-/**
- * "Move next dose" — one sheet for both the upcoming and the overdue entry
- * point. This moves one dose only; changing the recurring routine lives on
- * the tracker, which owns the schedule.
- */
-function RescheduleSheet({
-  currentScheduledAt,
-  onClose,
-  onConfirm,
-}: {
-  currentScheduledAt?: string;
-  onClose: () => void;
-  onConfirm: HomeActions["onRescheduleDose"];
-}) {
-  const today = getSingaporeTodayKey();
-  const [movedTo, setMovedTo] = useState(() => {
-    const planned = currentScheduledAt
-      ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(
-          new Date(currentScheduledAt),
-        )
-      : today;
-    return planned >= today ? planned : today;
-  });
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [failureMessage, setFailureMessage] = useState("");
-
-  const confirm = async () => {
-    if (saveState === "submitting") return;
-    if (!movedTo || movedTo < today) {
-      setFailureMessage("Pick today or a later day.");
-      setSaveState("failure");
-      return;
-    }
-    setSaveState("submitting");
-    const result = await onConfirm({ movedTo });
-    if (result.ok) setSaveState("success");
-    else {
-      setFailureMessage(result.message ?? "We couldn't move the dose. Your routine is unchanged.");
-      setSaveState("failure");
-    }
-  };
-
-  return (
-    <BottomSheet open onClose={onClose} title="Move next dose">
-      {saveState === "success" ? (
-        <div className="py-8" role="status">
-          <p className={cn("text-lg font-semibold", INK)}>Dose moved</p>
-          <PrimaryButton className="mt-5 w-full" onClick={onClose}>
-            Done
-          </PrimaryButton>
-        </div>
-      ) : (
-        <div className="mt-5 space-y-5">
-          <Field id="reschedule-day" label="New day">
-            <input
-              id="reschedule-day"
-              type="date"
-              min={today}
-              value={movedTo}
-              onChange={(event) => {
-                setMovedTo(event.target.value);
-                setSaveState("idle");
-              }}
-              className={INPUT_CLASS}
-            />
-          </Field>
-          {saveState === "failure" ? (
-            <p role="alert" className="text-sm font-medium text-brick-600">
-              {failureMessage}
-            </p>
-          ) : null}
-          <div className="flex gap-3">
-            <OutlineButton className="flex-1" onClick={onClose}>
-              Cancel
-            </OutlineButton>
-            <PrimaryButton
-              className="flex-1"
-              disabled={saveState === "submitting"}
-              onClick={confirm}
-            >
-              {saveState === "submitting"
-                ? "Moving…"
-                : saveState === "failure"
-                  ? "Try again"
-                  : "Confirm"}
-            </PrimaryButton>
-          </div>
-        </div>
-      )}
-    </BottomSheet>
-  );
-}
-
 /* ===================================================================== */
 /* 6. The status card and its buttons                                     */
 /* ===================================================================== */
@@ -791,16 +688,15 @@ function doseActionState(
  * The buttons at the foot of the status card — only what is worth doing now.
  * No streaks, no missed-dose counters, no guilt language.
  *
- * Ordering joins the dose buttons once the cupboard runs low. When it is
+ * Ordering joins the dose button once the cupboard runs low. When it is
  * empty, ordering becomes the thing to do: it takes the primary slot, in
- * brick, and the dose buttons step down to outlines beneath it.
+ * brick, and the dose button steps down to an outline beneath it.
  */
 function StatusActions({
   treatmentStatus,
   supply,
   now,
   onRecord,
-  onReschedule,
   onSetUpRoutine,
   onOrder,
   onRemindLater,
@@ -809,7 +705,6 @@ function StatusActions({
   supply: SupplyNeed;
   now: Date;
   onRecord: () => void;
-  onReschedule: () => void;
   onSetUpRoutine: () => void;
   onOrder: () => void;
   onRemindLater?: () => void;
@@ -839,14 +734,9 @@ function StatusActions({
       </OrderButton>
     );
   const dose = showDose ? (
-    <div className="flex gap-2.5">
-      <RecordButton className="flex-grow" onClick={onRecord}>
-        {overdue ? "I took it" : "Log dose"}
-      </RecordButton>
-      <OutlineButton className="px-5" onClick={onReschedule}>
-        Move
-      </OutlineButton>
-    </div>
+    <RecordButton className="w-full" onClick={onRecord}>
+      {overdue ? "I took it" : "Log dose"}
+    </RecordButton>
   ) : null;
 
   if (!order && !dose) return null;
@@ -876,7 +766,6 @@ function StatusActions({
  */
 export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
   const [recordOpen, setRecordOpen] = useState(false);
-  const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
   const { treatmentStatus, activityStatus, supplyStatus } = data;
   const doseStatus = resolveDoseStatus({
@@ -900,7 +789,6 @@ export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
           supply={supply}
           now={now}
           onRecord={() => setRecordOpen(true)}
-          onReschedule={() => setRescheduleOpen(true)}
           onSetUpRoutine={actions.onOpenTreatmentSetup}
           onOrder={actions.onOpenSupply}
           onRemindLater={actions.onRemindLater}
@@ -912,13 +800,6 @@ export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
           treatmentStatus={treatmentStatus}
           onClose={() => setRecordOpen(false)}
           onConfirm={actions.onRecordDose}
-        />
-      ) : null}
-      {rescheduleOpen ? (
-        <RescheduleSheet
-          currentScheduledAt={treatmentStatus.nextDoseAt}
-          onClose={() => setRescheduleOpen(false)}
-          onConfirm={actions.onRescheduleDose}
         />
       ) : null}
     </>
@@ -983,14 +864,7 @@ export function EmptyHome({ error }: { error: string | null }) {
 }
 
 export function HomeScreen({ now }: { now?: Date }) {
-  const {
-    data,
-    now: contextNow,
-    isLoading,
-    administerDose,
-    moveNextDose,
-    refreshStatus,
-  } = useHomeData();
+  const { data, now: contextNow, isLoading, administerDose, refreshStatus } = useHomeData();
   const { error } = useProfiles();
   const navigate = useNavigate();
   const clock = now ?? contextNow;
@@ -1012,7 +886,6 @@ export function HomeScreen({ now }: { now?: Date }) {
 
   const actions: HomeActions = {
     onRecordDose: ({ takenOn }) => administerDose({ takenOn }),
-    onRescheduleDose: ({ movedTo }) => moveNextDose({ movedTo }),
     onRemindLater: () => undefined,
     onOpenActivity: () => navigate("/tracker"),
     onOpenTreatmentSetup: () => navigate("/tracker#routine"),

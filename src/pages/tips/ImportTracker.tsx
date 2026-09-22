@@ -151,10 +151,11 @@ export function ImportTracker() {
         </Card>
 
         <Callout tone="muted" icon={<NoteIcon />}>
-          Refills, doses, missed doses and treated bleeds come across. Amounts are counted in vials,
-          so the assistant will ask how many IU a vial holds if your sheet is in IU. Imported
-          entries appear the next time the Tracker opens. There is no sign-in: anyone with this
-          address can read and change every profile here, so only connect assistants you trust.
+          Refills, doses and treated bleeds come across. A dose you took late comes across as the
+          day you took it. Amounts are counted in vials, so the assistant will ask how many IU a
+          vial holds if your sheet is in IU. Imported entries appear the next time the Tracker
+          opens. There is no sign-in: anyone with this address can read and change every profile
+          here, so only connect assistants you trust.
         </Callout>
       </div>
     </div>

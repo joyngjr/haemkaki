@@ -1,6 +1,10 @@
+import { Download, Pencil } from "lucide-react";
+import { useState } from "react";
+
 import { BackLink } from "@/components/layout/BackLink";
+import { MedicalIdForm } from "@/components/profile/MedicalIdForm";
 import { CallLink } from "@/components/tips/medical-id/CallLink";
-import { Field, SectionCard } from "@/components/tips/medical-id/SectionCard";
+import { Field, Section } from "@/components/tips/medical-id/Section";
 import {
   CapsuleIcon,
   PersonIcon,
@@ -8,28 +12,20 @@ import {
   PlusIcon,
   StethoscopeIcon,
 } from "@/components/tips/medical-id/SectionIcons";
-import type { ClinicalProfile } from "@/lib/api";
-import { diagnosisLabel, medicationSummary, severityOf } from "@/lib/medical-id";
+import { downloadMedicalIdPdf } from "@/lib/medical-id-pdf";
+import {
+  bloodTypeLabel,
+  diagnosisLabel,
+  drugAllergiesLabel,
+  formatDob,
+  medicationSummary,
+  severityOf,
+} from "@/lib/medical-id";
 import { useProfiles } from "@/state/profile-context";
-
-function formatDob(iso: string | null | undefined): string {
-  if (!iso) return "Not recorded";
-  const date = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(date.getTime())
-    ? "Not recorded"
-    : new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short", year: "numeric" }).format(
-        date,
-      );
-}
-
-function bloodTypeLabel(clinical: ClinicalProfile | null): string {
-  const recorded = clinical?.blood_type;
-  if (!recorded) return "Not recorded";
-  return recorded === "unknown" ? "Not known" : recorded;
-}
 
 export function MedicalId() {
   const { activeProfile, status } = useProfiles();
+  const [editing, setEditing] = useState(false);
 
   if (status === "loading") {
     return (
@@ -48,6 +44,21 @@ export function MedicalId() {
     );
   }
 
+  if (editing) {
+    return (
+      <div className="px-4 pt-8">
+        <BackLink to="/tips" />
+        <div className="mt-4">
+          <MedicalIdForm
+            profile={activeProfile}
+            onDone={() => setEditing(false)}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const label = diagnosisLabel(activeProfile);
   const clinical = activeProfile.clinical_profile;
   const contact = clinical?.emergency_contact ?? null;
@@ -57,49 +68,62 @@ export function MedicalId() {
     <div className="px-4 pt-8 pb-8">
       <BackLink to="/tips" />
 
-      <div className="mt-4 rounded-[20px] border border-gray-100 bg-white p-4 shadow-sm">
-        <p className="text-xs font-bold tracking-widest text-blue-700">MEDICAL ID</p>
-        <h1 className="mt-1 text-4xl font-extrabold text-red-600">{label}</h1>
-        <p className="mt-1 text-xs font-bold tracking-wide text-gray-500">
-          BLEEDING DISORDER &nbsp;&#8226;&nbsp; HANDLE WITH CARE
-        </p>
-      </div>
+      {/* One card, so the whole ID reads as a single document. The rules
+          between sections come from Section itself. */}
+      <div className="mt-4 overflow-hidden rounded-[20px] border border-gray-100 bg-white shadow-sm">
+        <div className="flex items-start justify-between gap-3 px-4 pt-5 pb-4 md:px-6">
+          <div>
+            <p className="text-xs font-bold tracking-widest text-blue-700">MEDICAL ID</p>
+            <h1 className="mt-1 text-3xl font-extrabold text-red-600 md:text-4xl">{label}</h1>
+            <p className="mt-1 text-xs font-bold tracking-wide text-gray-500">
+              BLEEDING DISORDER &nbsp;&#8226;&nbsp; HANDLE WITH CARE
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => downloadMedicalIdPdf(activeProfile)}
+              aria-label="Download as PDF"
+              title="Download as PDF"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 active:bg-gray-100"
+            >
+              <Download className="h-5 w-5" />
+            </button>
+            {/* The only editor for these fields: onboarding does not ask for them. */}
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label={clinical ? "Edit medical ID" : "Fill in your Medical ID"}
+              title={clinical ? "Edit medical ID" : "Fill in your Medical ID"}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-blue-700 active:bg-blue-50"
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
 
-      {/* The line a responder should read first, so it sits above the details. */}
-      <div className="mt-4 rounded-[20px] bg-blue-50 p-4">
-        <p className="text-sm font-bold text-blue-900">This patient has {label}.</p>
-        <p className="mt-1 text-sm text-blue-800">
-          Please ensure appropriate treatment and avoid unnecessary procedures or injections.
-        </p>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-4">
-        <SectionCard title="PATIENT DETAILS" iconBg="#1e3a8a" icon={<PersonIcon />}>
+        <Section title="PATIENT DETAILS" iconBg="#1e3a8a" icon={<PersonIcon />}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name" value={activeProfile.name} />
             <Field label="Blood Type" value={bloodTypeLabel(clinical)} />
           </div>
           <Field label="DOB" value={formatDob(clinical?.date_of_birth)} />
-        </SectionCard>
+        </Section>
 
-        <SectionCard title="MEDICAL INFORMATION" iconBg="#2563eb" icon={<CapsuleIcon />}>
+        <Section title="MEDICAL INFORMATION" iconBg="#2563eb" icon={<CapsuleIcon />}>
           <Field label="Diagnosis" value={label} />
           <Field label="Severity" value={severityOf(clinical)} />
           <Field label="Current Medication" value={medicationSummary(clinical)} />
-        </SectionCard>
+        </Section>
 
-        <SectionCard title="DRUG ALLERGIES" iconBg="#2563eb" icon={<PlusIcon />}>
-          <p className="text-sm text-gray-800">
-            {clinical?.has_drug_allergies
-              ? (clinical.drug_allergy_details ?? "Yes — details not recorded")
-              : "None recorded"}
-          </p>
-        </SectionCard>
+        <Section title="DRUG ALLERGIES" iconBg="#2563eb" icon={<PlusIcon />}>
+          <p className="text-sm text-gray-800">{drugAllergiesLabel(clinical)}</p>
+        </Section>
 
-        {/* Both contacts come from the profile's Emergency step. A card that
+        {/* Both contacts come from the profile's Emergency step. A section that
             shows "Not recorded" is honest; one that shows a placeholder
             stranger's number in an emergency is not. */}
-        <SectionCard
+        <Section
           title="EMERGENCY CONTACT"
           titleColor="text-red-600"
           iconBg="#fecaca"
@@ -121,13 +145,9 @@ export function MedicalId() {
           ) : (
             <p className="text-sm text-gray-800">Not recorded.</p>
           )}
-        </SectionCard>
+        </Section>
 
-        <SectionCard
-          title="PRIMARY DOCTOR (ORGANISATION)"
-          iconBg="#2563eb"
-          icon={<StethoscopeIcon />}
-        >
+        <Section title="PRIMARY DOCTOR (ORGANISATION)" iconBg="#2563eb" icon={<StethoscopeIcon />}>
           {doctor ? (
             <>
               <Field label="Name" value={doctor.name} />
@@ -144,7 +164,7 @@ export function MedicalId() {
           ) : (
             <p className="text-sm text-gray-800">Not recorded.</p>
           )}
-        </SectionCard>
+        </Section>
       </div>
     </div>
   );

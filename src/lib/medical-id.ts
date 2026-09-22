@@ -79,3 +79,27 @@ export function medicationSummary(clinical: ClinicalProfile | null): string {
     );
   return named.length ? named.join(", ") : "Not recorded";
 }
+
+/** The date of birth as the card shows it, or "Not recorded". */
+export function formatDob(iso: string | null | undefined): string {
+  if (!iso) return "Not recorded";
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? "Not recorded"
+    : new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short", year: "numeric" }).format(
+        date,
+      );
+}
+
+/** Blood type, distinguishing "never asked" from "asked, answered unknown". */
+export function bloodTypeLabel(clinical: ClinicalProfile | null | undefined): string {
+  const recorded = clinical?.blood_type;
+  if (!recorded) return "Not recorded";
+  return recorded === "unknown" ? "Not known" : recorded;
+}
+
+/** The allergies line: the details when there are any, else "None recorded". */
+export function drugAllergiesLabel(clinical: ClinicalProfile | null | undefined): string {
+  if (!clinical?.has_drug_allergies) return "None recorded";
+  return clinical.drug_allergy_details ?? "Yes — details not recorded";
+}

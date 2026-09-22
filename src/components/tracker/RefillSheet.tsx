@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { NumberPad } from "./NumberPad";
+import { NumberField } from "./NumberField";
 import { Sheet } from "./Sheet";
 
 /**
@@ -33,7 +33,8 @@ export function RefillSheet({
       onClose={onClose}
       closeLabel="Close all pop-ups"
     >
-      <NumberPad
+      <NumberField
+        label="Vials"
         value={count}
         onChange={setCount}
         confirmLabel="Add vials"

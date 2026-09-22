@@ -2,12 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { applyDiff } from "@/components/tracker/useLedger";
 import { api, type Status } from "@/lib/api";
-import {
-  buildHomeData,
-  type AdministerDosePayload,
-  type MoveDosePayload,
-  type SaveResult,
-} from "@/lib/home-data";
+import { buildHomeData, type AdministerDosePayload, type SaveResult } from "@/lib/home-data";
 import { entriesFromApi, recordProphylaxis } from "@/lib/tracker-entries";
 import { HomeDataContext, type HomeDataContextValue } from "@/state/home-context";
 import { useProfiles } from "@/state/profile-context";
@@ -22,14 +17,13 @@ import { useProfiles } from "@/state/profile-context";
  * demo person, and no profile at all reads as nobody.
  *
  * "Taken" writes a prophylaxis event through the same diff-and-re-read path
- * the tracker uses, so the two screens can never disagree about a day. "Move
- * dose" moves the next planned dose as a calendar exception on the routine,
- * which the tracker shows the same way.
+ * the tracker uses, so the two screens can never disagree about a day. Moving
+ * a planned dose belongs to the tracker, which owns the routine.
  *
  * On the one-page desktop layout the tracker's cards sit beside the status
- * card, so the two follow each other: `writeVersion` moves after either of
- * those writes and the tracker re-reads on it, and the tracker calls
- * `refreshStatus` after its own writes.
+ * card, so the two follow each other: `writeVersion` moves after that write
+ * and the tracker re-reads on it, and the tracker calls `refreshStatus` after
+ * its own writes.
  */
 
 type LoadedStatus = {
@@ -103,34 +97,6 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
     [profileId, load],
   );
 
-  const moveNextDose = useCallback(
-    async ({ movedTo }: MoveDosePayload): Promise<SaveResult> => {
-      const next = loaded && loaded.profileId === profileId ? loaded.status.next_dose : null;
-      if (profileId === undefined || !next) {
-        return { ok: false, message: "There is no planned dose to move." };
-      }
-      if (next.schedule_id === null) {
-        // A plan's doses follow the plan; only the routine's can be moved one at a time.
-        return {
-          ok: false,
-          message: "This dose comes from a plan. Change the plan on the tracker instead.",
-        };
-      }
-      try {
-        await api.moveOccurrence(profileId, next.schedule_id, next.original_on, movedTo);
-      } catch (cause) {
-        return {
-          ok: false,
-          message: cause instanceof Error ? cause.message : "Could not move the dose.",
-        };
-      }
-      await load(profileId);
-      setWriteVersion((current) => current + 1);
-      return { ok: true };
-    },
-    [profileId, loaded, load],
-  );
-
   const data = useMemo(() => {
     if (!activeProfile) return null;
     const status = loaded?.profileId === activeProfile.id ? loaded : null;
@@ -146,10 +112,9 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
       isLoading: profileStatus === "loading",
       writeVersion,
       administerDose,
-      moveNextDose,
       refreshStatus,
     }),
-    [data, clock, profileStatus, writeVersion, administerDose, moveNextDose, refreshStatus],
+    [data, clock, profileStatus, writeVersion, administerDose, refreshStatus],
   );
 
   return <HomeDataContext.Provider value={value}>{children}</HomeDataContext.Provider>;

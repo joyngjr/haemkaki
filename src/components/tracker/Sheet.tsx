@@ -20,7 +20,7 @@ const TIER_CLASS: Record<SheetTier, string> = {
 
 type SheetProps = {
   tier: SheetTier;
-  /** Small label above the title, e.g. "Missed Dose". */
+  /** Small label above the title, e.g. "Factor Use". */
   eyebrow?: string;
   title?: string;
   onClose: () => void;

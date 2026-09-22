@@ -68,9 +68,18 @@ export interface SupplyStatus {
 }
 
 /** One row in "Recent entries", flattened out of the ledger. */
+/**
+ * What a "Recent entries" row can be. `missed` is not an event kind: a missed
+ * dose is a planned day the ledger has nothing for, which the fold reports as
+ * `status.missed_doses`, so it joins the list here rather than coming from a
+ * row of its own.
+ */
+export type LedgerRowKind = EventKind | "missed";
+
 export interface LedgerEntrySummary {
-  id: number;
-  kind: EventKind;
+  /** Stable across re-reads, and unique across events and derived misses alike. */
+  key: string;
+  kind: LedgerRowKind;
   /** `YYYY-MM-DD`, the day key the calendar files it under. */
   occurredOn: string;
   /** What the fold charged the cupboard: negative for a dose, positive for a refill. */
@@ -92,11 +101,6 @@ export interface HomeDashboardData {
 export interface AdministerDosePayload {
   /** The Singapore calendar day the dose was taken, as `YYYY-MM-DD`. */
   takenOn: string;
-}
-
-export interface MoveDosePayload {
-  /** The Singapore calendar day the next planned dose should move to, as `YYYY-MM-DD`. */
-  movedTo: string;
 }
 
 export type SaveResult = { ok: true } | { ok: false; message?: string };
@@ -155,7 +159,6 @@ const LEDGER_ROW_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   "on-demand",
   "follow-up",
   "makeup",
-  "missed",
 ]);
 
 /**
@@ -221,15 +224,24 @@ export function buildHomeData(
       }
     : null;
 
-  // `recent_events` arrives oldest first; the overview reads newest first.
+  // `recent_events` arrives oldest first; the overview reads newest first. The
+  // days the fold found no dose for are rows too, with nothing charged.
   const recentEntries: LedgerEntrySummary[] = (status?.recent_events ?? [])
     .filter((event) => LEDGER_ROW_KINDS.has(event.kind))
     .map((event) => ({
-      id: event.id,
-      kind: event.kind,
+      key: `event-${event.id}`,
+      kind: event.kind as LedgerRowKind,
       occurredOn: event.occurred_on,
       appliedVials: event.applied_vials,
     }))
+    .concat(
+      (status?.missed_doses ?? []).map((occurredOn) => ({
+        key: `missed-${occurredOn}`,
+        kind: "missed" as LedgerRowKind,
+        occurredOn,
+        appliedVials: 0,
+      })),
+    )
     .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
 
   return {
