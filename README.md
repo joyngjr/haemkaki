@@ -68,6 +68,7 @@ src/
     tips/Tips.tsx              the phone's Resources tab
     tips/MedicalId.tsx         emergency card: diagnosis, contacts, call links
     tips/FindMedicalHelp.tsx   Leaflet map of hospitals, pharmacies, polyclinics
+    tips/ImportTracker.tsx     the connector address and the steps for importing via an assistant
     tips/injection/            injection guide + one page per route
                                (intravenous, subcutaneous, port-a-cath)
   components/

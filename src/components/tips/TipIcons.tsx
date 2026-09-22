@@ -65,6 +65,16 @@ export function TravelLetterIcon({ className }: IconProps) {
   );
 }
 
+/** An arrow into a tray — importing another tracker's history. */
+export function ImportTrackerIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M12 3.6v11M7.6 10.2 12 14.6l4.4-4.4" />
+      <path d="M4.6 15.4v3.2a1.8 1.8 0 0 0 1.8 1.8h11.2a1.8 1.8 0 0 0 1.8-1.8v-3.2" />
+    </svg>
+  );
+}
+
 /** A handset — the call buttons. */
 export function PhoneIcon({ className }: IconProps) {
   return (

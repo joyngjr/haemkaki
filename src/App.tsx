@@ -7,6 +7,7 @@ import { Dashboard } from "@/pages/Dashboard";
 import Home from "@/pages/Home";
 import { Tracker } from "@/pages/Tracker";
 import { FindMedicalHelp } from "@/pages/tips/FindMedicalHelp";
+import { ImportTracker } from "@/pages/tips/ImportTracker";
 import { MedicalId } from "@/pages/tips/MedicalId";
 import { Tips } from "@/pages/tips/Tips";
 import { InjectionGuide } from "@/pages/tips/injection/InjectionGuide";
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="tips/injection-guide/subcutaneous" element={<Subcutaneous />} />
               <Route path="tips/injection-guide/port-a-cath" element={<PortACath />} />
               <Route path="tips/find-medical-help" element={<FindMedicalHelp />} />
+              <Route path="tips/import-tracker" element={<ImportTracker />} />
 
               {/* Anything unrecognised lands back on the den. */}
               <Route path="*" element={<Navigate to="/" replace />} />

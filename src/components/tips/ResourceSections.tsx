@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { TipCard, type TipCardData } from "@/components/tips/TipCard";
 import {
   FindMedicalHelpIcon,
+  ImportTrackerIcon,
   InjectionGuideIcon,
   MedicalIdIcon,
   PhoneIcon,
@@ -44,6 +45,12 @@ const tipCards: TipCardData[] = [
     title: "Travel letter",
     tile: "bg-ochre-100 text-ochre-700",
     icon: <TravelLetterIcon className="h-5 w-5" />,
+  },
+  {
+    to: "/tips/import-tracker",
+    title: "Import from another tracker",
+    tile: "bg-slate-50 text-slate-600",
+    icon: <ImportTrackerIcon className="h-5 w-5" />,
   },
 ];
 
