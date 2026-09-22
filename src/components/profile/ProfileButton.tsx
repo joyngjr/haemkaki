@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { ProfileSheet } from "@/components/profile/ProfileSheet";
+import { FOCUS_RING } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useProfiles } from "@/state/profile-context";
 
@@ -20,10 +21,19 @@ import { useProfiles } from "@/state/profile-context";
  * colour the switcher lists them with — so it says who the app is currently
  * on. The generic icon is the fallback for the states with nobody to show:
  * still loading, API unreachable, no profiles.
+ *
+ * `pill` adds the name beside the circle, for the desktop top bar's corner.
  */
-export function ProfileButton({ className }: { className?: string }) {
+export function ProfileButton({
+  className,
+  variant = "icon",
+}: {
+  className?: string;
+  variant?: "icon" | "pill";
+}) {
   const { activeProfile } = useProfiles();
   const [open, setOpen] = useState(false);
+  const pill = variant === "pill";
 
   return (
     <>
@@ -35,15 +45,26 @@ export function ProfileButton({ className }: { className?: string }) {
           activeProfile ? `Profile: ${activeProfile.name}. Switch profile` : "Choose a profile"
         }
         className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-sand-600 shadow-sm ring-1 ring-black/10 transition-colors hover:bg-sand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+          "flex h-11 shrink-0 items-center rounded-full transition-colors",
+          pill
+            ? "max-w-[240px] gap-2.5 border border-line bg-card pl-1.5 pr-4 text-[14.5px] font-medium text-ink-strong hover:bg-soft"
+            : "w-11 justify-center bg-slate-100 text-slate-600 hover:bg-rail",
+          FOCUS_RING,
           className,
         )}
       >
         {activeProfile ? (
-          <ProfileAvatar profile={activeProfile} className="h-7 w-7 text-[11px]" />
+          <ProfileAvatar
+            profile={activeProfile}
+            className={pill ? "h-8 w-8 text-xs" : "h-7 w-7 text-[11px]"}
+          />
         ) : (
-          <CircleUserRound className="h-6 w-6" aria-hidden="true" />
+          <CircleUserRound
+            className={cn("h-6 w-6", pill && "ml-1 text-slate-600")}
+            aria-hidden="true"
+          />
         )}
+        {pill ? <span className="truncate">{activeProfile?.name ?? "Profiles"}</span> : null}
       </button>
       <ProfileSheet open={open} onClose={() => setOpen(false)} />
     </>

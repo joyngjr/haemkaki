@@ -15,8 +15,7 @@ const injectionTypes: InjectionType[] = [
   {
     to: "/tips/injection-guide/intravenous",
     title: "Intravenous Injection",
-    description:
-      "Medication is injected directly into a vein, allowing clotting factor to enter the bloodstream quickly. Commonly used for factor replacement therapy.",
+    description: "Into a vein. The usual route for factor replacement.",
     buttonLabel: "View IV Guide",
     bg: "bg-blue-50",
     iconBg: "bg-blue-500",
@@ -25,8 +24,7 @@ const injectionTypes: InjectionType[] = [
   {
     to: "/tips/injection-guide/subcutaneous",
     title: "Subcutaneous Injection",
-    description:
-      "Medication is injected into the fatty tissue just beneath the skin, commonly around the abdomen or thigh. Some haemophilia treatments, such as emicizumab, are given this way.",
+    description: "Under the skin, such as emicizumab.",
     buttonLabel: "View SC Guide",
     bg: "bg-green-50",
     iconBg: "bg-green-600",
@@ -35,8 +33,7 @@ const injectionTypes: InjectionType[] = [
   {
     to: "/tips/injection-guide/port-a-cath",
     title: "Port-a-Cath Injection",
-    description:
-      "Medication is given through an implanted port placed beneath the skin and connected to a vein. Ports may be used when regular access to a vein is difficult.",
+    description: "Through a port implanted under the skin.",
     buttonLabel: "View Port Guide",
     bg: "bg-red-50",
     iconBg: "bg-red-400",
@@ -48,10 +45,7 @@ export function InjectionGuide() {
   return (
     <div className="px-4 pt-8 pb-8">
       <BackLink to="/tips" />
-      <PageHeader
-        title="Injection Guides"
-        subtitle="Learn about the different ways haemophilia medication may be given."
-      />
+      <PageHeader title="Injection Guides" className="mt-4" />
 
       <div className="mt-5 flex flex-col gap-4">
         {injectionTypes.map((type) => (
@@ -60,8 +54,7 @@ export function InjectionGuide() {
       </div>
 
       <Callout tone="muted" className="mt-5">
-        Always follow the injection instructions provided by your haemophilia care team. This
-        information is for educational purposes and does not replace professional medical advice.
+        Always follow your haemophilia care team&rsquo;s instructions.
       </Callout>
     </div>
   );

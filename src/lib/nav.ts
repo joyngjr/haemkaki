@@ -8,7 +8,11 @@ export type NavItem = {
   end?: boolean;
 };
 
-/** The complete set of routed destinations in the shared bottom navigation. */
+/**
+ * The phone's tabs. From `lg` there are none — everything is on one page — so
+ * the tab bar is the only thing that reads this. Supply lives inside the
+ * tracker, so it is not a destination of its own.
+ */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", Icon: House, end: true },
   { to: "/tracker", label: "Tracker", Icon: CalendarDays },

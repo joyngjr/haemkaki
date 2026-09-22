@@ -32,7 +32,7 @@ export function FindMedicalHelp() {
   return (
     <div className="px-4 pt-8 pb-8">
       <BackLink to="/tips" />
-      <PageHeader title="Find Medical Help" subtitle="Tap a pin to see the name and address." />
+      <PageHeader title="Find Medical Help" className="mt-4" />
 
       <div className="mt-4 flex items-center justify-between">
         <MapLegend />

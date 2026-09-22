@@ -8,55 +8,9 @@ import {
   PlusIcon,
   StethoscopeIcon,
 } from "@/components/tips/medical-id/SectionIcons";
-import type { ClinicalProfile, Profile } from "@/lib/api";
+import type { ClinicalProfile } from "@/lib/api";
+import { diagnosisLabel, medicationSummary, severityOf } from "@/lib/medical-id";
 import { useProfiles } from "@/state/profile-context";
-
-const DIAGNOSIS_LABELS: Record<string, string> = {
-  haemophilia_a: "Haemophilia A",
-  haemophilia_b: "Haemophilia B",
-  factor_xi_deficiency: "Factor XI Deficiency",
-  acquired_haemophilia: "Acquired Haemophilia",
-  symptomatic_carrier_a: "Symptomatic Carrier (A)",
-  symptomatic_carrier_b: "Symptomatic Carrier (B)",
-  other_or_unknown: "Bleeding Disorder",
-};
-
-/**
- * What a responder needs to read first.
- *
- * The recorded diagnosis when there is one; otherwise the factor being tracked.
- * The old version mapped `factor_type` straight to A or B, which labelled an
- * FXI patient "Haemophilia B" — wrong on a card meant for an emergency.
- */
-function diagnosisLabel(profile: Profile): string {
-  const diagnosis = profile.clinical_profile?.diagnosis;
-  if (diagnosis) return DIAGNOSIS_LABELS[diagnosis] ?? "Bleeding Disorder";
-  if (profile.factor_type === "VIII") return "Haemophilia A";
-  if (profile.factor_type === "IX") return "Haemophilia B";
-  return "Bleeding Disorder";
-}
-
-const SEVERITY_LABELS: Record<string, string> = {
-  severe: "Severe",
-  moderate: "Moderate",
-  mild: "Mild",
-  not_known: "Not known",
-  severe_deficiency: "Severe deficiency",
-  partial_deficiency: "Partial deficiency",
-  life_threatening_or_major: "Life-threatening / major bleeding",
-  moderate_or_non_life_threatening: "Moderate / non-life-threatening",
-  unknown: "Unknown",
-};
-
-/** Severity is recorded in a different field per diagnosis. */
-function severityOf(clinical: ClinicalProfile | null): string {
-  const recorded =
-    clinical?.congenital_severity ??
-    clinical?.factor_xi_deficiency_level ??
-    clinical?.acquired_bleeding_severity;
-  if (!recorded) return "Not recorded";
-  return SEVERITY_LABELS[recorded] ?? recorded;
-}
 
 function formatDob(iso: string | null | undefined): string {
   if (!iso) return "Not recorded";
@@ -74,18 +28,6 @@ function bloodTypeLabel(clinical: ClinicalProfile | null): string {
   return recorded === "unknown" ? "Not known" : recorded;
 }
 
-/** The medications actually on file, prophylaxis first. */
-function medicationSummary(clinical: ClinicalProfile | null): string {
-  const named = [clinical?.prophylactic_medication, clinical?.on_demand_medication]
-    .filter((medication) => medication?.name)
-    .map((medication) =>
-      medication!.dose && medication!.unit
-        ? `${medication!.name} (${medication!.dose} ${medication!.unit})`
-        : medication!.name,
-    );
-  return named.length ? named.join(", ") : "Not recorded";
-}
-
 export function MedicalId() {
   const { activeProfile, status } = useProfiles();
 
@@ -101,9 +43,7 @@ export function MedicalId() {
     return (
       <div className="px-4 pt-8">
         <BackLink to="/tips" />
-        <p className="mt-4 text-sm text-gray-400">
-          No profile selected yet. Create a profile to see a Medical ID.
-        </p>
+        <p className="mt-4 text-sm text-gray-400">No profile yet.</p>
       </div>
     );
   }
@@ -179,9 +119,7 @@ export function MedicalId() {
               />
             </>
           ) : (
-            <p className="text-sm text-gray-800">
-              Not recorded. Add one under Emergency when editing this profile.
-            </p>
+            <p className="text-sm text-gray-800">Not recorded.</p>
           )}
         </SectionCard>
 
@@ -204,9 +142,7 @@ export function MedicalId() {
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-gray-800">
-              Not recorded. Add one under Emergency when editing this profile.
-            </p>
+            <p className="text-sm text-gray-800">Not recorded.</p>
           )}
         </SectionCard>
       </div>

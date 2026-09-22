@@ -1,7 +1,13 @@
 import type { Profile } from "@/lib/api";
 
-/** Warm, high-contrast fills that sit inside the platelet's room palette. */
-const AVATAR_COLORS = ["#C24A6B", "#2E7F8C", "#B07C22", "#6B6FC4", "#6F8C3F", "#A85539"];
+/**
+ * Six fills that tell profiles apart without leaving the kit.
+ *
+ * All drawn from the same chroma and lightness band as the status tones, so a
+ * household of avatars reads as one set and none of them outshouts a brick
+ * alert. White initials clear 4.5:1 on every one.
+ */
+const AVATAR_COLORS = ["#274A63", "#2C7A70", "#8A5E14", "#A63A2E", "#3A5E76", "#4A6B3F"];
 
 export function avatarColor(profile: Profile): string {
   // Keyed on id so a profile keeps its colour when the list is reordered.

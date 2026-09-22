@@ -18,7 +18,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "./TrackerIcons";
 type Step = "dates" | "what" | "frequency" | "dosage";
 
 const NEXT_BUTTON =
-  "mt-4 w-full rounded-xl bg-[#a98559] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#80633e] disabled:cursor-not-allowed disabled:opacity-40";
+  "mt-4 w-full rounded-xl bg-[#274A63] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#274A63] disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
  * Adding a plan, one question at a time: which dates, what changes, then the
@@ -117,7 +117,7 @@ export function PlanAheadSheet({
           hint={
             routineVials
               ? `Your usual dosage is ${routineVials} vial${routineVials === 1 ? "" : "s"}.`
-              : "Enter the number of vials per dose for this plan."
+              : undefined
           }
           confirmLabel={saveLabel}
           onConfirm={() => finish(changesFrequency ? frequency : undefined, Number(count))}
@@ -137,19 +137,14 @@ export function PlanAheadSheet({
         onClose={onClose}
         closeLabel={closeLabel}
       >
-        <p className="mt-2 text-xs text-[#806d51]">
-          Choose everything that changes. Anything else stays as usual.
-        </p>
         <div className="mt-4 space-y-3">
           <SheetOption
             title="Frequency or days"
-            description="Take doses every few days, or on different days of the week"
             pressed={changesFrequency}
             onClick={() => setChangesFrequency((current) => !current)}
           />
           <SheetOption
             title="Dosage"
-            description="Take a different number of vials per dose"
             pressed={changesDosage}
             onClick={() => setChangesDosage((current) => !current)}
           />
@@ -185,7 +180,7 @@ export function PlanAheadSheet({
         }}
       />
       <p
-        className={`mt-3 rounded-xl bg-[#f8f0e2] px-3 py-2 text-center text-sm font-bold ${overlaps ? "text-[#cd5952]" : "text-[#3b281c]"}`}
+        className={`mt-3 rounded-xl bg-[#F7F6F3] px-3 py-2 text-center text-sm font-bold ${overlaps ? "text-[#A63A2E]" : "text-[#242A2F]"}`}
       >
         {overlaps
           ? "These dates overlap with another plan."
@@ -236,33 +231,28 @@ function RangePicker({
 
   return (
     <>
-      <p className="mt-2 text-xs text-[#806d51]">
-        {choosingEnd
-          ? "Now tap the last day, or tap Next for a single day."
-          : "Tap the first day, then the last day."}
-      </p>
       <div className="mt-3 flex items-center justify-between">
         <button
           onClick={() => shiftMonth(-1)}
           aria-label="Previous month"
-          className="grid h-11 w-11 place-items-center rounded-lg text-[#806d51] transition hover:bg-slate-100"
+          className="grid h-11 w-11 place-items-center rounded-lg text-[#5C646C] transition hover:bg-soft"
         >
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
-        <span className="text-sm font-bold text-[#443229]">
-          {month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+        <span className="text-sm font-bold text-[#242A2F]">
+          {month.toLocaleDateString("en-SG", { month: "long", year: "numeric" })}
         </span>
         <button
           onClick={() => shiftMonth(1)}
           aria-label="Next month"
-          className="grid h-11 w-11 place-items-center rounded-lg text-[#806d51] transition hover:bg-slate-100"
+          className="grid h-11 w-11 place-items-center rounded-lg text-[#5C646C] transition hover:bg-soft"
         >
           <ChevronRightIcon className="h-4 w-4" />
         </button>
       </div>
       <div className="mt-2 grid grid-cols-7 gap-1">
         {DAYS.map((day) => (
-          <div key={day} className="text-center text-[10px] font-bold uppercase text-[#806d51]">
+          <div key={day} className="text-center text-[10px] font-bold uppercase text-[#5C646C]">
             {day[0]}
           </div>
         ))}
@@ -277,7 +267,7 @@ function RangePicker({
               key={key}
               disabled={isPast}
               onClick={() => pick(key)}
-              className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${isEnd ? "bg-[#a98559] text-white" : inRange ? "bg-[#ecdcbf] text-[#443229]" : inMonth ? "text-[#443229] hover:bg-[#f4ead8]" : "text-slate-300 hover:bg-[#f4ead8]"}`}
+              className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${isEnd ? "bg-[#274A63] text-white" : inRange ? "bg-[#EDEBE6] text-[#242A2F]" : inMonth ? "text-[#242A2F] hover:bg-[#F7F6F3]" : "text-sand-400 hover:bg-[#F7F6F3]"}`}
             >
               {date.getDate()}
             </button>

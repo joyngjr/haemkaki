@@ -25,14 +25,24 @@ import { useProfiles } from "@/state/profile-context";
  * the tracker uses, so the two screens can never disagree about a day. "Move
  * dose" moves the next planned dose as a calendar exception on the routine,
  * which the tracker shows the same way.
+ *
+ * On the one-page desktop layout the tracker's cards sit beside the status
+ * card, so the two follow each other: `writeVersion` moves after either of
+ * those writes and the tracker re-reads on it, and the tracker calls
+ * `refreshStatus` after its own writes.
  */
 
-type LoadedStatus = { profileId: number; status: Status; fetchedAt: string };
+type LoadedStatus = {
+  profileId: number;
+  status: Status;
+  fetchedAt: string;
+};
 
 export function HomeDataProvider({ now, children }: { now?: Date; children: ReactNode }) {
   const { activeProfile, status: profileStatus } = useProfiles();
   const [clock, setClock] = useState(() => now ?? new Date());
   const [loaded, setLoaded] = useState<LoadedStatus | null>(null);
+  const [writeVersion, setWriteVersion] = useState(0);
   /** Only the newest request may land, so a slow response for the previous profile is dropped. */
   const ticket = useRef(0);
 
@@ -87,6 +97,7 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
         };
       }
       await load(profileId);
+      setWriteVersion((current) => current + 1);
       return { ok: true };
     },
     [profileId, load],
@@ -114,6 +125,7 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
         };
       }
       await load(profileId);
+      setWriteVersion((current) => current + 1);
       return { ok: true };
     },
     [profileId, loaded, load],
@@ -132,11 +144,12 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
       data,
       now: clock,
       isLoading: profileStatus === "loading",
+      writeVersion,
       administerDose,
       moveNextDose,
       refreshStatus,
     }),
-    [data, clock, profileStatus, administerDose, moveNextDose, refreshStatus],
+    [data, clock, profileStatus, writeVersion, administerDose, moveNextDose, refreshStatus],
   );
 
   return <HomeDataContext.Provider value={value}>{children}</HomeDataContext.Provider>;

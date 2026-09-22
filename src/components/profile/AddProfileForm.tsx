@@ -222,11 +222,6 @@ function MedicationFields({
           ) : null}
         </div>
       </Field>
-      {!product && medication.name ? (
-        <p className="rounded-2xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-          Select a suggested match for automatic units and routes, or choose them manually below.
-        </p>
-      ) : null}
       <div className="grid grid-cols-[1fr_128px] gap-3">
         <NumpadField
           label="Dose"
@@ -251,7 +246,6 @@ function MedicationFields({
       </div>
       <NumpadField
         label="Frequency"
-        hint="How many times is this taken in a typical week?"
         mode="integer"
         value={medication.frequency}
         onChange={(frequency) => update({ frequency })}
@@ -269,12 +263,11 @@ function MedicationFields({
         />
       </div>
       <NumpadField
-        label="Minimum buffer (days of coverage)"
-        hint="The number of treatment days you want left before ordering more. For example, 7 means reorder when about one week remains."
+        label="Order when cover drops to"
         mode="decimal"
         value={medication.buffer_days}
         onChange={(buffer_days) => update({ buffer_days })}
-        placeholder="Days of medication remaining"
+        placeholder="Days left"
         suffix="days"
         max={365}
       />
@@ -330,7 +323,7 @@ function trackingFactor(diagnosis: DiagnosisType): FactorType {
   return diagnosis === "acquired_haemophilia" ? "acquired" : "unknown";
 }
 
-type TreatmentOption = { value: string; label: string; description: string };
+type TreatmentOption = { value: string; label: string; description?: string };
 
 function treatmentOptions(diagnosis: DiagnosisType): TreatmentOption[] {
   if (diagnosis === "haemophilia_a" || diagnosis === "symptomatic_carrier_a")
@@ -355,7 +348,6 @@ function treatmentOptions(diagnosis: DiagnosisType): TreatmentOption[] {
       {
         value: "none",
         label: "No regular preventative treatment",
-        description: "Choose this if you do not take scheduled prophylaxis.",
       },
     ];
   if (diagnosis === "haemophilia_b" || diagnosis === "symptomatic_carrier_b")
@@ -381,7 +373,6 @@ function treatmentOptions(diagnosis: DiagnosisType): TreatmentOption[] {
       {
         value: "none",
         label: "No regular preventative treatment",
-        description: "Choose this if you do not take scheduled prophylaxis.",
       },
     ];
   if (diagnosis === "factor_xi_deficiency")
@@ -395,7 +386,6 @@ function treatmentOptions(diagnosis: DiagnosisType): TreatmentOption[] {
       {
         value: "none",
         label: "No regular preventative treatment",
-        description: "Long-term prophylaxis is generally not used for Factor XI deficiency.",
       },
     ];
   if (diagnosis === "acquired_haemophilia")
@@ -408,19 +398,16 @@ function treatmentOptions(diagnosis: DiagnosisType): TreatmentOption[] {
       {
         value: "none",
         label: "No regular preventative treatment",
-        description: "Choose only if this matches your specialist's current plan.",
       },
     ];
   return [
     {
       value: "specialist_plan",
       label: "A prescribed treatment plan",
-      description: "Record the treatment named by your care team.",
     },
     {
       value: "none",
       label: "No regular preventative treatment",
-      description: "Choose this if you do not take scheduled prophylaxis.",
     },
   ];
 }
@@ -740,10 +727,6 @@ export function AddProfileForm({
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-sand-900">
           {editing ? "Update your care details" : "Let’s tailor your care space"}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-sand-600">
-          Record your diagnosis and existing care plan. This does not replace advice from your
-          haemophilia care team.
-        </p>
       </div>
       <ol aria-label="Profile creation progress" className="mb-7 grid grid-cols-5 gap-1">
         {STEPS.map((label, index) => (
@@ -874,10 +857,6 @@ export function AddProfileForm({
             {isCongenital || diagnosis === "factor_xi_deficiency" ? (
               <div className="space-y-4 rounded-3xl bg-teal-50 p-4">
                 <p className="text-sm font-bold text-teal-950">Severity at diagnosis</p>
-                <p className="text-xs leading-5 text-teal-900">
-                  Use the severity recorded when you were diagnosed, before regular prophylaxis
-                  began — not a result measured after treatment.
-                </p>
                 {isCongenital ? (
                   <Choice
                     value={congenitalSeverity}
@@ -895,9 +874,6 @@ export function AddProfileForm({
                   />
                 ) : (
                   <>
-                    <p className="text-xs leading-5 text-teal-900">
-                      Factor XI activity does not reliably predict bleeding severity.
-                    </p>
                     <Choice
                       value={xiLevel}
                       onChange={setXiLevel}
@@ -929,10 +905,7 @@ export function AddProfileForm({
             ) : null}
             {diagnosis === "acquired_haemophilia" ? (
               <>
-                <Field
-                  label="Inhibitor titre (Bethesda units/mL)"
-                  hint="Enter the result from your care team, if known."
-                >
+                <Field label="Inhibitor titre (Bethesda units/mL)">
                   <input
                     className={inputClass}
                     inputMode="decimal"
@@ -968,25 +941,18 @@ export function AddProfileForm({
                     {
                       value: "current",
                       label: "Current inhibitor",
-                      description:
-                        "Your care team says an inhibitor is present now or is currently being managed.",
                     },
                     {
                       value: "previous",
                       label: "Previous inhibitor",
-                      description:
-                        "You had an inhibitor in the past, but your care team says it is no longer detected or active.",
                     },
                     {
                       value: "none_known",
                       label: "No known inhibitor",
-                      description:
-                        "You have not been told that you currently have or previously had one.",
                     },
                     {
                       value: "unknown",
                       label: "Not sure",
-                      description: "Choose this if you do not know your inhibitor history.",
                     },
                   ]}
                 />
@@ -1024,13 +990,6 @@ export function AddProfileForm({
             </div>
             {hasPreventativeTreatment ? (
               <>
-                <div className="rounded-3xl bg-teal-50 p-4">
-                  <p className="text-sm font-bold text-teal-950">Record your prescription</p>
-                  <p className="mt-1 text-xs leading-5 text-teal-900">
-                    Enter the product and regimen prescribed by your care team. This app does not
-                    recommend a product or dose.
-                  </p>
-                </div>
                 <MedicationListFields
                   title="Regular preventative medication"
                   addLabel="Add another regular medication"
@@ -1091,13 +1050,6 @@ export function AddProfileForm({
         ) : null}
         {step === 3 ? (
           <>
-            <div className="rounded-3xl bg-red-50 p-4">
-              <p className="text-sm font-bold text-red-900">For your Medical ID</p>
-              <p className="mt-1 text-xs leading-5 text-red-900">
-                Shown to a responder in an emergency. Everything here is optional; a contact needs a
-                name and a number before it appears on the card.
-              </p>
-            </div>
             <div>
               <p className="text-sm font-semibold text-sand-900">Blood type</p>
               <Choice
@@ -1108,7 +1060,7 @@ export function AddProfileForm({
               />
             </div>
             <section className="space-y-4 rounded-3xl border border-sand-200 bg-sand-100/60 p-4">
-              <h3 className="text-sm font-bold text-sand-900">Emergency contact</h3>
+              <h3 className="text-sm font-bold text-sand-900">Emergency contact (optional)</h3>
               <Field label="Name">
                 <input
                   className={inputClass}
@@ -1118,7 +1070,7 @@ export function AddProfileForm({
                   placeholder="Who should be called first?"
                 />
               </Field>
-              <Field label="Relationship">
+              <Field label="Relationship (optional)">
                 <input
                   className={inputClass}
                   value={contactRelationship}
@@ -1142,7 +1094,7 @@ export function AddProfileForm({
             </section>
             <section className="space-y-4 rounded-3xl border border-sand-200 bg-sand-100/60 p-4">
               <h3 className="text-sm font-bold text-sand-900">
-                Primary doctor or treatment centre
+                Primary doctor or treatment centre (optional)
               </h3>
               <Field label="Name">
                 <input
@@ -1153,7 +1105,7 @@ export function AddProfileForm({
                   placeholder="Doctor's name"
                 />
               </Field>
-              <Field label="Organisation">
+              <Field label="Organisation (optional)">
                 <input
                   className={inputClass}
                   value={doctorOrganisation}
@@ -1192,13 +1144,6 @@ export function AddProfileForm({
                   { value: "no", label: "No thanks" },
                 ]}
               />
-            </div>
-            <div className="rounded-3xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-              <p className="font-bold">Safety note</p>
-              <p className="mt-1">
-                Follow your care team&rsquo;s individual treatment and emergency plan. This profile
-                is for organising that plan, not replacing it.
-              </p>
             </div>
           </>
         ) : null}

@@ -8,11 +8,11 @@ export interface KakiPalette {
   ink: string;
 }
 
-/** Warm coral -> softer dusty pink -> muted mauve. Never red. */
+/** Garnet -> softer clay -> muted stone, as the kit draws the mascot. */
 export const KAKI_PALETTE: Record<DoseState, KakiPalette> = {
-  covered: { body: "#FF7B93", blush: "#FF4766", ink: "#2D3748" },
-  low: { body: "#DFA2B0", blush: "#C87F92", ink: "#3B3A46" },
-  veryLow: { body: "#B78D9E", blush: "#9C7488", ink: "#463F49" },
+  covered: { body: "#B34A42", blush: "#9B3A33", ink: "#2B1210" },
+  low: { body: "#C2716B", blush: "#A85F58", ink: "#3A1D1A" },
+  veryLow: { body: "#AE9B98", blush: "#8E7A77", ink: "#4A3C3A" },
 };
 
 /** Bob duration per state — calmer as protection tapers. */

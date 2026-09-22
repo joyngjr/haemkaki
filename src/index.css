@@ -8,7 +8,13 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-sand-50 text-sand-900 antialiased;
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  /* Nothing in the app is smaller than 12.5px, per the kit's rules for daily use. */
+  h1,
+  h2,
+  h3 {
+    @apply tracking-[-0.01em];
   }
 }
 

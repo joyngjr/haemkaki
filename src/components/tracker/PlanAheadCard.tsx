@@ -13,9 +13,9 @@ import { PlanAheadSheet } from "./PlanAheadSheet";
 import { ChevronRightIcon, PlusIcon } from "./TrackerIcons";
 
 const STATUS: Record<ReturnType<typeof planStatus>, { label: string; className: string }> = {
-  active: { label: "Active now", className: "bg-[#8df5c0]/40 text-[#2f6b4c]" },
-  upcoming: { label: "Upcoming", className: "bg-[#ffcc4d]/30 text-[#7a5a10]" },
-  ended: { label: "Ended", className: "bg-[#eee5d5] text-[#806d51]" },
+  active: { label: "Active now", className: "bg-[#2C7A70]/40 text-[#2f6b4c]" },
+  upcoming: { label: "Upcoming", className: "bg-[#B9832C]/30 text-[#7a5a10]" },
+  ended: { label: "Ended", className: "bg-[#E7E5E0] text-[#5C646C]" },
 };
 
 /**
@@ -52,22 +52,17 @@ export function PlanAheadCard({
 
   return (
     <>
-      <section className="mt-4 overflow-hidden rounded-2xl border border-[#eee5d5] bg-[#fffaf0] p-4 shadow-[0_12px_45px_rgba(36,45,80,0.06)] sm:mt-6 sm:rounded-3xl sm:p-7">
+      <section className="overflow-hidden rounded-card border border-line bg-card p-4 sm:p-5 lg:p-6">
         <button
           onClick={() => setOpen((current) => !current)}
           aria-expanded={open}
           className="flex w-full items-center justify-between gap-2 text-left"
         >
-          <div className="ml-1 min-w-0 sm:ml-2">
-            <h2 className="text-xl font-bold tracking-tight text-[#6b3817] sm:text-2xl">
-              Plan Ahead
-            </h2>
-            <p className="mt-1 text-sm text-[#a8977c]">
-              Plan for temporary changes to your usual routine
-            </p>
-          </div>
+          <h2 className="ml-1 min-w-0 text-base font-semibold sm:ml-2 sm:text-[17px]">
+            Plan Ahead
+          </h2>
           <ChevronRightIcon
-            className={`h-5 w-5 shrink-0 text-[#806d51] transition-transform ${open ? "rotate-90" : ""}`}
+            className={`h-5 w-5 shrink-0 text-[#5C646C] transition-transform ${open ? "rotate-90" : ""}`}
           />
         </button>
 
@@ -76,15 +71,14 @@ export function PlanAheadCard({
             {error && (
               <p
                 role="status"
-                className="rounded-xl border border-[#e7c3bf] bg-[#fdeceb] px-3 py-2 text-sm font-semibold text-[#9c3b34]"
+                className="rounded-xl border border-[#EBD3CE] bg-[#FBF1EF] px-3 py-2 text-sm font-semibold text-[#A63A2E]"
               >
                 {error}
               </p>
             )}
             {sorted.length === 0 && (
-              <p className="rounded-xl bg-[#f8f0e2] px-3 py-3 text-center text-sm text-[#806d51]">
-                No plans yet. Add one for travel, illness, or anything else that changes your
-                routine.
+              <p className="rounded-xl bg-[#F7F6F3] px-3 py-3 text-center text-sm text-[#5C646C]">
+                No plans yet.
               </p>
             )}
             {sorted.map((plan) => {
@@ -92,31 +86,31 @@ export function PlanAheadCard({
               return (
                 <div
                   key={plan.id}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-[#f8f0e2] px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-xl bg-[#F7F6F3] px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-bold text-[#443229]">{planDates(plan)}</p>
+                      <p className="text-sm font-bold text-[#242A2F]">{planDates(plan)}</p>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-bold ${status.className}`}
                       >
                         {status.label}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-sm text-[#806d51]">{planChanges(plan)}</p>
+                    <p className="mt-0.5 text-sm text-[#5C646C]">{planChanges(plan)}</p>
                   </div>
                   <div className="flex shrink-0 items-center">
                     <button
                       onClick={() => setEditing(plan)}
                       aria-label={`Edit plan for ${planDates(plan)}`}
-                      className="px-2 py-3 text-xs text-[#80633e] underline"
+                      className="px-2 py-3 text-xs text-[#274A63] underline"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => void onRemove(plan.id)}
                       aria-label={`Remove plan for ${planDates(plan)}`}
-                      className="px-2 py-3 text-xs text-[#806d51] underline"
+                      className="px-2 py-3 text-xs text-[#5C646C] underline"
                     >
                       Remove
                     </button>
@@ -126,7 +120,7 @@ export function PlanAheadCard({
             })}
             <button
               onClick={() => setEditing("new")}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#d8c3a0] text-sm font-bold text-[#80633e] transition hover:bg-[#f4ead8]"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#D9D6CF] text-sm font-bold text-[#274A63] transition hover:bg-[#F7F6F3]"
             >
               <PlusIcon className="h-4 w-4" />
               Add a plan

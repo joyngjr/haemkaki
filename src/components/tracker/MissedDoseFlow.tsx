@@ -54,7 +54,6 @@ export function MissedDoseFlow({
         <NumberPad
           value={vialCount}
           onChange={setVialCount}
-          hint="Enter the number of vials used."
           confirmLabel="Track"
           onConfirm={() => onAmount({ source: "custom", vials: Number(vialCount) })}
         />
@@ -77,15 +76,9 @@ export function MissedDoseFlow({
         <div className="mt-6 space-y-3">
           <SheetOption
             title="Regular prophylaxis amount"
-            description="Your usual planned dose"
             onClick={() => onAmount({ source: "routine" })}
           />
-          <SheetOption
-            title="Custom"
-            description="Enter a specific number of vials"
-            ringColor="#cd5952"
-            onClick={() => setEnteringVials(true)}
-          />
+          <SheetOption title="Custom" ringColor="#A63A2E" onClick={() => setEnteringVials(true)} />
         </div>
       </Sheet>
     );
@@ -94,8 +87,8 @@ export function MissedDoseFlow({
   if (answer === "taken") {
     // A dose is made up within the week; anything later is a new dose entirely.
     const week = daysFrom(missedDate, 7);
-    const startMonth = week[0].toLocaleDateString("en-US", { month: "long" });
-    const endMonth = week[6].toLocaleDateString("en-US", { month: "long" });
+    const startMonth = week[0].toLocaleDateString("en-SG", { month: "long" });
+    const endMonth = week[6].toLocaleDateString("en-SG", { month: "long" });
     const monthLabel =
       startMonth === endMonth
         ? `${startMonth} ${week[6].getFullYear()}`
@@ -112,7 +105,7 @@ export function MissedDoseFlow({
         onClose={onClose}
         closeLabel="Close all pop-ups"
       >
-        <p className="mt-3 text-sm font-bold text-[#443229]">{monthLabel}</p>
+        <p className="mt-3 text-sm font-bold text-[#242A2F]">{monthLabel}</p>
         <div className="mt-5 grid grid-cols-7 gap-1.5">
           {week.map((date) => (
             <button
@@ -121,10 +114,10 @@ export function MissedDoseFlow({
                 setTakenDate(date);
                 onTakenDate(date);
               }}
-              className="flex h-16 flex-col items-center justify-center rounded-xl border border-[#eee5d5] bg-[#f8f0e2] text-[#443229] transition hover:bg-[#f4ead8]"
+              className="flex h-16 flex-col items-center justify-center rounded-xl border border-[#E7E5E0] bg-[#F7F6F3] text-[#242A2F] transition hover:bg-[#F7F6F3]"
             >
-              <span className="text-[10px] font-bold uppercase text-[#806d51]">
-                {date.toLocaleDateString("en-US", { weekday: "narrow" })}
+              <span className="text-[10px] font-bold uppercase text-[#5C646C]">
+                {date.toLocaleDateString("en-SG", { weekday: "narrow" })}
               </span>
               <span className="mt-1 text-sm font-bold">{date.getDate()}</span>
             </button>
@@ -162,7 +155,7 @@ function PlainOption({ label, onClick }: { label: string; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-2xl border border-[#eee5d5] bg-[#f8f0e2] p-4 text-left text-sm font-bold text-[#443229] transition hover:bg-[#f4ead8]"
+      className="w-full rounded-2xl border border-[#E7E5E0] bg-[#F7F6F3] p-4 text-left text-sm font-bold text-[#242A2F] transition hover:bg-[#F7F6F3]"
     >
       {label}
     </button>

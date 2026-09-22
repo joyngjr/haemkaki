@@ -60,7 +60,6 @@ export function FactorUseFlow({
         <NumberPad
           value={count}
           onChange={setCount}
-          hint="Enter the number of vials used."
           confirmLabel="Track"
           onConfirm={() => onSaveCounted(type, Number(count))}
         />
@@ -89,7 +88,6 @@ export function FactorUseFlow({
       <div className="mt-6 space-y-3">
         <SheetOption
           title="Regular prophylaxis use"
-          description="Your planned preventative dose"
           pressed={saved.prophylaxis}
           onClick={() => {
             setType("prophylaxis");
@@ -98,19 +96,17 @@ export function FactorUseFlow({
         />
         <SheetOption
           title="On-demand use"
-          description="Treatment taken when a bleed starts"
           pressed={saved["on-demand"] !== undefined}
           onClick={() => pick("on-demand")}
           trailing={
             <BleedDropIcon
-              className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#cd5952]"
+              className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#A63A2E]"
               label="Bleed indicator"
             />
           }
         />
         <SheetOption
           title="Follow-up use after a bleed"
-          description="An additional dose after a serious bleed"
           pressed={saved["follow-up"] !== undefined}
           onClick={() => pick("follow-up")}
         />

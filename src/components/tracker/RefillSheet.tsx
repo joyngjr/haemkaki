@@ -36,7 +36,6 @@ export function RefillSheet({
       <NumberPad
         value={count}
         onChange={setCount}
-        hint="Enter the number of vials to add to your supply."
         confirmLabel="Add vials"
         onConfirm={() => onSave(Number(count))}
       />

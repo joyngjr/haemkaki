@@ -1,51 +1,84 @@
-/** The glyphs on the cards of the Tips index. */
-export function MedicalIdIcon() {
+/**
+ * The glyphs on the Resources cards. All one family: 24px box, 1.7 stroke,
+ * round caps and joins, `currentColor` so the tile sets the tint.
+ */
+
+type IconProps = { className?: string };
+
+const BASE = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.7,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+/** A syringe — mixing and infusing. */
+export function InjectionGuideIcon({ className }: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-white">
-      <circle cx="9" cy="10" r="2" stroke="white" strokeWidth="1.5" />
-      <path
-        d="M6 16c0-1.7 1.3-3 3-3s3 1.3 3 3"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <line x1="13" y1="9" x2="18" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-      <line
-        x1="13"
-        y1="13"
-        x2="18"
-        y2="13"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+    <svg {...BASE} className={className}>
+      <path d="M17 3.2 20.8 7M18.9 5.1 8.6 15.4l-4.1.9.9-4.1L15.7 1.9" />
+      <path d="M13.4 7.6 16.4 10.6M4.6 19.4h15.2" />
     </svg>
   );
 }
 
-export function InjectionGuideIcon() {
+/** A map pin — treatment centres near you. */
+export function FindMedicalHelpIcon({ className }: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-blue-500">
-      <path
-        d="M18 6L6 18M14 4l6 6M4 20l3-1 1-3 8-8-3-3-8 8-1 3z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
+    <svg {...BASE} className={className}>
+      <path d="M12 21.2s7-5.4 7-10.6A7 7 0 0 0 5 10.6c0 5.2 7 10.6 7 10.6Z" />
+      <circle cx="12" cy="10.4" r="2.6" />
     </svg>
   );
 }
 
-export function FindMedicalHelpIcon() {
+/** A card with a cross — the medical ID. */
+export function MedicalIdIcon({ className }: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-green-600">
-      <path
-        d="M12 22s7-7.5 7-12.5A7 7 0 0 0 5 9.5C5 14.5 12 22 12 22z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="9.5" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+    <svg {...BASE} className={className}>
+      <rect x="3.2" y="5" width="17.6" height="14" rx="2.5" />
+      <path d="M12 9.2v5.6M9.2 12h5.6" />
+    </svg>
+  );
+}
+
+/** A heart with a cross — what to do for a bleed. */
+export function BleedHelpIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M12 21s7.5-4.6 7.5-10.2A7.5 7.5 0 0 0 12 3.2a7.5 7.5 0 0 0-7.5 7.6C4.5 16.4 12 21 12 21Z" />
+      <path d="M12 7.8v5.6M9.2 10.6h5.6" />
+    </svg>
+  );
+}
+
+/** A document — the travel letter. */
+export function TravelLetterIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M5.5 3.4h9L19 8v12.6H5.5Z" />
+      <path d="M14.2 3.4V8H19M8.6 12.6h6.8M8.6 16.2h4.6" />
+    </svg>
+  );
+}
+
+/** A handset — the call buttons. */
+export function PhoneIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M6.2 3.6h3.1l1.6 3.9-2 1.3a10.4 10.4 0 0 0 5.3 5.3l1.3-2 3.9 1.6v3.1a1.6 1.6 0 0 1-1.7 1.6A15.6 15.6 0 0 1 4.6 5.3a1.6 1.6 0 0 1 1.6-1.7Z" />
+    </svg>
+  );
+}
+
+/** A chevron — the affordance at the end of a guide row. */
+export function ChevronIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} strokeWidth={1.9} className={className}>
+      <path d="M9.5 5 16 12l-6.5 7" />
     </svg>
   );
 }

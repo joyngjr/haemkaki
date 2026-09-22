@@ -37,7 +37,8 @@ export function DrugAllergyField({
 
   function addAllergy(name: string) {
     const next = name.trim();
-    if (!next || value.some((item) => item.toLocaleLowerCase() === next.toLocaleLowerCase())) return;
+    if (!next || value.some((item) => item.toLocaleLowerCase() === next.toLocaleLowerCase()))
+      return;
     onChange([...value, next]);
     setQuery("");
     setActiveIndex(0);
@@ -138,9 +139,6 @@ export function DrugAllergyField({
             </div>
           ) : null}
         </div>
-        <p className="mt-1.5 text-xs leading-5 text-sand-600">
-          Choose a suggestion or add the exact name if it is not listed.
-        </p>
       </div>
 
       {value.length > 0 ? (
