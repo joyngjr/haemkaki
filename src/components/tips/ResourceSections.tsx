@@ -6,18 +6,15 @@ import {
   ImportTrackerIcon,
   InjectionGuideIcon,
   MedicalIdIcon,
-  PhoneIcon,
-  TravelLetterIcon,
 } from "@/components/tips/TipIcons";
-import { Card, CardTitle } from "@/components/ui/Card";
 import { diagnosisWithSeverity, treatmentLabel } from "@/lib/medical-id";
 import { FOCUS_RING } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useProfiles } from "@/state/profile-context";
 
 /**
- * The four parts of Resources. The phone's Resources tab stacks them; the
- * one-page desktop layout closes with them in two columns.
+ * The two parts of Resources. The phone's Resources tab stacks them, and so
+ * does the close of the one-page desktop layout.
  */
 
 /** The guides. Adding one means adding a card here and a route in `App.tsx`. */
@@ -41,29 +38,11 @@ const tipCards: TipCardData[] = [
     icon: <MedicalIdIcon className="h-5 w-5" />,
   },
   {
-    to: "/tips/medical-id",
-    title: "Travel letter",
-    tile: "bg-ochre-100 text-ochre-700",
-    icon: <TravelLetterIcon className="h-5 w-5" />,
-  },
-  {
     to: "/tips/import-tracker",
     title: "Import from another tracker",
     tile: "bg-slate-50 text-slate-600",
     icon: <ImportTrackerIcon className="h-5 w-5" />,
   },
-];
-
-/**
- * The four steps a centre writes down for a bleed. Placeholder copy until a
- * real care plan is on file; the steps themselves defer to the care plan and
- * the centre rather than standing in for either.
- */
-const BLEED_STEPS = [
-  "Treat with factor as your care plan says.",
-  "Rest and support the joint or limb.",
-  "Log the bleed so your centre sees the pattern.",
-  "Call the centre if it does not settle, or if it is a head, neck or stomach bleed.",
 ];
 
 /** One label-and-value pair on the slate card. */
@@ -148,89 +127,5 @@ export function GuideList() {
         ))}
       </div>
     </div>
-  );
-}
-
-export function BleedSteps() {
-  return (
-    <Card className="border-brick-200 lg:p-6">
-      <CardTitle className="text-brick-600">If you have a bleed</CardTitle>
-      <ol className="mt-3">
-        {BLEED_STEPS.map((step, index) => (
-          <li key={step} className="flex gap-3 py-1.5">
-            <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brick-100 text-[13px] font-semibold text-brick-700"
-              aria-hidden="true"
-            >
-              {index + 1}
-            </span>
-            <span className="text-[14.5px] leading-snug">{step}</span>
-          </li>
-        ))}
-      </ol>
-    </Card>
-  );
-}
-
-type Contact = { label: string; number: string | null; tone: "teal" | "brick" };
-
-/** A name, a number, and a button that dials it. */
-function ContactRow({ contact }: { contact: Contact }) {
-  const tile =
-    contact.tone === "brick" ? "bg-brick-100 text-brick-700" : "bg-teal-50 text-teal-700";
-  return (
-    <li className="flex items-center justify-between gap-3 py-2.5">
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="text-[15.5px] font-semibold">{contact.label}</span>
-        <span className="truncate text-[13.5px] text-ink-subtle">
-          {contact.number ?? "Not recorded"}
-        </span>
-      </span>
-      {contact.number ? (
-        <a
-          href={`tel:${contact.number.replace(/\s+/g, "")}`}
-          aria-label={`Call ${contact.label}`}
-          className={cn(
-            "flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px]",
-            tile,
-            FOCUS_RING,
-          )}
-        >
-          <PhoneIcon className="h-5 w-5" />
-        </a>
-      ) : null}
-    </li>
-  );
-}
-
-export function WhoToCall() {
-  const { activeProfile } = useProfiles();
-  const clinical = activeProfile?.clinical_profile ?? null;
-
-  const contacts: Contact[] = [
-    {
-      label: clinical?.primary_doctor?.organisation || "Haemophilia centre",
-      number: clinical?.primary_doctor?.phone ?? null,
-      tone: "teal",
-    },
-    {
-      label: clinical?.emergency_contact?.name
-        ? `${clinical.emergency_contact.name} (emergency contact)`
-        : "Emergency contact",
-      number: clinical?.emergency_contact?.phone ?? null,
-      tone: "teal",
-    },
-    { label: "Emergency", number: "995", tone: "brick" },
-  ];
-
-  return (
-    <Card className="lg:p-6">
-      <CardTitle>Who to call</CardTitle>
-      <ul className="mt-3">
-        {contacts.map((contact) => (
-          <ContactRow key={contact.label} contact={contact} />
-        ))}
-      </ul>
-    </Card>
   );
 }

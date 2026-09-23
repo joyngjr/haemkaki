@@ -1,10 +1,12 @@
 import { useState } from "react";
 
+import { VIALS_DIGITS } from "@/lib/tracker-entries";
+
 import { NumberField } from "./NumberField";
 import { Sheet } from "./Sheet";
 
 /**
- * "How many vials?" for a delivery.
+ * "How many vials arrived?" for a delivery.
  *
  * Mounted only while the flow is open, so the saved value seeds the draft on
  * mount instead of needing an effect to copy it in.
@@ -27,7 +29,7 @@ export function RefillSheet({
       tier="action"
       offset="top"
       eyebrow="Factor Refill"
-      title="How many vials?"
+      title="How many vials arrived?"
       onBack={onBack}
       backLabel="Back to date actions"
       onClose={onClose}
@@ -37,7 +39,9 @@ export function RefillSheet({
         label="Vials"
         value={count}
         onChange={setCount}
-        confirmLabel="Add vials"
+        maxLength={VIALS_DIGITS}
+        suffix="vials"
+        confirmLabel="Add factor"
         onConfirm={() => onSave(Number(count))}
       />
     </Sheet>

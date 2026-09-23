@@ -1,20 +1,20 @@
 import { useState } from "react";
 
-import type { MedicationDraft } from "@/components/profile/clinical-profile";
+import { MEDICATION_UNIT, type MedicationDraft } from "@/components/profile/clinical-profile";
 import { Field, inputClass } from "@/components/profile/form-fields";
-import { NumericField } from "@/components/profile/NumericField";
 import type { DiagnosisType } from "@/lib/api";
 import {
-  ALL_UNITS,
   matchedMedication,
   medicationSuggestions,
   type MedicationKind,
   type MedicationProduct,
 } from "@/lib/medication-catalog";
+import { VIALS_DIGITS } from "@/lib/tracker-entries";
 
 /**
- * Product, dose and unit, with the catalog's suggestions filtered to the
- * diagnosis. Naming a known product fills in its unit; anything can be typed.
+ * Product and dose, with the catalog's suggestions filtered to the diagnosis.
+ * Anything can be typed as the product; the dose is whole vials, the only unit
+ * the app counts in, so the unit is shown beside the field rather than asked.
  */
 export function MedicationFields({
   medication,
@@ -29,12 +29,10 @@ export function MedicationFields({
 }) {
   const [focused, setFocused] = useState(false);
   const update = (patch: Partial<MedicationDraft>) => onChange({ ...medication, ...patch });
-  const product = matchedMedication(medication.name);
   const suggestions = medicationSuggestions(medication.name, kind, diagnosis);
-  const units = product?.units ?? ALL_UNITS;
 
   function selectProduct(selected: MedicationProduct) {
-    update({ name: selected.name, unit: selected.units[0] });
+    update({ name: selected.name });
     setFocused(false);
   }
 
@@ -49,8 +47,9 @@ export function MedicationFields({
             onBlur={() => window.setTimeout(() => setFocused(false), 150)}
             onChange={(event) => {
               const name = event.target.value;
-              const exact = matchedMedication(name);
-              update({ name, unit: exact?.units[0] ?? "" });
+              // An exact match closes the suggestions, as picking one would.
+              if (matchedMedication(name)) setFocused(false);
+              update({ name });
             }}
             autoComplete="off"
             placeholder="Type a product or medicine"
@@ -78,28 +77,30 @@ export function MedicationFields({
           ) : null}
         </div>
       </Field>
-      <div className="grid grid-cols-[1fr_128px] gap-3">
-        <NumericField
-          label="Dose"
-          mode="decimal"
-          value={medication.dose}
-          onChange={(dose) => update({ dose })}
-          placeholder="Enter dose"
-        />
-        <Field label="Unit">
-          <select
-            className={inputClass}
-            value={medication.unit}
-            onChange={(event) => update({ unit: event.target.value })}
-            disabled={!medication.name}
-          >
-            {!medication.unit ? <option value="">Select</option> : null}
-            {units.map((unit) => (
-              <option key={unit}>{unit}</option>
-            ))}
-          </select>
-        </Field>
-      </div>
+      <Field label="Dose">
+        <div className="relative">
+          <input
+            type="text"
+            // Whole vials only — the handler enforces it, this picks the keypad iOS shows.
+            inputMode="numeric"
+            autoComplete="off"
+            className={`${inputClass} pr-14`}
+            value={medication.dose}
+            placeholder="Enter dose"
+            onChange={(event) =>
+              update({
+                dose: event.target.value
+                  .replace(/[^0-9]/g, "")
+                  .slice(0, VIALS_DIGITS)
+                  .replace(/^0+(?=\d)/, ""),
+              })
+            }
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-semibold text-sand-600">
+            {MEDICATION_UNIT}
+          </span>
+        </div>
+      </Field>
     </div>
   );
 }

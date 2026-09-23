@@ -1,4 +1,4 @@
-# hackitrx-frontend
+# haemkaki-frontend
 
 React + TypeScript + Vite + Tailwind CSS.
 

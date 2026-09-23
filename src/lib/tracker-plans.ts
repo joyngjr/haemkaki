@@ -1,4 +1,5 @@
 import type { Plan, PlanDraft } from "@/lib/api";
+import { vialLabel } from "@/lib/tracker-entries";
 import {
   frequencyLabel,
   frequencyOf,
@@ -82,7 +83,7 @@ export function planChanges(plan: PlanAhead) {
         : frequencyLabel(plan.frequency),
     );
   }
-  if (plan.vials) parts.push(`${plan.vials} vial${plan.vials === 1 ? "" : "s"} per dose`);
+  if (plan.vials) parts.push(`${vialLabel(plan.vials)} per dose`);
   return parts.join(" · ");
 }
 

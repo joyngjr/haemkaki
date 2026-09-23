@@ -151,7 +151,7 @@ export function AddProfileForm({
             Your regular medication <span className="font-normal text-sand-500">— optional</span>
           </p>
           <p className="mt-1 text-xs leading-5 text-sand-600">
-            Pre-populates factor dosage for quicker logging.
+            Its dose in vials seeds your routine and pre-fills each dose you log.
           </p>
           <div className="mt-3">
             <MedicationFields

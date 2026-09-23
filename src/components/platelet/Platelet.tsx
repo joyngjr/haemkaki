@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /** How much factor is in the patient right now — drives the platelet's mood. */
 export type DoseState = "covered" | "low" | "veryLow";
 
-/** How many vials are at home. Independent of {@link DoseState}. */
+/** How much factor is at home, against the buffer. Independent of {@link DoseState}. */
 export type StockState = "wellStocked" | "moderate" | "low";
 
 const SPIKES: Record<DoseState, string[]> = {

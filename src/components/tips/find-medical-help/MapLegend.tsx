@@ -2,8 +2,7 @@ import { LOCATION_COLORS, type LocationType } from "@/lib/health-locations";
 
 const ENTRIES: { type: LocationType; label: string }[] = [
   { type: "hospital", label: "Hospital" },
-  { type: "polyclinic", label: "Polyclinic" },
-  { type: "pharmacy", label: "Pharmacy" },
+  { type: "treatment-centre", label: "Treatment Centre" },
 ];
 
 /** The colour key above the map. */

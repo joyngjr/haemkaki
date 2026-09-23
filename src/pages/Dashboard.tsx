@@ -1,13 +1,7 @@
 import type { ReactNode } from "react";
 
-import {
-  BleedSteps,
-  GuideList,
-  MedicalIdSummary,
-  WhoToCall,
-} from "@/components/tips/ResourceSections";
+import { GuideList, MedicalIdSummary } from "@/components/tips/ResourceSections";
 import { scrollToSection, useScrollToHash } from "@/lib/scroll";
-import { cn } from "@/lib/utils";
 import {
   EmptyHome,
   HomeHeader,
@@ -20,14 +14,6 @@ import { Tracker } from "@/pages/Tracker";
 import { useHomeData } from "@/state/home-context";
 import { useProfiles } from "@/state/profile-context";
 
-/** The two columns every band of the page shares, so the cards line up down it. */
-const COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_320px] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6";
-
-function Column({ children }: { children: ReactNode }) {
-  return <div className="flex min-w-0 flex-col gap-5 xl:gap-6">{children}</div>;
-}
-
 /** A card the page can scroll to, landing clear of the sticky top bar. */
 function Anchor({ id, children }: { id: string; children: ReactNode }) {
   return (
@@ -37,12 +23,37 @@ function Anchor({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
+/** One of the page's two headed parts: Tracker, then Resources. */
+function PageSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-title`} className="mt-12 scroll-mt-24">
+      <h2 id={`${id}-title`} className="text-[22px] font-semibold tracking-[-0.015em]">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/** A run of cards under a small-caps label — "Doses", "Supplies". */
+function CardGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="mt-4 [&+&]:mt-9">
+      <h3 className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-ink-subtle">
+        {label}
+      </h3>
+      <div className="mt-3 flex flex-col gap-5">{children}</div>
+    </div>
+  );
+}
+
 /**
  * The web version: everything on one page, and no tabs. From `lg` this
- * replaces all three of the phone's tabs — the status card heads the
- * tracker's calendar, the supply and routine cards run down the right, and
- * Resources closes the page. `/tracker` and `/tips` redirect here, scrolled to
- * their part of it.
+ * replaces all three of the phone's tabs, in one column: the greeting and the
+ * status card, then Tracker — the routine, the calendar, the recent entries
+ * and the plans under "Doses"; factor at home and the other supplies under
+ * "Supplies" — and Resources to close. `/tracker` and `/tips` redirect here,
+ * scrolled to their part of it.
  *
  * The account switcher sits in the top bar (`AppLayout`), so the header here
  * is only the greeting.
@@ -72,44 +83,34 @@ export function Dashboard() {
   return (
     <div className="pt-8">
       <HomeHeader user={data.user} now={now} />
+      <div className="mt-7">
+        <StatusCard data={data} actions={actions} now={now} />
+      </div>
 
       <Tracker
         layout={(cards) => (
-          <>
-            {cards.errors ? <div className="mt-5">{cards.errors}</div> : null}
-            <div className={cn(COLUMNS, "mt-6")}>
-              <Column>
-                <StatusCard data={data} actions={actions} now={now} />
-                <Anchor id="calendar">{cards.calendar}</Anchor>
-                <RecentEntries entries={data.recentEntries} />
-              </Column>
-              <Column>
-                <Anchor id="supply">{cards.supply}</Anchor>
-                <Anchor id="routine">{cards.routine}</Anchor>
-                {cards.planAhead}
-                {cards.summary}
-                {cards.inventory}
-              </Column>
-            </div>
-          </>
+          <PageSection id="tracker" title="Tracker">
+            {cards.errors ? <div className="mt-4">{cards.errors}</div> : null}
+            <CardGroup label="Doses">
+              <Anchor id="routine">{cards.routine}</Anchor>
+              <Anchor id="calendar">{cards.calendar}</Anchor>
+              <RecentEntries entries={data.recentEntries} />
+              {cards.planAhead}
+            </CardGroup>
+            <CardGroup label="Supplies">
+              <Anchor id="supply">{cards.supply}</Anchor>
+              {cards.inventory}
+            </CardGroup>
+          </PageSection>
         )}
       />
 
-      <section id="resources" aria-labelledby="resources-title" className="mt-12 scroll-mt-24">
-        <h2 id="resources-title" className="text-xl font-semibold">
-          Resources
-        </h2>
-        <div className={cn(COLUMNS, "mt-4")}>
-          <Column>
-            <MedicalIdSummary />
-            <GuideList />
-          </Column>
-          <Column>
-            <BleedSteps />
-            <WhoToCall />
-          </Column>
+      <PageSection id="resources" title="Resources">
+        <div className="mt-4 flex flex-col gap-5">
+          <MedicalIdSummary />
+          <GuideList />
         </div>
-      </section>
+      </PageSection>
     </div>
   );
 }

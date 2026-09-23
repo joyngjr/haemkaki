@@ -37,7 +37,7 @@ export function AppWordmark({ className }: { className?: string }) {
   return (
     <span className={cn("flex items-center gap-2.5 text-slate-600", className)}>
       <AppMark />
-      <span className="text-base font-semibold">HaemKakis</span>
+      <span className="text-base font-semibold">HaemKaki</span>
     </span>
   );
 }

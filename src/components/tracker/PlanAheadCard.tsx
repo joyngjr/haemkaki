@@ -19,7 +19,7 @@ const STATUS: Record<ReturnType<typeof planStatus>, { label: string; className: 
 };
 
 /**
- * "Plan Ahead": temporary changes to the usual routine over a date range. The
+ * "Plan ahead": temporary changes to the usual routine over a date range. The
  * card is collapsed until opened, since most days there is nothing to plan.
  *
  * Every change is a write to `/users/{id}/plans` (`usePlans`); the sheet
@@ -59,7 +59,7 @@ export function PlanAheadCard({
           className="flex w-full items-center justify-between gap-2 text-left"
         >
           <h2 className="ml-1 min-w-0 text-base font-semibold sm:ml-2 sm:text-[17px]">
-            Plan Ahead
+            Plan ahead
           </h2>
           <ChevronRightIcon
             className={`h-5 w-5 shrink-0 text-[#5C646C] transition-transform ${open ? "rotate-90" : ""}`}

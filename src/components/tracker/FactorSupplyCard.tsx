@@ -1,9 +1,10 @@
 import { useState } from "react";
 
+import type { StockState } from "@/components/platelet/Platelet";
 import { Card, CardTitle } from "@/components/ui/Card";
 import type { OrderAdvice } from "@/lib/api";
 import { FOCUS_RING } from "@/lib/theme";
-import { fromKey, getSingaporeTodayKey, shortDate, toKey } from "@/lib/tracker-dates";
+import { fromKey, shortDate } from "@/lib/tracker-dates";
 import type { SupplyRow } from "@/lib/tracker-entries";
 import { cn } from "@/lib/utils";
 
@@ -12,9 +13,13 @@ import { QuestionIcon } from "./TrackerIcons";
 
 type FactorSupplyCardProps = {
   vialsRemaining: number;
+  /** The fold's reading of the shelf: low once under the buffer. Undefined while loading. */
+  stockState: StockState | undefined;
+  /** The vials the profile keeps at home. Null until it is set. */
+  bufferVials: number | null;
+  /** The day of the month the profile orders on. Null until it is set. */
+  orderDayOfMonth: number | null;
   hasSchedule: boolean;
-  /** The first planned dose the cupboard cannot supply; null when stocked for a year. */
-  runsOutOn: Date | null;
   order: OrderAdvice | null;
   isLoading: boolean;
   onShowHistory: () => void;
@@ -29,19 +34,23 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 
 /**
  * "Factor at home" — vials on hand and the order advice, exactly as the API
- * folded them from the ledger and the schedule. The card counts nothing
- * itself; the "?" opens the fold's own working for the order.
+ * folded them from the ledger, the schedule, the buffer and the order day. The card counts
+ * nothing itself; the "?" opens the fold's own working for the order.
  *
  * The advice is advice: the app places no orders and talks to no pharmacy.
- * It says how many vials to buy and by when, and the ledger deducts from
- * whatever refill you log when the delivery arrives.
+ * It says how much to buy and by when, and the ledger deducts from whatever
+ * refill you log when the delivery arrives.
  *
- * It lives inside the tracker at every size.
+ * It lives inside the tracker at every size. On a phone it stacks; from `lg`
+ * the figure and its sentence sit on the left, the order line and the
+ * history link on the right.
  */
 export function FactorSupplyCard({
   vialsRemaining,
+  stockState,
+  bufferVials,
+  orderDayOfMonth,
   hasSchedule,
-  runsOutOn,
   order,
   isLoading,
   onShowHistory,
@@ -49,10 +58,7 @@ export function FactorSupplyCard({
 }: FactorSupplyCardProps) {
   const [showOrderHelp, setShowOrderHelp] = useState(false);
   const isOut = vialsRemaining <= 0;
-  // The run-out date can still be ahead of you with nothing in the cupboard —
-  // the next dose is simply the one that cannot be supplied.
-  const hasRunOut = runsOutOn !== null && toKey(runsOutOn) <= getSingaporeTodayKey();
-  const isLow = Boolean(order?.due) || (vialsRemaining > 0 && vialsRemaining <= 3);
+  const isLow = Boolean(order?.due) || stockState === "low";
 
   return (
     <Card className={cn("lg:p-6", className)}>
@@ -61,7 +67,7 @@ export function FactorSupplyCard({
         <button
           type="button"
           onClick={() => setShowOrderHelp(true)}
-          aria-label="How the refill suggestion is worked out"
+          aria-label="How the recommended order is calculated"
           className={cn(
             "-mr-1.5 grid h-11 w-11 place-items-center rounded-full text-ink-faint hover:text-ink-muted",
             FOCUS_RING,
@@ -71,61 +77,61 @@ export function FactorSupplyCard({
         </button>
       </div>
 
-      <div className="mt-1.5 flex items-baseline gap-2.5">
-        <span
-          className={cn(
-            "font-mono text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[40px]",
-            isOut ? "text-brick-600" : isLow ? "text-ochre-700" : "text-ink",
-          )}
-        >
-          {isLoading ? "…" : vialsRemaining}
-        </span>
-        <span className="text-[15px] text-ink-muted">vials left</span>
-      </div>
+      <div className="lg:flex lg:items-start lg:gap-8">
+        <div className="min-w-0 lg:flex-1">
+          <div className="mt-1.5 flex items-baseline gap-2.5">
+            <span
+              className={cn(
+                "font-mono text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[40px]",
+                isOut ? "text-brick-600" : isLow ? "text-ochre-700" : "text-ink",
+              )}
+            >
+              {isLoading ? "…" : vialsRemaining}
+            </span>
+            <span className="text-[15px] text-ink-muted">vials recorded at home</span>
+          </div>
 
-      {/* Without a routine there is nothing to forecast, so the card says nothing. */}
-      {hasSchedule ? (
-        <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-          {runsOutOn === null ? (
-            "Your supply covers every planned dose for the coming year."
-          ) : (
-            <>
-              Your supply {hasRunOut ? "ran out on" : "runs out on"}{" "}
-              <strong className="font-semibold text-ink">{mediumDate(runsOutOn)}</strong>.
-              {order
-                ? ` ${plural(order.vials, "vial")} covers you to ${mediumDate(fromKey(order.covers_until))}.`
-                : ""}
-            </>
-          )}
-        </p>
-      ) : null}
-
-      {order ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <OrderFigure
-            label="Order by"
-            value={order.due ? "ASAP" : mediumDate(fromKey(order.by_on))}
-            urgent={order.due}
-          />
-          <OrderFigure label="Vials to order" value={String(order.vials)} />
+          <p className="mt-3 text-sm leading-relaxed text-ink-muted">
+            {!hasSchedule
+              ? "Set up a routine to forecast when you may need to order more factor."
+              : order
+                ? order.on_order_day
+                  ? `Your next regular order is ${mediumDate(fromKey(order.by_on))}. Ordering ${plural(order.vials, "vial")} covers planned use until your following monthly order and leaves your chosen reserve.`
+                  : `Your stock is forecast to fall below your reserve by ${mediumDate(fromKey(order.by_on))}${orderDayOfMonth ? ", before your next regular order" : ""}. Ordering ${plural(order.vials, "vial")} covers planned use until ${mediumDate(fromKey(order.covers_until))} and leaves your chosen reserve.`
+                : "Set a monthly order day to receive an order recommendation."}
+          </p>
         </div>
-      ) : null}
 
-      <button
-        type="button"
-        onClick={onShowHistory}
-        className={cn(
-          "mt-3 min-h-11 text-sm font-medium text-teal-700 hover:text-teal-800",
-          FOCUS_RING,
-        )}
-      >
-        See recent vial activity
-      </button>
+        <div className="lg:mt-1.5 lg:w-[380px] lg:shrink-0 xl:w-[400px]">
+          {order ? (
+            <div className="mt-4 grid grid-cols-2 gap-2 lg:mt-0">
+              <OrderFigure
+                label="Next order date"
+                value={order.due ? "ASAP" : mediumDate(fromKey(order.by_on))}
+                urgent={order.due}
+              />
+              <OrderFigure label="Recommended vials" value={String(order.vials)} />
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={onShowHistory}
+            className={cn(
+              "mt-3 min-h-11 text-sm font-medium text-teal-700 hover:text-teal-800",
+              FOCUS_RING,
+            )}
+          >
+            See recent factor activity
+          </button>
+        </div>
+      </div>
 
       {showOrderHelp && (
         <OrderHelpSheet
           order={order}
-          runsOutOn={runsOutOn}
+          bufferVials={bufferVials}
+          orderDayOfMonth={orderDayOfMonth}
           hasSchedule={hasSchedule}
           onClose={() => setShowOrderHelp(false)}
         />
@@ -151,56 +157,63 @@ function OrderFigure({ label, value, urgent }: { label: string; value: string; u
   );
 }
 
-/** The working behind the recommended order, as the API reported it. */
+/** A plain-language breakdown of the recommended order, as the API worked it out. */
 function OrderHelpSheet({
   order,
-  runsOutOn,
+  bufferVials,
+  orderDayOfMonth,
   hasSchedule,
   onClose,
 }: {
   order: OrderAdvice | null;
-  runsOutOn: Date | null;
+  bufferVials: number | null;
+  orderDayOfMonth: number | null;
   hasSchedule: boolean;
   onClose: () => void;
 }) {
   return (
     <Sheet
       tier="action"
-      eyebrow="Recommended order"
-      title="How is this worked out?"
+      eyebrow="Order calculation"
+      title="How many vials should I order?"
       onClose={onClose}
     >
       <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-        We count the doses planned from the day your supply runs out through the next 30 days plus
-        your buffer, then subtract the vials you will still have on that day.
+        We project how many vials will remain immediately after your dose on the next order day. We
+        then calculate the planned use until the following monthly order day.
       </p>
-      {order && runsOutOn ? (
+      {order ? (
         <div className="mt-4 space-y-2">
           <HelpRow
-            label={`Planned doses, ${shortDate(runsOutOn)} – ${shortDate(fromKey(order.covers_until))}`}
+            label={`Planned use after ${shortDate(fromKey(order.by_on))} through ${shortDate(fromKey(order.covers_until))}`}
             detail={plural(order.planned_doses, "dose")}
             value={plural(order.planned_vials, "vial")}
           />
-          <HelpRow label="− Vials left by then" value={plural(order.leftover_vials, "vial")} />
-          <HelpRow label="= Vials to order" value={plural(order.vials, "vial")} strong />
+          <HelpRow label="+ Reserve you want to keep" value={plural(order.buffer_vials, "vial")} />
+          <HelpRow
+            label="− Projected stock after your order-day dose"
+            value={plural(order.leftover_vials, "vial")}
+          />
+          <HelpRow label="= Recommended order" value={plural(order.vials, "vial")} strong />
         </div>
       ) : (
         <p className="mt-4 rounded-xl bg-soft px-3.5 py-3 text-sm text-ink-muted">
           {hasSchedule
-            ? "Your supply covers every planned dose for the coming year, so there is nothing to order yet."
-            : "Set up your routine to see your number."}
+            ? "Choose a monthly order day to calculate a recommendation."
+            : "Set up your routine before the app can calculate an order recommendation."}
         </p>
       )}
       <p className="mt-3 text-[12.5px] leading-relaxed text-ink-subtle">
-        {order
-          ? `Your buffer is ${plural(order.buffer_days, "day")}, so the order-by date is that far ahead of the run-out date. `
-          : ""}
-        Planned doses come from your routine and any plans you've added.
+        {orderDayOfMonth
+          ? `Your regular order day is day ${orderDayOfMonth} of each month. `
+          : "No regular monthly order day is recorded. "}
+        {bufferVials !== null
+          ? `If your recorded stock is forecast to fall below ${plural(bufferVials, "vial")} before then, the app brings the order date forward.`
+          : "No vial reserve is recorded."}
       </p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-subtle">
-        This is a suggestion, not an order — the app cannot place one. Buy through your centre as
-        you normally would, and record what arrives as a refill on the tracker; the vial count here
-        is that record less every dose logged against it.
+        This is a planning estimate, not a placed order. Record each delivery as a refill so the
+        calculation continues from the correct stock balance.
       </p>
     </Sheet>
   );
@@ -235,7 +248,7 @@ function HelpRow({
 
 export function SupplyHistorySheet({ rows, onClose }: { rows: SupplyRow[]; onClose: () => void }) {
   return (
-    <Sheet tier="action" eyebrow="Factor at home" title="Recent vial activity" onClose={onClose}>
+    <Sheet tier="action" eyebrow="Factor at home" title="Recent factor activity" onClose={onClose}>
       {rows.length ? (
         <div className="mt-5 max-h-[60vh] space-y-2 overflow-y-auto">
           {rows.map((row) => (
@@ -255,13 +268,13 @@ export function SupplyHistorySheet({ rows, onClose }: { rows: SupplyRow[]; onClo
                   row.amount > 0 ? "text-moss-700" : "text-brick-600",
                 )}
               >
-                {row.amount > 0 ? `+${row.amount}` : row.amount}
+                {`${row.amount > 0 ? "+" : "−"}${Math.abs(row.amount)}`}
               </span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-5 text-sm text-ink-muted">No vial activity logged yet.</p>
+        <p className="mt-5 text-sm text-ink-muted">No factor activity logged yet.</p>
       )}
     </Sheet>
   );

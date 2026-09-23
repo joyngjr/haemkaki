@@ -1,10 +1,10 @@
 /**
- * HaemKakis — Home
+ * HaemKaki — Home
  * ================
  *
  * The status card and the last few entries. On a phone this is the Home tab;
  * from `lg` the same status card heads the one-page layout in `Dashboard.tsx`,
- * beside the tracker's cards.
+ * above the tracker's cards.
  *
  * The card answers the two questions its scene draws: is the schedule on time
  * (Kaki and his shield, the cover figure, the meter), and is there factor at
@@ -35,7 +35,11 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { coverageFromDose, type Supply as SceneSupply } from "@/components/platelet/scene-state";
+import {
+  SCENE_WALL,
+  coverageFromDose,
+  type Supply as SceneSupply,
+} from "@/components/platelet/scene-state";
 import { StatusScene } from "@/components/platelet/StatusScene";
 import { ProfileButton } from "@/components/profile/ProfileButton";
 import { ProfileSheet } from "@/components/profile/ProfileSheet";
@@ -53,6 +57,7 @@ import {
 } from "@/lib/home-format";
 import { FOCUS_RING, INK, INK_MUTED } from "@/lib/theme";
 import { getSingaporeTodayKey } from "@/lib/tracker-dates";
+import { vialLabel } from "@/lib/tracker-entries";
 import { cn } from "@/lib/utils";
 import type {
   ActivityStatus,
@@ -165,13 +170,14 @@ function resolveDoseStatus(ctx: { dose: DoseState; hasRecentBleed: boolean }): D
 
 /**
  * The rule the tracker's supply card tints its figure by: out at zero, low
- * for the last three vials or once the order-by date has arrived. Unknown —
- * the status still loading — reads as fine rather than as empty.
+ * when the fold reads the shelf as low — under the factor kept at home, or
+ * under two doses when none is set — or once the order-by date has arrived.
+ * Unknown — the status still loading — reads as fine rather than as empty.
  */
 function supplyNeedOf(supply: SupplyStatus | null): SupplyNeed {
   if (!supply) return "ok";
   if (supply.vialsOnHand <= 0) return "out";
-  return supply.vialsOnHand <= 3 || supply.order?.due === true ? "low" : "ok";
+  return supply.stockState === "low" || supply.order?.due === true ? "low" : "ok";
 }
 
 /**
@@ -199,7 +205,7 @@ function orderNote(supply: SupplyStatus): string | undefined {
   if (supply.order) {
     return supply.order.due ? "Order now" : `Order by ${formatShortDay(supply.order.byOn)}`;
   }
-  return supply.runsOutOn ? `Runs out ${formatShortDay(supply.runsOutOn)}` : undefined;
+  return undefined;
 }
 
 /* ===================================================================== */
@@ -251,7 +257,10 @@ function StatusLine({
  * The card itself — the scene, the two figures that matter, the meter, and
  * the sentence that says what the meter means.
  *
- * On a phone it stacks; from `lg` the scene sits beside the figures.
+ * On a phone it stacks: the status line, the scene, then the figures. From
+ * `lg` the room is the whole card — its wall runs behind everything and its
+ * floor along the foot — and the figures sit in a white panel on the right,
+ * with the drawing kept to the left of it.
  */
 function StatusHero({
   treatmentStatus,
@@ -284,51 +293,61 @@ function StatusHero({
     .filter(Boolean)
     .join(" · ");
 
+  const room = SCENE_SUPPLY[supply];
+
   return (
-    <Card padded={false} aria-label="Treatment and supply" className="overflow-hidden">
-      <div className="lg:flex lg:items-center lg:gap-5 lg:p-6 xl:gap-6">
-        <div className="lg:w-[260px] lg:shrink-0 xl:w-[356px]">
-          <StatusLine status={status} regimen={regimen} className="px-4 pb-3.5 pt-4 lg:hidden" />
-          <StatusScene
-            coverage={coverageFromDose(treatmentStatus.dose)}
-            supply={SCENE_SUPPLY[supply]}
-            className="lg:overflow-hidden lg:rounded-2xl"
+    <Card padded={false} aria-label="Treatment and supply" className="relative overflow-hidden">
+      <StatusLine status={status} regimen={regimen} className="px-4 pb-3.5 pt-4 lg:hidden" />
+
+      {/* The room: a block at the head of the card on a phone, the card's
+          backdrop from `lg`. The wall colour is painted here so it fills the
+          card around the drawing, whose box stops short of the panel. */}
+      <div className="lg:absolute lg:inset-0" style={{ backgroundColor: SCENE_WALL[room] }}>
+        <StatusScene
+          coverage={coverageFromDose(treatmentStatus.dose)}
+          supply={room}
+          className="lg:absolute lg:inset-y-0 lg:left-0 lg:right-[432px] xl:right-[472px]"
+        />
+      </div>
+
+      {/* The figures: the body of the card on a phone, a panel on the room from `lg`. */}
+      <div
+        className={cn(
+          "relative flex min-w-0 flex-col px-4 pb-4 pt-5 sm:px-5",
+          "lg:my-4 lg:ml-auto lg:mr-4 lg:w-[400px] lg:rounded-2xl lg:bg-card lg:p-5 xl:w-[440px] xl:p-6",
+        )}
+      >
+        <StatusLine status={status} regimen={regimen} className="hidden lg:flex" />
+
+        <div className="flex gap-6 lg:mt-4">
+          <Stat
+            label="Cover left"
+            value={coverDays === undefined ? "—" : coverDays}
+            unit={coverDays === undefined ? undefined : coverDays === 1 ? "day" : "days"}
+            tone={tone === "teal" ? "ink" : tone === "caution" ? "caution" : "critical"}
+            size="lg"
+            className="flex-1"
+          />
+          <Stat
+            label="Vials at home"
+            value={supplyStatus?.vialsOnHand ?? "—"}
+            unit={supplyStatus ? "left" : undefined}
+            tone={supply === "out" ? "critical" : supply === "low" ? "caution" : "ink"}
+            note={supply === "low" && supplyStatus ? orderNote(supplyStatus) : undefined}
+            size="lg"
+            className="flex-1"
           />
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col px-4 pb-4 pt-5 sm:px-5 lg:p-0">
-          <StatusLine status={status} regimen={regimen} className="hidden lg:flex" />
+        <Meter
+          percent={position}
+          tone={tone}
+          className="mt-5"
+          label="How far through your recorded dose interval you are"
+        />
+        <DoseSentence treatmentStatus={treatmentStatus} />
 
-          <div className="flex gap-6 lg:mt-4">
-            <Stat
-              label="Cover left"
-              value={coverDays === undefined ? "—" : coverDays}
-              unit={coverDays === undefined ? undefined : coverDays === 1 ? "day" : "days"}
-              tone={tone === "teal" ? "ink" : tone === "caution" ? "caution" : "critical"}
-              size="lg"
-              className="flex-1"
-            />
-            <Stat
-              label="Vials at home"
-              value={supplyStatus?.vialsOnHand ?? "—"}
-              unit={supplyStatus ? "left" : undefined}
-              tone={supply === "out" ? "critical" : supply === "low" ? "caution" : "ink"}
-              note={supply === "low" && supplyStatus ? orderNote(supplyStatus) : undefined}
-              size="lg"
-              className="flex-1"
-            />
-          </div>
-
-          <Meter
-            percent={position}
-            tone={tone}
-            className="mt-5"
-            label="How far through your recorded dose interval you are"
-          />
-          <DoseSentence treatmentStatus={treatmentStatus} />
-
-          {children}
-        </div>
+        {children}
       </div>
     </Card>
   );
@@ -401,11 +420,9 @@ const ENTRY_LABEL: Record<
   refill: { label: "Refill", mark: "taken" },
 };
 
-/** Vials as the ledger charged them — "2 vials", and nothing at all for zero. */
-function vialsLabel(appliedVials: number): string {
-  const count = Math.abs(appliedVials);
-  if (!count) return "—";
-  return `${count} ${count === 1 ? "vial" : "vials"}`;
+/** The amount as the ledger charged it, and a dash for a dose of unknown size. */
+function chargedLabel(appliedVials: number): string {
+  return appliedVials ? vialLabel(Math.abs(appliedVials)) : "—";
 }
 
 /**
@@ -470,7 +487,7 @@ export function RecentEntries({
                     </span>
                   </span>
                   <span className="text-sm text-ink-muted lg:text-[14.5px]">
-                    {vialsLabel(entry.appliedVials)}
+                    {chargedLabel(entry.appliedVials)}
                   </span>
                 </li>
               );

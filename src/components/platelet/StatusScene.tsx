@@ -1,4 +1,4 @@
-import type { Coverage, Supply } from "@/components/platelet/scene-state";
+import { SCENE_WALL, type Coverage, type Supply } from "@/components/platelet/scene-state";
 import { cn } from "@/lib/utils";
 
 /**
@@ -96,7 +96,7 @@ const COVERAGE = {
 
 const SUPPLY = {
   stocked: {
-    wall: "#EFEBE1",
+    wall: SCENE_WALL.stocked,
     floor: "#E1DACB",
     seam: "#FFFFFF",
     paneFill: "#FAF4E3",
@@ -122,7 +122,7 @@ const SUPPLY = {
     alt: "a furnished room with a bright window, a picture on the wall, a healthy plant and a full shelf of factor vials",
   },
   low: {
-    wall: "#E9E6DE",
+    wall: SCENE_WALL.low,
     floor: "#D9D3C6",
     seam: "#FFFFFF",
     paneFill: "#E7E3D6",
@@ -148,7 +148,7 @@ const SUPPLY = {
     alt: "a dimmer room with a faded curtain, a crooked picture, a drooping plant and only a couple of vials left on the shelf",
   },
   empty: {
-    wall: "#E2E3E6",
+    wall: SCENE_WALL.empty,
     floor: "#D2D4D8",
     seam: "#AEB2B8",
     paneFill: "#C4C8CE",
@@ -178,6 +178,13 @@ const SUPPLY = {
 const POD_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 const SHELF_X = [206, 232, 258, 284, 310];
 
+/**
+ * Where the floorboards meet, every 76 units. The drawing is 356 wide, but
+ * the floor is drawn far past that so it can run under the status card's
+ * panel when the scene is the card's backdrop (see `StatusScene`).
+ */
+const FLOOR_SEAMS = Array.from({ length: 40 }, (_, index) => 44 + index * 76);
+
 /** The white arc that catches the light on the top-left of the shield. */
 function shieldArc(centreY: number, radius: number): string {
   const r = radius - 7;
@@ -204,10 +211,18 @@ export function StatusScene({
   const shieldCy = 80 + c.podY;
 
   return (
-    <div className={cn("overflow-hidden", className)}>
+    <div className={cn("overflow-hidden lg:overflow-visible", className)}>
+      {/*
+        On a phone the drawing is the width of its card. From `lg` the status
+        card gives it a box to fill and paints the wall behind everything
+        (`SCENE_WALL`): the room is scaled to fit that box, sits in its
+        bottom-left corner, and the floor runs on past the box's edge — under
+        the panel, out to the card's edge — because the SVG does not clip.
+      */}
       <svg
         viewBox="0 0 356 168"
-        className="block h-auto w-full"
+        preserveAspectRatio="xMinYMax meet"
+        className="block h-auto w-full lg:h-full lg:overflow-visible"
         role="img"
         aria-label={`Kaki at home, ${c.alt}, in ${s.alt}.`}
       >
@@ -301,10 +316,14 @@ export function StatusScene({
           <path d="M300 119H344" stroke="#FFFFFF" strokeWidth="1.4" strokeOpacity="0.7" />
         </g>
 
-        {/* Floor */}
-        <rect x="0" y="132" width="356" height="36" fill={s.floor} />
-        <path d="M0 133H356" stroke="#9FA8B4" strokeWidth="1.4" strokeOpacity="0.5" />
-        <path d="M44 133V168M118 133V168M196 133V168M272 133V168" stroke={s.seam} strokeWidth="1" />
+        {/* Floor — drawn well past the right edge; see the note on the <svg>. */}
+        <rect x="0" y="132" width="3000" height="36" fill={s.floor} />
+        <path d="M0 133H3000" stroke="#9FA8B4" strokeWidth="1.4" strokeOpacity="0.5" />
+        <path
+          d={FLOOR_SEAMS.map((x) => `M${x} 133V168`).join("")}
+          stroke={s.seam}
+          strokeWidth="1"
+        />
         <ellipse cx="126" cy="150" rx="78" ry="10" fill={s.rugFill} opacity={s.rugOp} />
 
         {/* Plant */}

@@ -11,6 +11,7 @@ export function NumberField({
   value,
   onChange,
   maxLength = 2,
+  max,
   hint,
   suffix,
   confirmLabel,
@@ -21,18 +22,20 @@ export function NumberField({
   value: string;
   onChange: (next: string) => void;
   /**
-   * 2 everywhere today: the API caps a vial count at `VIALS_MAX` (99) and a
-   * dosing interval at 90 days, and a field that can enter 518 vials only
-   * produces a 422 the user cannot act on.
+   * 2 by default, for the day counts: a dosing interval is capped at 90 days.
+   * Amounts pass `VIALS_DIGITS`, since the API caps them at `VIALS_MAX` (999),
+   * and a field that can enter more only produces a 422 the user cannot act on.
    */
   maxLength?: number;
+  /** Largest accepted value, when the domain has one (day 31 of a month). */
+  max?: number;
   hint?: string;
-  /** Unit rendered inside the field, e.g. "days". */
+  /** Unit rendered inside the field, e.g. "vials". */
   suffix?: string;
   confirmLabel: string;
   onConfirm: () => void;
 }) {
-  const valid = Number(value) > 0;
+  const valid = Number(value) > 0 && (max === undefined || Number(value) <= max);
 
   return (
     <>

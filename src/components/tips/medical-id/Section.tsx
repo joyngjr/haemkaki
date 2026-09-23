@@ -16,6 +16,7 @@ export function Section({
   icon: React.ReactNode;
   /** A raw colour rather than a Tailwind class, so it can be any hex. */
   iconBg: string;
+  /** Uppercased for display, so pass it in title case. */
   title: string;
   titleColor?: string;
   children: React.ReactNode;
@@ -29,7 +30,7 @@ export function Section({
         >
           {icon}
         </span>
-        <h3 className={"text-xs font-bold tracking-wide " + titleColor}>{title}</h3>
+        <h3 className={"text-xs font-bold tracking-wide uppercase " + titleColor}>{title}</h3>
       </div>
       <div className="mt-3">{children}</div>
     </div>

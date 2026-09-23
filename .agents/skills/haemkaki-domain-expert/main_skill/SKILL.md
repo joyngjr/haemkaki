@@ -1,7 +1,7 @@
 ---
-name: hackitrx-domain-expert
+name: haemkaki-domain-expert
 description: |
-  Medical knowledge research assistant for the HackitRx haemophilia factor-tracking app.
+  Medical knowledge research assistant for the HaemKaki haemophilia factor-tracking app.
   Use this skill whenever a developer asks for medical information, clinical terminology,
   treatment protocols, or domain knowledge relevant to haemophilia care — whether the source
   is files already in the repository or external websites (scraped via Firecrawl).
@@ -19,7 +19,7 @@ description: |
   deployment questions unrelated to medical content.
 ---
 
-# HackitRx Domain Expert
+# HaemKaki Domain Expert
 
 A research assistant that collects medical information from **repository files** and/or **the
 web via Firecrawl**, then writes a complete, structured summary file for the developer to
@@ -48,7 +48,7 @@ or the key is blank, stop and tell the developer.
 For the full Firecrawl API reference, read:
 
 ```
-hackitrx-frontend/.agents/skills/hackitrx-domain-expert/firecrawl_skill/SKILL.md
+hackitrx-frontend/.agents/skills/haemkaki-domain-expert/firecrawl_skill/SKILL.md
 ```
 
 Read this file before making any API calls so you use the correct endpoint signatures,
@@ -63,7 +63,7 @@ Before doing anything, confirm:
 1. **What topic?** (e.g. "factor VIII prophylaxis dosing", "half-life of extended-release
    factor products", "inhibitor development in haemophilia A")
 2. **Which sources?**
-   - _Repo files_ — search `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/references/` for existing medical documents.
+   - _Repo files_ — search `hackitrx-frontend/.agents/skills/haemkaki-domain-expert/references/` for existing medical documents.
    - _Web_ — use Firecrawl to find and scrape authoritative sources autonomously.
    - _Both_ — combine both (default when neither is specified).
 3. **Output format**: `.md` (default) or `.csv` — take this from the developer's prompt.
@@ -77,11 +77,11 @@ proceed autonomously.
 
 ## 2 — Source 1: Repository files
 
-Scan `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/references/` for existing medical documentation:
+Scan `hackitrx-frontend/.agents/skills/haemkaki-domain-expert/references/` for existing medical documentation:
 
 ```bash
 # Find all markdown and text files under references/
-find hackitrx-frontend/.agents/skills/hackitrx-domain-expert/references -type f \( -name "*.md" -o -name "*.txt" -o -name "*.csv" \)
+find hackitrx-frontend/.agents/skills/haemkaki-domain-expert/references -type f \( -name "*.md" -o -name "*.txt" -o -name "*.csv" \)
 ```
 
 Then grep for topic keywords (e.g. `factor VIII`, `prophylaxis`, `haemophilia`, `inhibitor`,
@@ -94,7 +94,7 @@ so nothing clinical is lost or distorted.
 
 ## 3 — Source 2: Web via Firecrawl
 
-Read `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/firecrawl_skill/SKILL.md` for the full API reference before calling any
+Read `hackitrx-frontend/.agents/skills/haemkaki-domain-expert/firecrawl_skill/SKILL.md` for the full API reference before calling any
 endpoint. The sections below are a working summary.
 
 ### 3a — Searching for sources (no URL provided)
@@ -172,7 +172,7 @@ appear without its source.
 Write a **comprehensive, structured summary file** to:
 
 ```
-hackitrx-frontend/.agents/skills/hackitrx-domain-expert/medical_info_summary/<kebab-case-topic>.<md|csv>
+hackitrx-frontend/.agents/skills/haemkaki-domain-expert/medical_info_summary/<kebab-case-topic>.<md|csv>
 ```
 
 Create the folder if it does not exist.
@@ -190,14 +190,14 @@ Use this template exactly:
 > **Generated:** <ISO 8601 date>
 > **Sources consulted:**
 >
-> - [Repo] `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/<source-folder>/<path>`
+> - [Repo] `hackitrx-frontend/.agents/skills/haemkaki-domain-expert/<source-folder>/<path>`
 > - [Web] <URL> — <site name / document title> [<citation key>]
 
 ---
 
 ## Overview
 
-One short paragraph: what this topic is and why it matters to HackitRx.
+One short paragraph: what this topic is and why it matters to HaemKaki.
 
 ---
 
@@ -231,7 +231,7 @@ Exhaustive bullet list — one fact per bullet, nothing omitted for brevity.
 
 ---
 
-## Terminology Relevant to HackitRx
+## Terminology Relevant to HaemKaki
 
 - **<app enum or field name>**: clinical meaning [source if web]
 
@@ -295,14 +295,14 @@ After writing the file, report:
 
 Example:
 
-> "Summary written to `hackitrx-frontend/.agents/skills/hackitrx-domain-expert/medical_info_summary/factor-viii-prophylaxis.md`.
+> "Summary written to `hackitrx-frontend/.agents/skills/haemkaki-domain-expert/medical_info_summary/factor-viii-prophylaxis.md`.
 > Read 1 repo file and scraped 4 web sources (WFH 2020, UKHCDO 2023, 2 FDA labels).
 > Found 1 ⚠️ conflict in trough target levels — see the _Treatment Protocols_ section.
 > Please confirm accuracy before using this in the app."
 
 ---
 
-## Reference: HackitRx data model ↔ clinical concepts
+## Reference: HaemKaki data model ↔ clinical concepts
 
 | App field / enum value       | Clinical meaning                                                          |
 | ---------------------------- | ------------------------------------------------------------------------- |
@@ -318,4 +318,4 @@ Example:
 | `vials_on_hand`              | Number of factor concentrate vials physically at home                     |
 
 When you encounter clinical information that clarifies or extends any of these mappings,
-add it to the _Terminology Relevant to HackitRx_ section of your summary.
+add it to the _Terminology Relevant to HaemKaki_ section of your summary.

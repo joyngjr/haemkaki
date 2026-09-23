@@ -3,21 +3,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { api, type Profile, type ProfileDraft } from "@/lib/api";
 import { ProfileContext, type ProfileStatus } from "@/state/profile-context";
 
-/** An older build cached whole profiles under this prefix; only the API holds them now. */
-const LEGACY_PROFILE_PREFIX = "hackitrx.profileDetails.";
 /** Which household member the app is showing. The profiles themselves always come from the API. */
-const ACTIVE_KEY = "hackitrx.activeProfileId";
-
-function clearLegacyProfileStorage(): void {
-  try {
-    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
-      const key = window.localStorage.key(index);
-      if (key?.startsWith(LEGACY_PROFILE_PREFIX)) window.localStorage.removeItem(key);
-    }
-  } catch {
-    // Storage can be unavailable in private browsing. Nothing is written here.
-  }
-}
+const ACTIVE_KEY = "haemkaki.activeProfileId";
 
 function readActiveId(): number | null {
   try {
@@ -59,10 +46,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     () => api.listProfiles().then(applyLoaded, applyFailure),
     [applyLoaded, applyFailure],
   );
-
-  useEffect(() => {
-    clearLegacyProfileStorage();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

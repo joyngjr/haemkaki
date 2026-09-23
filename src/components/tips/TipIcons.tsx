@@ -55,31 +55,12 @@ export function BleedHelpIcon({ className }: IconProps) {
   );
 }
 
-/** A document — the travel letter. */
-export function TravelLetterIcon({ className }: IconProps) {
-  return (
-    <svg {...BASE} className={className}>
-      <path d="M5.5 3.4h9L19 8v12.6H5.5Z" />
-      <path d="M14.2 3.4V8H19M8.6 12.6h6.8M8.6 16.2h4.6" />
-    </svg>
-  );
-}
-
 /** An arrow into a tray — importing another tracker's history. */
 export function ImportTrackerIcon({ className }: IconProps) {
   return (
     <svg {...BASE} className={className}>
       <path d="M12 3.6v11M7.6 10.2 12 14.6l4.4-4.4" />
       <path d="M4.6 15.4v3.2a1.8 1.8 0 0 0 1.8 1.8h11.2a1.8 1.8 0 0 0 1.8-1.8v-3.2" />
-    </svg>
-  );
-}
-
-/** A handset — the call buttons. */
-export function PhoneIcon({ className }: IconProps) {
-  return (
-    <svg {...BASE} className={className}>
-      <path d="M6.2 3.6h3.1l1.6 3.9-2 1.3a10.4 10.4 0 0 0 5.3 5.3l1.3-2 3.9 1.6v3.1a1.6 1.6 0 0 1-1.7 1.6A15.6 15.6 0 0 1 4.6 5.3a1.6 1.6 0 0 1 1.6-1.7Z" />
     </svg>
   );
 }

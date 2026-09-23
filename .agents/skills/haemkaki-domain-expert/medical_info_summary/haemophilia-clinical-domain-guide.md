@@ -1,16 +1,16 @@
 # Medical Summary: Comprehensive Clinical Domain Guide to Haemophilia Management
 
 > **Status:** Domain expert review updated 12 September 2026<br>
-> **Issuing Skill:** `hackitrx-domain-expert`  
-> **Target Audience:** HackitRx Development Team & Clinical Reviewers  
+> **Issuing Skill:** `haemkaki-domain-expert`  
+> **Target Audience:** HaemKaki Development Team & Clinical Reviewers  
 > **Primary Source:** _WFH Guidelines for the Management of Hemophilia, 3rd edition_ (Srivastava A, Santagostino E, Dougall A, et al. _Haemophilia_. 2020;26(Suppl 6):1–158. DOI: 10.1111/hae.14046) [`WFH_guidelines.md`]  
 > **Secondary / External Sources:** International Society on Thrombosis and Haemostasis (ISTH), Medical and Scientific Advisory Council (MASAC) of the National Bleeding Disorders Foundation (NBDF), United Kingdom Haemophilia Centre Doctors' Organisation (UKHCDO), European Medicines Agency (EMA), and US FDA Prescribing Information.
 
 ---
 
-## Executive Overview for HackitRx
+## Executive Overview for HaemKaki
 
-In these guidelines, **haemophilia** means congenital factor VIII deficiency (haemophilia A) or factor IX deficiency (haemophilia B). Factor XI deficiency and acquired haemophilia A are important differential bleeding disorders covered separately in this guide; they must not inherit haemophilia A/B severity, pharmacokinetic, or treatment rules. In the context of **HackitRx**—a treatment-tracking and patient empowerment application—precise domain logic is essential. Factor replacement, non-factor prophylaxis, bypassing agents, gene therapy, acute bleed triage, and product-specific treatment plans require separate data models rather than one generic factor-decay model.
+In these guidelines, **haemophilia** means congenital factor VIII deficiency (haemophilia A) or factor IX deficiency (haemophilia B). Factor XI deficiency and acquired haemophilia A are important differential bleeding disorders covered separately in this guide; they must not inherit haemophilia A/B severity, pharmacokinetic, or treatment rules. In the context of **HaemKaki**—a treatment-tracking and patient empowerment application—precise domain logic is essential. Factor replacement, non-factor prophylaxis, bypassing agents, gene therapy, acute bleed triage, and product-specific treatment plans require separate data models rather than one generic factor-decay model.
 
 > **Clinical-use boundary:** This guide is a clinical-domain reference for product design, not a prescribing protocol. Individual treatment must follow the person's haemophilia treatment centre (HTC) plan, locally approved product information, age and indication restrictions, measured pharmacokinetics where relevant, and current jurisdictional guidance. Numerical WFH target levels in this document describe reported global practice patterns and are not universal dose mandates.
 
@@ -236,7 +236,7 @@ WFH Table 6-2 provides population-level regimen examples for **standard-half-lif
 
 ### 4.2 Treatment Landscape Added After WFH 2020
 
-These therapies were not available for inclusion in the WFH third edition. Availability and indications vary by country; HackitRx must treat the selected jurisdiction and current product label as required fields.
+These therapies were not available for inclusion in the WFH third edition. Availability and indications vary by country; HaemKaki must treat the selected jurisdiction and current product label as required fields.
 
 | Therapy                            | Mechanism and route                                         | Current US indication as of 12 September 2026                                                                      | Safety/implementation fields required                                                                                                                                                                                                                                                                                 |
 | :--------------------------------- | :---------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -678,7 +678,7 @@ For haemophilia A with a persistent FVIII inhibitor, ITI remains the established
 
 ---
 
-## 12. HackitRx Clinical Safety and Source Governance
+## 12. HaemKaki Clinical Safety and Source Governance
 
 ### 12.1 Minimum Treatment-Plan Model
 
@@ -731,4 +731,4 @@ Use WFH 2020 for the core haemophilia A/B framework. For information absent from
 
 ---
 
-> **Developer Action Required:** Review this clinical summary before integrating factor kinetics, dose-logging schemas, and bleeding triage rules into the HackitRx codebase.
+> **Developer Action Required:** Review this clinical summary before integrating factor kinetics, dose-logging schemas, and bleeding triage rules into the HaemKaki codebase.
