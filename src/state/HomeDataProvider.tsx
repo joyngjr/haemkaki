@@ -4,6 +4,8 @@ import { applyDiff } from "@/components/tracker/useLedger";
 import { api, type Status } from "@/lib/api";
 import { buildHomeData, type AdministerDosePayload, type SaveResult } from "@/lib/home-data";
 import { entriesFromApi, recordProphylaxis } from "@/lib/tracker-entries";
+import { withVialOrderAdvice } from "@/lib/vial-order";
+import { decodeOrderPreferences } from "@/lib/order-preferences";
 import { HomeDataContext, type HomeDataContextValue } from "@/state/home-context";
 import { useProfiles } from "@/state/profile-context";
 
@@ -44,24 +46,37 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
   // A profile save returns the profile re-folded, so its `updated_at` moving
   // is the cue that the status may have moved too (the routine, for one).
   const profileVersion = activeProfile?.updated_at;
+  const orderPreferences = decodeOrderPreferences(
+    activeProfile?.clinical_profile?.minimum_buffer_days,
+  );
 
   const load = useCallback(
     (id: number) => {
       const mine = ++ticket.current;
-      return api.getStatus(id).then(
-        (status) => {
-          if (mine !== ticket.current) return;
-          setLoaded({ profileId: id, status, fetchedAt: new Date().toISOString() });
-          setClock(now ?? new Date());
-        },
-        () => {
-          // Deliberately quiet. Home is a summary; the tracker says out loud
-          // when the API is unreachable, and the profile row still draws the
-          // hero without the timings.
-        },
-      );
+      return api
+        .getStatus(id)
+        .then((status) =>
+          withVialOrderAdvice(
+            id,
+            status,
+            orderPreferences.bufferVials,
+            orderPreferences.orderDayOfMonth,
+          ),
+        )
+        .then(
+          (status) => {
+            if (mine !== ticket.current) return;
+            setLoaded({ profileId: id, status, fetchedAt: new Date().toISOString() });
+            setClock(now ?? new Date());
+          },
+          () => {
+            // Deliberately quiet. Home is a summary; the tracker says out loud
+            // when the API is unreachable, and the profile row still draws the
+            // hero without the timings.
+          },
+        );
     },
-    [now],
+    [now, orderPreferences.bufferVials, orderPreferences.orderDayOfMonth],
   );
 
   useEffect(() => {

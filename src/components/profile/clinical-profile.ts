@@ -4,7 +4,7 @@ import type { ClinicalProfile, DiagnosisType, MedicationDetails } from "@/lib/ap
  * A clinical profile with nothing recorded but the diagnosis.
  *
  * Three screens each own part of the profile — onboarding, the Medical ID
- * form, the tracker's routine — and the API replaces the whole JSON object on
+ * form, the tracker's routine and vial reserve — and the API replaces the whole JSON object on
  * every save. Each of them therefore starts from what is already stored and
  * overrides only its own fields; this is the starting point when nothing is.
  */
@@ -30,6 +30,19 @@ export function emptyClinicalProfile(diagnosis: DiagnosisType): ClinicalProfile 
 export type MedicationDraft = Pick<MedicationDetails, "name" | "dose" | "unit">;
 
 export const emptyMedication = (): MedicationDraft => ({ name: "", dose: "", unit: "" });
+
+/**
+ * The tracker counts regular factor in whole vials. Older profiles may have
+ * recorded that medication in IU; that number cannot safely be converted
+ * without knowing the vial strength, so leave its dose blank for re-entry.
+ */
+export function prophylaxisMedicationFromStorage(
+  stored: MedicationDetails | null,
+): MedicationDraft {
+  const medication = medicationFromStorage(stored);
+  const isVials = /^vials?$/i.test(medication.unit.trim());
+  return { ...medication, dose: isVials ? medication.dose : "", unit: "vials" };
+}
 
 /**
  * A stored medication section as a draft.

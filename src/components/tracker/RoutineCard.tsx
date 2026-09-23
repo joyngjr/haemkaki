@@ -22,8 +22,12 @@ export type RoutineDraft = Omit<ScheduleDraft, "replace">;
 type RoutineCardProps = {
   series: Schedule | null;
   today: Date;
-  /** Days of cover to keep in reserve before ordering. Null until it is set. */
-  bufferDays: number | null;
+  /** Vials to keep in reserve before ordering. Null until it is set. */
+  bufferVials: number | null;
+  /** Recurring calendar day on which the patient orders. */
+  orderDayOfMonth: number | null;
+  /** Profile dose used to prefill a routine that has not been created yet. */
+  defaultVials?: number;
   onReplace: (draft: RoutineDraft) => Promise<boolean>;
   onRemove: () => Promise<boolean>;
   /**
@@ -31,7 +35,7 @@ type RoutineCardProps = {
    * Absent for a profile with nothing recorded to merge it into, and the flow
    * then skips the question rather than asking for a number it would drop.
    */
-  onSaveBuffer?: (days: number) => Promise<boolean>;
+  onSaveOrderPreferences?: (vials: number, dayOfMonth: number) => Promise<boolean>;
 };
 
 function longDate(key: string) {
@@ -48,10 +52,12 @@ function longDate(key: string) {
 export function RoutineCard({
   series,
   today,
-  bufferDays,
+  bufferVials,
+  orderDayOfMonth,
+  defaultVials,
   onReplace,
   onRemove,
-  onSaveBuffer,
+  onSaveOrderPreferences,
 }: RoutineCardProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -93,13 +99,15 @@ export function RoutineCard({
             value={series ? longDate(series.start_on) : "Not set"}
           />
         </div>
-        {onSaveBuffer ? (
+        {onSaveOrderPreferences ? (
           <p className="mt-3 text-xs leading-relaxed text-[#5C646C]">
             Order buffer:{" "}
             <span className="font-semibold text-[#242A2F]">
-              {bufferDays === null ? "Not set" : `${bufferDays} day${bufferDays === 1 ? "" : "s"}`}
+              {bufferVials === null
+                ? "Not set"
+                : `${bufferVials} vial${bufferVials === 1 ? "" : "s"}`}
             </span>{" "}
-            — the cover you want left when it is time to order.
+            — order on day {orderDayOfMonth ?? "not set"} of each month.
           </p>
         ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -147,14 +155,18 @@ export function RoutineCard({
         <RoutineFlow
           series={series}
           today={today}
-          bufferDays={bufferDays}
-          asksForBuffer={Boolean(onSaveBuffer)}
-          onSave={async (draft, buffer) => {
+          bufferVials={bufferVials}
+          orderDayOfMonth={orderDayOfMonth}
+          defaultVials={defaultVials}
+          asksForOrderPreferences={Boolean(onSaveOrderPreferences)}
+          onSave={async (draft, buffer, orderDay) => {
             // The series first: the buffer is only meaningful against a
             // routine, and a failed schedule write should not leave one set.
             const ok = await onReplace(draft);
             if (!ok) return;
-            if (buffer !== null && onSaveBuffer) await onSaveBuffer(buffer);
+            if (buffer !== null && orderDay !== null && onSaveOrderPreferences) {
+              await onSaveOrderPreferences(buffer, orderDay);
+            }
             setEditing(false);
           }}
           onClose={() => setEditing(false)}
@@ -188,71 +200,62 @@ function RoutineField({
   );
 }
 
-type Step = "start" | "frequency" | "vials" | "buffer";
+type Step = "start" | "frequency" | "vials" | "buffer" | "orderDay";
 
 /**
- * The questions a routine is made of, asked in order. Saving replaces the
- * series outright: a new start date is a permanent shift of the cycle.
+ * The questions a routine is made of, asked in order. An every-X-days routine
+ * needs a start date to anchor its cycle; selected weekdays do not, so that
+ * path skips the calendar. Saving replaces the series outright.
  *
  * The buffer is the last of them. It is not part of the series — it is stored
- * on the profile — but it is asked here because a number of days of cover only
- * means something once there is a routine to count doses from.
+ * on the profile — but it is asked here because a vial reserve only means
+ * something once there is a routine to compare it with.
  */
 function RoutineFlow({
   series,
   today,
-  bufferDays,
-  asksForBuffer,
+  bufferVials,
+  orderDayOfMonth,
+  defaultVials,
+  asksForOrderPreferences,
   onSave,
   onClose,
 }: {
   series: Schedule | null;
   today: Date;
-  bufferDays: number | null;
-  asksForBuffer: boolean;
-  onSave: (draft: RoutineDraft, bufferDays: number | null) => Promise<void>;
+  bufferVials: number | null;
+  orderDayOfMonth: number | null;
+  defaultVials?: number;
+  asksForOrderPreferences: boolean;
+  onSave: (
+    draft: RoutineDraft,
+    bufferVials: number | null,
+    orderDayOfMonth: number | null,
+  ) => Promise<void>;
   onClose: () => void;
 }) {
-  const [step, setStep] = useState<Step>("start");
+  const [step, setStep] = useState<Step>("frequency");
   const [start, setStart] = useState<Date>(series ? fromKey(series.start_on) : today);
   const [pickerMonth, setPickerMonth] = useState(series ? fromKey(series.start_on) : today);
   const [frequency, setFrequency] = useState<Frequency | undefined>(() =>
     series ? frequencyOf(series) : undefined,
   );
-  const [vials, setVials] = useState(series ? String(series.vials) : "");
-  // Whole days: the fold rounds a fraction up anyway, and the pad is digits.
-  const [buffer, setBuffer] = useState(bufferDays === null ? "" : String(Math.ceil(bufferDays)));
+  const [vials, setVials] = useState(
+    series ? String(series.vials) : defaultVials ? String(defaultVials) : "",
+  );
+  const [buffer, setBuffer] = useState(bufferVials === null ? "" : String(Math.ceil(bufferVials)));
+  const [orderDay, setOrderDay] = useState(String(orderDayOfMonth ?? today.getDate()));
   const [saving, setSaving] = useState(false);
   const eyebrow = series ? "Change routine" : "Set up routine";
 
-  function save(bufferToSave: number | null) {
+  function save(bufferToSave: number | null, orderDayToSave: number | null) {
     if (saving || !frequency) return;
     setSaving(true);
     void onSave(
       { start_on: toKey(start), ...frequencyToApi(frequency), vials: Number(vials) },
       bufferToSave,
+      orderDayToSave,
     ).finally(() => setSaving(false));
-  }
-
-  if (step === "start") {
-    return (
-      <Sheet
-        tier="action"
-        eyebrow={eyebrow}
-        title="When does this routine start?"
-        onClose={onClose}
-      >
-        <DatePicker
-          month={pickerMonth}
-          selected={start}
-          onMonthChange={setPickerMonth}
-          onSelect={(date) => {
-            setStart(date);
-            setStep("frequency");
-          }}
-        />
-      </Sheet>
-    );
   }
 
   if (step === "frequency") {
@@ -261,8 +264,6 @@ function RoutineFlow({
         tier="action"
         eyebrow={eyebrow}
         title="How often is prophylaxis due?"
-        onBack={() => setStep("start")}
-        backLabel="Back to start date"
         onClose={onClose}
       >
         <FrequencyEditor
@@ -270,6 +271,33 @@ function RoutineFlow({
           confirmLabel="Next"
           onConfirm={(chosen) => {
             setFrequency(chosen);
+            if (chosen.unit === "days") setStep("start");
+            else {
+              setStart(today);
+              setStep("vials");
+            }
+          }}
+        />
+      </Sheet>
+    );
+  }
+
+  if (step === "start") {
+    return (
+      <Sheet
+        tier="action"
+        eyebrow={eyebrow}
+        title="When does this routine start?"
+        onBack={() => setStep("frequency")}
+        backLabel="Back to frequency"
+        onClose={onClose}
+      >
+        <DatePicker
+          month={pickerMonth}
+          selected={start}
+          onMonthChange={setPickerMonth}
+          onSelect={(date) => {
+            setStart(date);
             setStep("vials");
           }}
         />
@@ -278,14 +306,14 @@ function RoutineFlow({
   }
 
   if (step === "vials") {
-    const last = !asksForBuffer;
+    const last = !asksForOrderPreferences;
     return (
       <Sheet
         tier="action"
         eyebrow={eyebrow}
         title="How many vials per dose?"
-        onBack={() => setStep("frequency")}
-        backLabel="Back to frequency"
+        onBack={() => setStep(frequency?.unit === "days" ? "start" : "frequency")}
+        backLabel={frequency?.unit === "days" ? "Back to start date" : "Back to frequency"}
         onClose={onClose}
       >
         <NumberField
@@ -295,7 +323,30 @@ function RoutineFlow({
           confirmLabel={
             last ? (saving ? "Saving…" : series ? "Start new routine" : "Start routine") : "Next"
           }
-          onConfirm={() => (last ? save(null) : setStep("buffer"))}
+          onConfirm={() => (last ? save(null, null) : setStep("buffer"))}
+        />
+      </Sheet>
+    );
+  }
+
+  if (step === "buffer") {
+    return (
+      <Sheet
+        tier="action"
+        eyebrow={eyebrow}
+        title="How much cover do you want left when you order?"
+        onBack={() => setStep("vials")}
+        backLabel="Back to dosage"
+        onClose={onClose}
+      >
+        <NumberField
+          label="Vials in reserve"
+          value={buffer}
+          onChange={setBuffer}
+          suffix="vials"
+          hint="We’ll warn you if your stock falls below this reserve."
+          confirmLabel="Next"
+          onConfirm={() => setStep("orderDay")}
         />
       </Sheet>
     );
@@ -305,19 +356,21 @@ function RoutineFlow({
     <Sheet
       tier="action"
       eyebrow={eyebrow}
-      title="How much cover do you want left when you order?"
-      onBack={() => setStep("vials")}
-      backLabel="Back to dosage"
+      title="Which day do you order each month?"
+      onBack={() => setStep("buffer")}
+      backLabel="Back to vial reserve"
       onClose={onClose}
     >
       <NumberField
-        label="Days of cover"
-        value={buffer}
-        onChange={setBuffer}
-        suffix="days"
-        hint="Your order-by date is this far ahead of the day your supply runs out. 7 means order with about a week of doses left."
+        label="Day of month"
+        value={orderDay}
+        onChange={setOrderDay}
+        max={31}
+        hint="For shorter months, we’ll use the final day of the month."
         confirmLabel={saving ? "Saving…" : series ? "Start new routine" : "Start routine"}
-        onConfirm={() => save(buffer === "" ? null : Number(buffer))}
+        onConfirm={() =>
+          save(buffer === "" ? null : Number(buffer), orderDay === "" ? null : Number(orderDay))
+        }
       />
     </Sheet>
   );

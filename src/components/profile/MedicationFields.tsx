@@ -14,27 +14,31 @@ import {
 
 /**
  * Product, dose and unit, with the catalog's suggestions filtered to the
- * diagnosis. Naming a known product fills in its unit; anything can be typed.
+ * diagnosis. A caller can fix the unit when the rest of the app tracks that
+ * medication in one canonical measure (regular factor uses vials).
  */
 export function MedicationFields({
   medication,
   onChange,
   kind,
   diagnosis,
+  fixedUnit,
 }: {
   medication: MedicationDraft;
   onChange: (next: MedicationDraft) => void;
   kind: MedicationKind;
   diagnosis: DiagnosisType;
+  /** Regular factor is tracked as whole vials rather than a product-specific unit. */
+  fixedUnit?: string;
 }) {
   const [focused, setFocused] = useState(false);
   const update = (patch: Partial<MedicationDraft>) => onChange({ ...medication, ...patch });
   const product = matchedMedication(medication.name);
   const suggestions = medicationSuggestions(medication.name, kind, diagnosis);
-  const units = product?.units ?? ALL_UNITS;
+  const units = fixedUnit ? [fixedUnit] : (product?.units ?? ALL_UNITS);
 
   function selectProduct(selected: MedicationProduct) {
-    update({ name: selected.name, unit: selected.units[0] });
+    update({ name: selected.name, unit: fixedUnit ?? selected.units[0] });
     setFocused(false);
   }
 
@@ -50,7 +54,7 @@ export function MedicationFields({
             onChange={(event) => {
               const name = event.target.value;
               const exact = matchedMedication(name);
-              update({ name, unit: exact?.units[0] ?? "" });
+              update({ name, unit: fixedUnit ?? exact?.units[0] ?? "" });
             }}
             autoComplete="off"
             placeholder="Type a product or medicine"
@@ -78,27 +82,30 @@ export function MedicationFields({
           ) : null}
         </div>
       </Field>
-      <div className="grid grid-cols-[1fr_128px] gap-3">
+      <div className={fixedUnit ? undefined : "grid grid-cols-[1fr_128px] gap-3"}>
         <NumericField
-          label="Dose"
-          mode="decimal"
+          label={fixedUnit === "vials" ? "Vials per dose" : "Dose"}
+          mode={fixedUnit === "vials" ? "integer" : "decimal"}
           value={medication.dose}
           onChange={(dose) => update({ dose })}
-          placeholder="Enter dose"
+          placeholder={fixedUnit === "vials" ? "Number of vials" : "Enter dose"}
+          max={fixedUnit === "vials" ? 99 : undefined}
         />
-        <Field label="Unit">
-          <select
-            className={inputClass}
-            value={medication.unit}
-            onChange={(event) => update({ unit: event.target.value })}
-            disabled={!medication.name}
-          >
-            {!medication.unit ? <option value="">Select</option> : null}
-            {units.map((unit) => (
-              <option key={unit}>{unit}</option>
-            ))}
-          </select>
-        </Field>
+        {!fixedUnit ? (
+          <Field label="Unit">
+            <select
+              className={inputClass}
+              value={medication.unit}
+              onChange={(event) => update({ unit: event.target.value })}
+              disabled={!medication.name}
+            >
+              {!medication.unit ? <option value="">Select</option> : null}
+              {units.map((unit) => (
+                <option key={unit}>{unit}</option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
       </div>
     </div>
   );

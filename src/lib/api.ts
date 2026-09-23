@@ -53,7 +53,8 @@ export type CareTeamContact = {
  * Three screens own different parts of it and each must preserve the others'
  * when it saves: onboarding owns the diagnosis and the regular medication, the
  * Medical ID page owns the severity and everything a responder reads, and the
- * tracker's routine owns `minimum_buffer_days`.
+ * tracker's routine owns the vial reserve stored under the legacy
+ * `minimum_buffer_days` API key.
  */
 export type ClinicalProfile = {
   diagnosis: DiagnosisType;
@@ -63,7 +64,7 @@ export type ClinicalProfile = {
   acquired_bleeding_severity: string | null;
   prophylactic_medication: MedicationDetails | null;
   on_demand_medication: MedicationDetails | null;
-  /** Days of coverage to keep in reserve before ordering. The order date itself comes from the fold. */
+  /** Whole vials to keep in reserve before ordering. The key is retained for API compatibility. */
   minimum_buffer_days: number | null;
   /** Medical ID. All optional — the card says "Not recorded" rather than inventing a contact. */
   date_of_birth: string | null;
@@ -191,8 +192,7 @@ export type Occurrence = {
 /**
  * A temporary change to the routine between two dates, inclusive — "Plan
  * Ahead". A null frequency or `vials` means "as the routine has it". The API
- * applies it inside the fold, so planned doses, the run-out date and the
- * order advice all follow it.
+ * applies it inside the fold, so planned doses and monthly order advice follow it.
  */
 export type Plan = {
   id: number;
@@ -206,10 +206,8 @@ export type Plan = {
 export type PlanDraft = Omit<Plan, "id">;
 
 /**
- * When to order and how much, from stock and the schedule. `due` means the
- * date has already arrived. The rest is the working: the doses planned from
- * the run-out date through `covers_until` (a month plus the buffer), less
- * the vials still in the cupboard on the run-out date.
+ * When to order and how much, from stock and the schedule. The frontend
+ * replaces the API's legacy day-buffer result with vial-reserve advice.
  */
 export type OrderAdvice = {
   by_on: string;
@@ -219,6 +217,7 @@ export type OrderAdvice = {
   planned_doses: number;
   planned_vials: number;
   leftover_vials: number;
+  /** Whole-vial reserve. The legacy key is retained in the wire-compatible shape. */
   buffer_days: number;
 };
 
@@ -229,6 +228,7 @@ export type Status = {
   unaccounted_vials: number;
   /** Calendar days until a planned dose cannot be supplied, capped at a year. Zero without a schedule. */
   days_cover: number;
+  /** Legacy API forecast; the app's ordering flow is anchored to the chosen monthly order day. */
   runs_out_on: string | null;
   last_dose_on: string | null;
   /** The most recent on-demand dose — the app's marker for a treated bleed. */

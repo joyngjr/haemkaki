@@ -165,13 +165,13 @@ function resolveDoseStatus(ctx: { dose: DoseState; hasRecentBleed: boolean }): D
 
 /**
  * The rule the tracker's supply card tints its figure by: out at zero, low
- * for the last three vials or once the order-by date has arrived. Unknown —
+ * once the recurring order day arrives or the configured reserve is breached. Unknown —
  * the status still loading — reads as fine rather than as empty.
  */
 function supplyNeedOf(supply: SupplyStatus | null): SupplyNeed {
   if (!supply) return "ok";
   if (supply.vialsOnHand <= 0) return "out";
-  return supply.vialsOnHand <= 3 || supply.order?.due === true ? "low" : "ok";
+  return supply.order?.due === true ? "low" : "ok";
 }
 
 /**
@@ -199,7 +199,7 @@ function orderNote(supply: SupplyStatus): string | undefined {
   if (supply.order) {
     return supply.order.due ? "Order now" : `Order by ${formatShortDay(supply.order.byOn)}`;
   }
-  return supply.runsOutOn ? `Runs out ${formatShortDay(supply.runsOutOn)}` : undefined;
+  return undefined;
 }
 
 /* ===================================================================== */

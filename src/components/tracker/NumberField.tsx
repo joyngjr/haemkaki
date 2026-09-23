@@ -11,6 +11,7 @@ export function NumberField({
   value,
   onChange,
   maxLength = 2,
+  max,
   hint,
   suffix,
   confirmLabel,
@@ -26,13 +27,15 @@ export function NumberField({
    * produces a 422 the user cannot act on.
    */
   maxLength?: number;
+  /** Largest accepted value, when the domain has one (for example day 31). */
+  max?: number;
   hint?: string;
-  /** Unit rendered inside the field, e.g. "days". */
+  /** Unit rendered inside the field, e.g. "vials". */
   suffix?: string;
   confirmLabel: string;
   onConfirm: () => void;
 }) {
-  const valid = Number(value) > 0;
+  const valid = Number(value) > 0 && (max === undefined || Number(value) <= max);
 
   return (
     <>

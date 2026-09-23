@@ -14,8 +14,8 @@ import {
  * A temporary change to the usual routine over a date range — a trip, an
  * illness, a procedure. Either field left unset means "as usual".
  *
- * The API applies a plan inside its fold, so the calendar's planned doses,
- * the run-out date and the order advice all follow it. Nothing here works out
+ * The API applies a plan inside its fold, so the calendar's planned doses
+ * and monthly order advice follow it. Nothing here works out
  * a dose day; this module only converts to and from the API's rows and
  * formats a plan for the card.
  */

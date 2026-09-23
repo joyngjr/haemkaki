@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import type { OrderAdvice } from "@/lib/api";
 import { FOCUS_RING } from "@/lib/theme";
-import { fromKey, getSingaporeTodayKey, shortDate, toKey } from "@/lib/tracker-dates";
+import { fromKey, shortDate } from "@/lib/tracker-dates";
 import type { SupplyRow } from "@/lib/tracker-entries";
 import { cn } from "@/lib/utils";
 
@@ -12,9 +12,10 @@ import { QuestionIcon } from "./TrackerIcons";
 
 type FactorSupplyCardProps = {
   vialsRemaining: number;
+  /** Whole-vial reserve selected during routine setup. */
+  bufferVials: number | null;
+  orderDayOfMonth: number | null;
   hasSchedule: boolean;
-  /** The first planned dose the cupboard cannot supply; null when stocked for a year. */
-  runsOutOn: Date | null;
   order: OrderAdvice | null;
   isLoading: boolean;
   onShowHistory: () => void;
@@ -40,8 +41,9 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
  */
 export function FactorSupplyCard({
   vialsRemaining,
+  bufferVials,
+  orderDayOfMonth,
   hasSchedule,
-  runsOutOn,
   order,
   isLoading,
   onShowHistory,
@@ -49,10 +51,7 @@ export function FactorSupplyCard({
 }: FactorSupplyCardProps) {
   const [showOrderHelp, setShowOrderHelp] = useState(false);
   const isOut = vialsRemaining <= 0;
-  // The run-out date can still be ahead of you with nothing in the cupboard —
-  // the next dose is simply the one that cannot be supplied.
-  const hasRunOut = runsOutOn !== null && toKey(runsOutOn) <= getSingaporeTodayKey();
-  const isLow = Boolean(order?.due) || (vialsRemaining > 0 && vialsRemaining <= 3);
+  const isLow = Boolean(order?.due);
 
   return (
     <Card className={cn("lg:p-6", className)}>
@@ -61,7 +60,7 @@ export function FactorSupplyCard({
         <button
           type="button"
           onClick={() => setShowOrderHelp(true)}
-          aria-label="How the refill suggestion is worked out"
+          aria-label="How the recommended order is calculated"
           className={cn(
             "-mr-1.5 grid h-11 w-11 place-items-center rounded-full text-ink-faint hover:text-ink-muted",
             FOCUS_RING,
@@ -80,34 +79,30 @@ export function FactorSupplyCard({
         >
           {isLoading ? "…" : vialsRemaining}
         </span>
-        <span className="text-[15px] text-ink-muted">vials left</span>
+        <span className="text-[15px] text-ink-muted">vials recorded at home</span>
       </div>
 
       {/* Without a routine there is nothing to forecast, so the card says nothing. */}
       {hasSchedule ? (
         <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-          {runsOutOn === null ? (
-            "Your supply covers every planned dose for the coming year."
-          ) : (
-            <>
-              Your supply {hasRunOut ? "ran out on" : "runs out on"}{" "}
-              <strong className="font-semibold text-ink">{mediumDate(runsOutOn)}</strong>.
-              {order
-                ? ` ${plural(order.vials, "vial")} covers you to ${mediumDate(fromKey(order.covers_until))}.`
-                : ""}
-            </>
-          )}
+          {order
+            ? `Your next regular order is ${mediumDate(fromKey(order.by_on))}. Ordering ${plural(order.vials, "vial")} covers planned use until your following monthly order and leaves your chosen reserve.`
+            : "Set a monthly order day to receive an order recommendation."}
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-3 text-sm leading-relaxed text-ink-muted">
+          Set up a routine to forecast when you may need to order more factor.
+        </p>
+      )}
 
       {order ? (
         <div className="mt-4 grid grid-cols-2 gap-2">
           <OrderFigure
-            label="Order by"
+            label="Next order date"
             value={order.due ? "ASAP" : mediumDate(fromKey(order.by_on))}
             urgent={order.due}
           />
-          <OrderFigure label="Vials to order" value={String(order.vials)} />
+          <OrderFigure label="Recommended vials" value={String(order.vials)} />
         </div>
       ) : null}
 
@@ -125,7 +120,8 @@ export function FactorSupplyCard({
       {showOrderHelp && (
         <OrderHelpSheet
           order={order}
-          runsOutOn={runsOutOn}
+          bufferVials={bufferVials}
+          orderDayOfMonth={orderDayOfMonth}
           hasSchedule={hasSchedule}
           onClose={() => setShowOrderHelp(false)}
         />
@@ -151,56 +147,63 @@ function OrderFigure({ label, value, urgent }: { label: string; value: string; u
   );
 }
 
-/** The working behind the recommended order, as the API reported it. */
+/** A plain-language breakdown of the recommended order. */
 function OrderHelpSheet({
   order,
-  runsOutOn,
+  bufferVials,
+  orderDayOfMonth,
   hasSchedule,
   onClose,
 }: {
   order: OrderAdvice | null;
-  runsOutOn: Date | null;
+  bufferVials: number | null;
+  orderDayOfMonth: number | null;
   hasSchedule: boolean;
   onClose: () => void;
 }) {
   return (
     <Sheet
       tier="action"
-      eyebrow="Recommended order"
-      title="How is this worked out?"
+      eyebrow="Order calculation"
+      title="How many vials should I order?"
       onClose={onClose}
     >
       <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-        We count the doses planned from the day your supply runs out through the next 30 days plus
-        your buffer, then subtract the vials you will still have on that day.
+        We project how many vials will remain immediately after your dose on the next monthly order
+        day. We then calculate the planned use until the following monthly order day.
       </p>
-      {order && runsOutOn ? (
+      {order ? (
         <div className="mt-4 space-y-2">
           <HelpRow
-            label={`Planned doses, ${shortDate(runsOutOn)} – ${shortDate(fromKey(order.covers_until))}`}
+            label={`Planned use after ${shortDate(fromKey(order.by_on))} through ${shortDate(fromKey(order.covers_until))}`}
             detail={plural(order.planned_doses, "dose")}
             value={plural(order.planned_vials, "vial")}
           />
-          <HelpRow label="− Vials left by then" value={plural(order.leftover_vials, "vial")} />
-          <HelpRow label="= Vials to order" value={plural(order.vials, "vial")} strong />
+          <HelpRow label="+ Reserve you want to keep" value={plural(bufferVials ?? 0, "vial")} />
+          <HelpRow
+            label="− Projected stock after your order-day dose"
+            value={plural(order.leftover_vials, "vial")}
+          />
+          <HelpRow label="= Recommended order" value={plural(order.vials, "vial")} strong />
         </div>
       ) : (
         <p className="mt-4 rounded-xl bg-soft px-3.5 py-3 text-sm text-ink-muted">
           {hasSchedule
-            ? "Your supply covers every planned dose for the coming year, so there is nothing to order yet."
-            : "Set up your routine to see your number."}
+            ? "Choose a monthly order day to calculate a recommendation."
+            : "Set up your routine before the app can calculate an order recommendation."}
         </p>
       )}
       <p className="mt-3 text-[12.5px] leading-relaxed text-ink-subtle">
-        {order
-          ? `Your buffer is ${plural(order.buffer_days, "day")}, so the order-by date is that far ahead of the run-out date. `
-          : ""}
-        Planned doses come from your routine and any plans you've added.
+        {orderDayOfMonth
+          ? `Your regular order day is day ${orderDayOfMonth} of each month. `
+          : "No regular monthly order day is recorded. "}
+        {bufferVials !== null
+          ? `If your recorded stock falls below ${plural(bufferVials, "vial")}, the app changes the next order date to ASAP.`
+          : "No vial reserve is recorded."}
       </p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-subtle">
-        This is a suggestion, not an order — the app cannot place one. Buy through your centre as
-        you normally would, and record what arrives as a refill on the tracker; the vial count here
-        is that record less every dose logged against it.
+        This is a planning estimate, not a placed order. Record each delivery as a refill so the
+        calculation continues from the correct stock balance.
       </p>
     </Sheet>
   );

@@ -36,6 +36,8 @@ import {
 } from "@/lib/tracker-entries";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { useScrollToHash } from "@/lib/scroll";
+import { medicationVialCount } from "@/lib/medication-dose";
+import { decodeOrderPreferences, encodeOrderPreferences } from "@/lib/order-preferences";
 import { useHomeData } from "@/state/home-context";
 import { useProfiles } from "@/state/profile-context";
 
@@ -60,10 +62,14 @@ export type TrackerLayout = (cards: TrackerCards) => ReactNode;
 type TrackerProps = {
   /** Whose ledger to load. Undefined before any profile exists; the page then reads empty. */
   profileId?: number;
-  /** Days of cover to keep in reserve before ordering, as the profile stores it. */
-  bufferDays: number | null;
+  /** Vials to keep in reserve before ordering, as the profile stores it. */
+  bufferVials: number | null;
+  /** Recurring calendar day on which this profile orders. */
+  orderDayOfMonth: number | null;
+  /** Whole-vial dose recorded during profile creation. */
+  defaultVials?: number;
   /** Stores a new buffer on the profile. Absent when there is no profile to merge it into. */
-  onSaveBuffer?: (days: number) => Promise<boolean>;
+  onSaveOrderPreferences?: (vials: number, dayOfMonth: number) => Promise<boolean>;
   layout: TrackerLayout;
 };
 
@@ -115,14 +121,21 @@ function missedDays(
  * `useLedger` for the entries (with what the API charged for each),
  * `useSchedule` for the routine and the doses it plans in the visible grid,
  * `usePlans` for the temporary changes to it, and `useStatus` for the fold —
- * vials on hand, the run-out date and the order advice — re-read whenever
+ * vials on hand and the monthly order advice — re-read whenever
  * any of the other three writes.
  *
  * The status card writes to the same ledger and routine. Its writes move
  * `writeVersion`, which re-reads all three here; this page's writes re-read
  * the status card's figures through `refreshStatus`.
  */
-function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerProps) {
+function TrackerPage({
+  profileId,
+  bufferVials,
+  orderDayOfMonth,
+  defaultVials,
+  onSaveOrderPreferences,
+  layout,
+}: TrackerProps) {
   const today = useMemo(() => getSingaporeToday(), []);
   const [viewMonth, setViewMonth] = useState(today);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -143,7 +156,12 @@ function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerPro
   // The planned doses follow the plans, so a plan write re-reads the window.
   const schedule = useSchedule(profileId, range, plans.version + writeVersion);
   const trackerVersion = ledgerVersion + schedule.version + plans.version;
-  const { status, error: statusError } = useStatus(profileId, trackerVersion + writeVersion);
+  const { status, error: statusError } = useStatus(
+    profileId,
+    trackerVersion + writeVersion,
+    bufferVials,
+    orderDayOfMonth,
+  );
   const routineFrequency = schedule.series ? frequencyOf(schedule.series) : undefined;
 
   // The status card reads the same fold; keep it level with every write here.
@@ -323,8 +341,9 @@ function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerPro
         supply: (
           <FactorSupplyCard
             vialsRemaining={status?.vials_on_hand ?? 0}
+            bufferVials={bufferVials}
+            orderDayOfMonth={orderDayOfMonth}
             hasSchedule={Boolean(status?.schedule)}
-            runsOutOn={status?.runs_out_on ? fromKey(status.runs_out_on) : null}
             order={status?.order ?? null}
             isLoading={status === null}
             onShowHistory={() => setShowSupplyHistory(true)}
@@ -336,10 +355,12 @@ function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerPro
           <RoutineCard
             series={schedule.series}
             today={today}
-            bufferDays={bufferDays}
+            bufferVials={bufferVials}
+            orderDayOfMonth={orderDayOfMonth}
+            defaultVials={defaultVials}
             onReplace={schedule.replace}
             onRemove={schedule.remove}
-            onSaveBuffer={onSaveBuffer}
+            onSaveOrderPreferences={onSaveOrderPreferences}
           />
         ),
         planAhead: (
@@ -513,19 +534,23 @@ export function Tracker({ layout = phoneLayout }: { layout?: TrackerLayout }) {
   const { activeProfile, updateProfile } = useProfiles();
   const clinical = activeProfile?.clinical_profile ?? null;
   const profileId = activeProfile?.id;
+  const orderPreferences = decodeOrderPreferences(clinical?.minimum_buffer_days);
 
   /**
-   * The order buffer is asked for beside the routine but stored on the
+   * The vial reserve is asked for beside the routine but stored on the
    * profile, so this merges it into what is already there — the Medical ID
    * fields and the diagnosis are saved by their own screens, and the API
    * replaces the whole object.
    */
-  const saveBuffer = useCallback(
-    async (days: number) => {
+  const saveOrderPreferences = useCallback(
+    async (vials: number, dayOfMonth: number) => {
       if (profileId === undefined || !clinical) return false;
       try {
         await updateProfile(profileId, {
-          clinical_profile: { ...clinical, minimum_buffer_days: days },
+          clinical_profile: {
+            ...clinical,
+            minimum_buffer_days: encodeOrderPreferences(vials, dayOfMonth),
+          },
         });
         return true;
       } catch {
@@ -543,8 +568,10 @@ export function Tracker({ layout = phoneLayout }: { layout?: TrackerLayout }) {
       // open sheet, and neither means anything for the person you just became.
       key={activeProfile?.id ?? "none"}
       profileId={profileId}
-      bufferDays={clinical?.minimum_buffer_days ?? null}
-      onSaveBuffer={clinical ? saveBuffer : undefined}
+      bufferVials={orderPreferences.bufferVials}
+      orderDayOfMonth={orderPreferences.orderDayOfMonth}
+      defaultVials={medicationVialCount(clinical?.prophylactic_medication)}
+      onSaveOrderPreferences={clinical ? saveOrderPreferences : undefined}
       layout={layout}
     />
   );

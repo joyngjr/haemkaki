@@ -3,7 +3,7 @@ import { useState } from "react";
 import {
   emptyClinicalProfile,
   medicationForStorage,
-  medicationFromStorage,
+  prophylaxisMedicationFromStorage,
   type MedicationDraft,
 } from "@/components/profile/clinical-profile";
 import { Choice, Field, inputClass } from "@/components/profile/form-fields";
@@ -81,7 +81,7 @@ export function AddProfileForm({
   const [name, setName] = useState(profile?.name ?? "");
   const [diagnosis, setDiagnosis] = useState<DiagnosisType>(diagnosisFromProfile(profile));
   const [medication, setMedication] = useState<MedicationDraft>(
-    medicationFromStorage(clinical?.prophylactic_medication ?? null),
+    prophylaxisMedicationFromStorage(clinical?.prophylactic_medication ?? null),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +151,8 @@ export function AddProfileForm({
             Your regular medication <span className="font-normal text-sand-500">— optional</span>
           </p>
           <p className="mt-1 text-xs leading-5 text-sand-600">
-            Pre-populates factor dosage for quicker logging.
+            Enter the whole number of vials used per dose. This pre-fills your routine and dose
+            log.
           </p>
           <div className="mt-3">
             <MedicationFields
@@ -159,6 +160,7 @@ export function AddProfileForm({
               onChange={setMedication}
               kind="prophylaxis"
               diagnosis={diagnosis}
+              fixedUnit="vials"
             />
           </div>
         </div>

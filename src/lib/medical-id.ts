@@ -1,4 +1,5 @@
 import type { ClinicalProfile, Profile } from "@/lib/api";
+import { medicationDoseLabel } from "@/lib/medication-dose";
 
 /**
  * The labels the Medical ID and the Resources summary card both read off a
@@ -59,24 +60,22 @@ export function diagnosisWithSeverity(profile: Profile): string {
   return severity === "Not recorded" ? label : `${label}, ${severity.toLowerCase()}`;
 }
 
-/** "Factor VIII, 2000 IU" — what is being taken, as far as the profile records it. */
+/** "Factor VIII, 2 vials" — what is being taken, as far as the profile records it. */
 export function treatmentLabel(profile: Profile): string {
   const medication = profile.clinical_profile?.prophylactic_medication;
   const name = medication?.name?.trim() || `Factor ${profile.factor_type}`;
-  return medication?.dose && medication.unit
-    ? `${name}, ${medication.dose} ${medication.unit}`
-    : name;
+  const dose = medicationDoseLabel(medication);
+  return dose ? `${name}, ${dose}` : name;
 }
 
 /** The medications actually on file, prophylaxis first. */
 export function medicationSummary(clinical: ClinicalProfile | null): string {
   const named = [clinical?.prophylactic_medication, clinical?.on_demand_medication]
     .filter((medication) => medication?.name)
-    .map((medication) =>
-      medication!.dose && medication!.unit
-        ? `${medication!.name} (${medication!.dose} ${medication!.unit})`
-        : medication!.name,
-    );
+    .map((medication) => {
+      const dose = medicationDoseLabel(medication);
+      return dose ? `${medication!.name} (${dose})` : medication!.name;
+    });
   return named.length ? named.join(", ") : "Not recorded";
 }
 
