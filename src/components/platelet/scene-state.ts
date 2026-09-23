@@ -16,6 +16,17 @@ export type Coverage = "ok" | "low" | "none";
  */
 export type Supply = "stocked" | "low" | "empty";
 
+/**
+ * The wall colour of the room `StatusScene` draws for each supply state. The
+ * status card paints it across the whole card from `lg`, so the room runs on
+ * behind its panel.
+ */
+export const SCENE_WALL: Record<Supply, string> = {
+  stocked: "#EFEBE1",
+  low: "#E9E6DE",
+  empty: "#E2E3E6",
+};
+
 /** Kaki's own dose state maps straight onto coverage. */
 export function coverageFromDose(dose: DoseState): Coverage {
   return dose === "covered" ? "ok" : dose === "low" ? "low" : "none";

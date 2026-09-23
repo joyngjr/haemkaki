@@ -2,7 +2,7 @@
 
 > **Status:** Web-researched clinical reference, 18 September 2026  
 > **Issuing skill:** `firecrawl`  
-> **Intended use:** HackitRx drug-allergy search terms and clinical-domain reference  
+> **Intended use:** HaemKaki drug-allergy search terms and clinical-domain reference  
 > **Not intended as:** A diagnosis, a prediction that a patient is allergic, or an automatic drug-exclusion rule
 
 ## Scope and safety boundary

@@ -19,17 +19,17 @@ export function makeLocationIcon(type: LocationType) {
   });
 }
 
-/** The pulsing blue dot for the device's own position. */
+/** The pulsing green dot for the device's own position — blue is a treatment centre. */
 export const userIcon = L.divIcon({
   className: "",
   html: `<div style="position: relative; width: 20px; height: 20px;">
     <div style="
       position: absolute; inset: 0; border-radius: 9999px;
-      background: rgba(59,130,246,0.35); animation: pulse-ring 1.6s ease-out infinite;
+      background: rgba(16,185,129,0.35); animation: pulse-ring 1.6s ease-out infinite;
     "></div>
     <div style="
       position: absolute; top: 5px; left: 5px; width: 10px; height: 10px;
-      border-radius: 9999px; background: #3b82f6; border: 2px solid white;
+      border-radius: 9999px; background: #10b981; border: 2px solid white;
     "></div>
   </div>
   <style>

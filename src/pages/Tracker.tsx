@@ -34,15 +34,16 @@ import {
   type EntryMap,
   type TrackerEntry,
 } from "@/lib/tracker-entries";
-import { Card, CardTitle } from "@/components/ui/Card";
 import { useScrollToHash } from "@/lib/scroll";
 import { useHomeData } from "@/state/home-context";
+import { usualDoseVials } from "@/components/profile/clinical-profile";
 import { useProfiles } from "@/state/profile-context";
 
 /**
  * The tracker's cards, for a layout to arrange. The phone's Tracker tab stacks
- * them; the one-page desktop layout sets them beside the status card. The
- * sheets they open belong to the tracker either way.
+ * them; the one-page desktop layout runs them down the page under the status
+ * card, grouped into doses and supplies. The sheets they open belong to the
+ * tracker either way.
  */
 export type TrackerCards = {
   /** Load and save failures, or null when there are none. */
@@ -50,7 +51,6 @@ export type TrackerCards = {
   calendar: ReactNode;
   supply: ReactNode;
   inventory: ReactNode;
-  summary: ReactNode;
   routine: ReactNode;
   planAhead: ReactNode;
 };
@@ -60,10 +60,17 @@ export type TrackerLayout = (cards: TrackerCards) => ReactNode;
 type TrackerProps = {
   /** Whose ledger to load. Undefined before any profile exists; the page then reads empty. */
   profileId?: number;
-  /** Days of cover to keep in reserve before ordering, as the profile stores it. */
-  bufferDays: number | null;
-  /** Stores a new buffer on the profile. Absent when there is no profile to merge it into. */
-  onSaveBuffer?: (days: number) => Promise<boolean>;
+  /** Vials to keep at home, as the profile stores it. */
+  bufferVials: number | null;
+  /** The day of the month this profile orders on, as the profile stores it. */
+  orderDayOfMonth: number | null;
+  /** Stores the buffer and order day on the profile. Absent when there is no profile to merge them into. */
+  onSaveOrderPreferences?: (
+    bufferVials: number | null,
+    orderDay: number | null,
+  ) => Promise<boolean>;
+  /** The regular dose recorded on the profile, in vials. Seeds a routine's dose, and a dose logged without one. */
+  usualVials?: number;
   layout: TrackerLayout;
 };
 
@@ -115,14 +122,21 @@ function missedDays(
  * `useLedger` for the entries (with what the API charged for each),
  * `useSchedule` for the routine and the doses it plans in the visible grid,
  * `usePlans` for the temporary changes to it, and `useStatus` for the fold —
- * vials on hand, the run-out date and the order advice — re-read whenever
+ * factor on hand, the run-out date and the order advice — re-read whenever
  * any of the other three writes.
  *
  * The status card writes to the same ledger and routine. Its writes move
  * `writeVersion`, which re-reads all three here; this page's writes re-read
  * the status card's figures through `refreshStatus`.
  */
-function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerProps) {
+function TrackerPage({
+  profileId,
+  bufferVials,
+  orderDayOfMonth,
+  onSaveOrderPreferences,
+  usualVials,
+  layout,
+}: TrackerProps) {
   const today = useMemo(() => getSingaporeToday(), []);
   const [viewMonth, setViewMonth] = useState(today);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -323,23 +337,26 @@ function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerPro
         supply: (
           <FactorSupplyCard
             vialsRemaining={status?.vials_on_hand ?? 0}
+            stockState={status?.stock_state}
+            bufferVials={bufferVials}
+            orderDayOfMonth={orderDayOfMonth}
             hasSchedule={Boolean(status?.schedule)}
-            runsOutOn={status?.runs_out_on ? fromKey(status.runs_out_on) : null}
             order={status?.order ?? null}
             isLoading={status === null}
             onShowHistory={() => setShowSupplyHistory(true)}
           />
         ),
         inventory: <InventoryCard profileId={profileId} />,
-        summary: <MonthSummary month={viewMonth} entries={entries} missed={missed} />,
         routine: (
           <RoutineCard
             series={schedule.series}
             today={today}
-            bufferDays={bufferDays}
+            bufferVials={bufferVials}
+            orderDayOfMonth={orderDayOfMonth}
+            usualVials={usualVials}
             onReplace={schedule.replace}
             onRemove={schedule.remove}
-            onSaveBuffer={onSaveBuffer}
+            onSaveOrderPreferences={onSaveOrderPreferences}
           />
         ),
         planAhead: (
@@ -384,6 +401,7 @@ function TrackerPage({ profileId, bufferDays, onSaveBuffer, layout }: TrackerPro
         <FactorUseFlow
           saved={savedUse}
           routineVials={schedule.series?.vials}
+          usualVials={usualVials}
           missedDays={makeupCandidates}
           onSave={saveUse}
           onBack={closeFlows}
@@ -437,7 +455,6 @@ function TrackerScreen({ cards }: { cards: TrackerCards }) {
           {cards.supply}
         </div>
         {cards.inventory}
-        {cards.summary}
         <div id="routine" className="scroll-mt-4">
           {cards.routine}
         </div>
@@ -448,61 +465,6 @@ function TrackerScreen({ cards }: { cards: TrackerCards }) {
 }
 
 const phoneLayout: TrackerLayout = (cards) => <TrackerScreen cards={cards} />;
-
-const SUMMARY_KINDS = {
-  taken: new Set<TrackerEntry["kind"]>(["prophylaxis", "makeup", "follow-up"]),
-  bleeds: new Set<TrackerEntry["kind"]>(["on-demand"]),
-} as const;
-
-/**
- * "September so far" — the three counts a clinic conversation opens with,
- * tallied for whichever month the calendar is showing. Doses taken and bleeds
- * treated come from the ledger; doses missed are the planned days it has
- * nothing for, so they are counted from `missed` rather than from entries.
- */
-function MonthSummary({
-  month,
-  entries,
-  missed,
-}: {
-  month: Date;
-  entries: EntryMap;
-  missed: string[];
-}) {
-  const prefix = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
-  const counts = useMemo(() => {
-    const tally = { taken: 0, missed: 0, bleeds: 0 };
-    for (const [dateKey, dayEntries] of Object.entries(entries)) {
-      if (!dateKey.startsWith(prefix)) continue;
-      for (const entry of dayEntries) {
-        if (SUMMARY_KINDS.taken.has(entry.kind)) tally.taken += 1;
-        else if (SUMMARY_KINDS.bleeds.has(entry.kind)) tally.bleeds += 1;
-      }
-    }
-    tally.missed = missed.filter((dateKey) => dateKey.startsWith(prefix)).length;
-    return tally;
-  }, [entries, missed, prefix]);
-
-  const rows: [string, number][] = [
-    ["Doses taken", counts.taken],
-    ["Doses missed", counts.missed],
-    ["Bleeds treated", counts.bleeds],
-  ];
-
-  return (
-    <Card className="lg:p-6">
-      <CardTitle>{month.toLocaleDateString("en-SG", { month: "long" })} so far</CardTitle>
-      <dl className="mt-4">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex items-baseline justify-between py-1.5">
-            <dt className="text-[15px] text-ink-muted">{label}</dt>
-            <dd className="font-mono text-[22px] font-semibold">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </Card>
-  );
-}
 
 /* ===================================================================== */
 /* Tracker — the adapter between the page and the active profile         */
@@ -520,12 +482,16 @@ export function Tracker({ layout = phoneLayout }: { layout?: TrackerLayout }) {
    * fields and the diagnosis are saved by their own screens, and the API
    * replaces the whole object.
    */
-  const saveBuffer = useCallback(
-    async (days: number) => {
+  const saveOrderPreferences = useCallback(
+    async (bufferVials: number | null, orderDay: number | null) => {
       if (profileId === undefined || !clinical) return false;
       try {
         await updateProfile(profileId, {
-          clinical_profile: { ...clinical, minimum_buffer_days: days },
+          clinical_profile: {
+            ...clinical,
+            minimum_buffer_vials: bufferVials,
+            order_day_of_month: orderDay,
+          },
         });
         return true;
       } catch {
@@ -543,8 +509,10 @@ export function Tracker({ layout = phoneLayout }: { layout?: TrackerLayout }) {
       // open sheet, and neither means anything for the person you just became.
       key={activeProfile?.id ?? "none"}
       profileId={profileId}
-      bufferDays={clinical?.minimum_buffer_days ?? null}
-      onSaveBuffer={clinical ? saveBuffer : undefined}
+      bufferVials={clinical?.minimum_buffer_vials ?? null}
+      orderDayOfMonth={clinical?.order_day_of_month ?? null}
+      onSaveOrderPreferences={clinical ? saveOrderPreferences : undefined}
+      usualVials={usualDoseVials(clinical)}
       layout={layout}
     />
   );

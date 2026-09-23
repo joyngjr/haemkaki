@@ -8,6 +8,7 @@ import {
   toKey,
   type Frequency,
 } from "@/lib/tracker-dates";
+import { VIALS_DIGITS, vialLabel } from "@/lib/tracker-entries";
 import { plansOverlap, type PlanAhead, type PlanAheadDraft } from "@/lib/tracker-plans";
 
 import { FrequencyEditor } from "./FrequencyEditor";
@@ -72,7 +73,7 @@ export function PlanAheadSheet({
     }).finally(() => setBusy(false));
   }
 
-  const eyebrow = initial ? "Edit plan" : "Plan Ahead";
+  const eyebrow = initial ? "Edit plan" : "Plan ahead";
   const closeLabel = "Close all pop-ups";
   const saveLabel = busy ? "Saving…" : "Save plan";
 
@@ -105,7 +106,7 @@ export function PlanAheadSheet({
       <Sheet
         tier="action"
         eyebrow={eyebrow}
-        title="How many vials per dose?"
+        title="How much factor per dose?"
         onBack={() => setStep(changesFrequency ? "frequency" : "what")}
         backLabel="Back"
         onClose={onClose}
@@ -115,11 +116,9 @@ export function PlanAheadSheet({
           label="Vials per dose"
           value={count}
           onChange={setCount}
-          hint={
-            routineVials
-              ? `Your usual dosage is ${routineVials} vial${routineVials === 1 ? "" : "s"}.`
-              : undefined
-          }
+          maxLength={VIALS_DIGITS}
+          suffix="vials"
+          hint={routineVials ? `Your usual dosage is ${vialLabel(routineVials)}.` : undefined}
           confirmLabel={saveLabel}
           onConfirm={() => finish(changesFrequency ? frequency : undefined, Number(count))}
         />

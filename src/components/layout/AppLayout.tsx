@@ -45,7 +45,7 @@ function TopBar() {
       <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-8">
         <Link
           to="/"
-          aria-label="HaemKakis, back to the top"
+          aria-label="HaemKaki, back to the top"
           onClick={() => {
             if (pathname === "/") window.scrollTo({ top: 0, behavior: "smooth" });
           }}

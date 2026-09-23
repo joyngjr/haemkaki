@@ -4,7 +4,7 @@ const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").repla
 
 /**
  * The MCP server an assistant connects to — a Claude connector, or
- * `claude mcp add --transport http haemkakis <url>`. Same origin as the API.
+ * `claude mcp add --transport http haemkaki <url>`. Same origin as the API.
  */
 export const MCP_URL = `${BASE_URL}/mcp`;
 
@@ -20,8 +20,10 @@ export type DiagnosisType =
   | "other_or_unknown";
 
 /**
- * A product and how much of it. How often it is taken lives on the tracker's
- * routine, and the supply buffer is one number per profile.
+ * A product and how much of it, in vials — the forms offer no other unit, and
+ * the tracker reads the prophylactic dose back as the usual dose size. How
+ * often it is taken lives on the tracker's routine, and the supply buffer is
+ * one number per profile.
  */
 export type MedicationDetails = {
   name: string;
@@ -53,7 +55,7 @@ export type CareTeamContact = {
  * Three screens own different parts of it and each must preserve the others'
  * when it saves: onboarding owns the diagnosis and the regular medication, the
  * Medical ID page owns the severity and everything a responder reads, and the
- * tracker's routine owns `minimum_buffer_days`.
+ * tracker's routine owns `minimum_buffer_vials` and `order_day_of_month`.
  */
 export type ClinicalProfile = {
   diagnosis: DiagnosisType;
@@ -63,8 +65,10 @@ export type ClinicalProfile = {
   acquired_bleeding_severity: string | null;
   prophylactic_medication: MedicationDetails | null;
   on_demand_medication: MedicationDetails | null;
-  /** Days of coverage to keep in reserve before ordering. The order date itself comes from the fold. */
-  minimum_buffer_days: number | null;
+  /** Vials to keep at home. The fold brings the order forward if the stock is forecast to fall below it. */
+  minimum_buffer_vials: number | null;
+  /** The day of the month the person orders on, 1–31. The fold advises ordering on it. */
+  order_day_of_month: number | null;
   /** Medical ID. All optional — the card says "Not recorded" rather than inventing a contact. */
   date_of_birth: string | null;
   has_drug_allergies: boolean;
@@ -136,7 +140,7 @@ export type TrackingEvent = {
 /** What the API accepts. The shape depends on `kind`, which is why this is a union. */
 export type TrackingEventDraft =
   | { kind: "refill"; occurred_on: string; vials: number }
-  // `vials` only when the dose carries its own count (an import); otherwise the routine sizes it.
+  // `vials` only when the dose carries its own size; otherwise the routine sizes it.
   | { kind: "prophylaxis"; occurred_on: string; vials?: number }
   | { kind: "on-demand"; occurred_on: string; vials: number }
   | { kind: "follow-up"; occurred_on: string; vials: number }
@@ -206,20 +210,23 @@ export type Plan = {
 export type PlanDraft = Omit<Plan, "id">;
 
 /**
- * When to order and how much, from stock and the schedule. `due` means the
- * date has already arrived. The rest is the working: the doses planned from
- * the run-out date through `covers_until` (a month plus the buffer), less
- * the vials still in the cupboard on the run-out date.
+ * When to order and how much, from stock, the schedule, the buffer and the
+ * order day. `by_on` is the next monthly order day (`on_order_day`), or earlier
+ * when the stock is forecast to fall below the buffer or run out first; `due`
+ * means it has arrived. The rest is the working: the doses planned after
+ * `by_on` through `covers_until` (the following order day), plus the buffer,
+ * less what is left after `by_on`'s dose. Missed doses never count as used.
  */
 export type OrderAdvice = {
   by_on: string;
   vials: number;
   due: boolean;
+  on_order_day: boolean;
   covers_until: string;
   planned_doses: number;
   planned_vials: number;
   leftover_vials: number;
-  buffer_days: number;
+  buffer_vials: number;
 };
 
 /** The folded view Home and the tracker read. */
@@ -286,6 +293,15 @@ function validationMessage(body: unknown): string | null {
     })
     .join("; ");
 }
+
+/**
+ * The languages `POST /translate` accepts, in LibreTranslate's codes — mirrors
+ * `TargetLanguage` in the backend's `app/routers/translate.py`.
+ */
+export type TranslationTarget =
+  "zh-Hans" | "zh-Hant" | "ms" | "id" | "th" | "vi" | "tl" | "ja" | "ko" | "hi";
+
+export type Translation = { target: TranslationTarget; translations: string[] };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
@@ -381,6 +397,10 @@ export const api = {
     }),
   deletePlan: (userId: number, planId: number) =>
     request<void>(`/users/${userId}/plans/${planId}`, { method: "DELETE" }),
+
+  /** Machine translation of fixed English copy; `translations` comes back in the same order. */
+  translate: (target: TranslationTarget, texts: string[]) =>
+    request<Translation>("/translate", { method: "POST", body: JSON.stringify({ target, texts }) }),
 
   listSupplies: (userId: number) => request<SupplyItem[]>(`/users/${userId}/supplies`),
   /** Replaces the whole list — the API has no per-item routes, because the card edits the list as one. */

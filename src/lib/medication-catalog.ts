@@ -8,7 +8,6 @@ export type MedicationProduct = {
   kinds: MedicationKind[];
   diagnoses?: DiagnosisType[];
   diagnosesByKind?: Partial<Record<MedicationKind, DiagnosisType[]>>;
-  units: string[];
   routes: string[];
   status?: string;
 };
@@ -19,7 +18,6 @@ const A_OR_B: DiagnosisType[] = [...A, ...B];
 const ACQUIRED: DiagnosisType[] = ["acquired_haemophilia"];
 const FXI: DiagnosisType[] = ["factor_xi_deficiency"];
 
-const FACTOR_UNITS = ["IU", "IU/kg"];
 const FACTOR_ROUTES = ["Intravenous (IV)"];
 const FACTOR_KINDS: MedicationKind[] = ["prophylaxis", "onDemand"];
 
@@ -29,7 +27,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["octocog alfa", "recombinant factor VIII", "FVIII concentrate"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -37,7 +34,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["octocog alfa", "recombinant factor VIII", "FVIII concentrate"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -45,7 +41,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["octocog alfa", "recombinant factor VIII", "FVIII concentrate"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -53,7 +48,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["moroctocog alfa", "B-domain-deleted recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -61,7 +55,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["turoctocog alfa", "recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -69,7 +62,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["simoctocog alfa", "recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -77,7 +69,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["lonoctocog alfa", "single-chain recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -85,7 +76,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["efmoroctocog alfa", "Elocta", "recombinant FVIII-Fc"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -93,7 +83,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["rurioctocog alfa pegol", "PEGylated recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -101,7 +90,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["damoctocog alfa pegol", "PEGylated recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -109,7 +97,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["turoctocog alfa pegol", "PEGylated recombinant factor VIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -117,7 +104,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["efanesoctocog alfa", "FVIII Fc-VWF-XTEN fusion"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -125,7 +111,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["human plasma-derived factor VIII", "pdFVIII"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -133,7 +118,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["human plasma-derived FVIII/VWF concentrate", "pdFVIII/VWF"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: [...FACTOR_UNITS, "VWF IU"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -141,7 +125,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["human plasma-derived FVIII/VWF concentrate", "pdFVIII/VWF"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: [...FACTOR_UNITS, "VWF IU"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -149,7 +132,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["human plasma-derived FVIII/VWF concentrate", "pdFVIII/VWF"],
     kinds: FACTOR_KINDS,
     diagnoses: A,
-    units: [...FACTOR_UNITS, "VWF IU"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -157,7 +139,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["nonacog alfa", "recombinant factor IX", "FIX concentrate"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -165,7 +146,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["nonacog gamma", "recombinant factor IX", "FIX concentrate"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -173,7 +153,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["trenonacog alfa", "recombinant factor IX", "FIX concentrate"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -181,7 +160,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["eftrenonacog alfa", "recombinant FIX-Fc"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -189,7 +167,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["albutrepenonacog alfa", "recombinant FIX-albumin fusion"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -197,7 +174,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["nonacog beta pegol", "glycoPEGylated recombinant factor IX"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -205,19 +181,13 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["human plasma-derived factor IX", "pdFIX"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
     name: "Profilnine SD",
-    aliases: [
-      "factor IX complex",
-      "human plasma-derived factor IX complex",
-      "pdFIX complex",
-    ],
+    aliases: ["factor IX complex", "human plasma-derived factor IX complex", "pdFIX complex"],
     kinds: FACTOR_KINDS,
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -225,7 +195,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["emicizumab-kxwh", "emicizumab", "FVIII-mimetic bispecific antibody"],
     kinds: ["prophylaxis"],
     diagnoses: [...A, ...ACQUIRED],
-    units: ["mg", "mg/kg", "mg/mL"],
     routes: ["Subcutaneous injection"],
   },
   {
@@ -233,7 +202,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["concizumab-mtci", "concizumab", "anti-TFPI antibody"],
     kinds: ["prophylaxis"],
     diagnoses: A_OR_B,
-    units: ["mg", "mg/kg", "mg/mL"],
     routes: ["Subcutaneous injection"],
   },
   {
@@ -241,7 +209,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["marstacimab-hncq", "marstacimab", "anti-TFPI antibody"],
     kinds: ["prophylaxis"],
     diagnoses: A_OR_B,
-    units: ["mg", "mg/mL"],
     routes: ["Subcutaneous injection"],
   },
   {
@@ -249,7 +216,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["fitusiran", "fitusiran sodium", "antithrombin-lowering siRNA"],
     kinds: ["prophylaxis"],
     diagnoses: A_OR_B,
-    units: ["mg"],
     routes: ["Subcutaneous injection"],
   },
   {
@@ -261,7 +227,6 @@ export const MEDICATIONS: MedicationProduct[] = [
       prophylaxis: A_OR_B,
       onDemand: [...A_OR_B, ...ACQUIRED, ...FXI],
     },
-    units: ["mcg", "mcg/kg", "mg"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -269,7 +234,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["eptacog beta activated", "recombinant activated factor VII", "rFVIIa"],
     kinds: ["onDemand"],
     diagnoses: A_OR_B,
-    units: ["mcg", "mcg/kg", "mg"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -285,7 +249,6 @@ export const MEDICATIONS: MedicationProduct[] = [
       prophylaxis: A_OR_B,
       onDemand: [...A_OR_B, ...ACQUIRED],
     },
-    units: ["U", "U/kg"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -293,7 +256,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["susoctocog alfa", "recombinant porcine-sequence factor VIII", "rpFVIII"],
     kinds: ["onDemand"],
     diagnoses: ACQUIRED,
-    units: ["U", "U/kg"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -301,7 +263,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["human FVIII", "recombinant FVIII", "plasma-derived FVIII"],
     kinds: ["onDemand"],
     diagnoses: ACQUIRED,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -309,21 +270,18 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["DDAVP", "Stimate", "Octim"],
     kinds: ["onDemand"],
     diagnoses: [...A, ...ACQUIRED],
-    units: ["mcg", "mcg/kg", "mcg/spray", "mcg/mL"],
     routes: ["Intravenous (IV)", "Subcutaneous injection", "Intranasal spray"],
   },
   {
     name: "Tranexamic acid",
     aliases: ["TXA", "Cyklokapron", "Lysteda"],
     kinds: ["onDemand", "other"],
-    units: ["mg", "g", "mg/kg", "mg/mL"],
     routes: ["Oral", "Intravenous (IV)", "Topical / oral rinse"],
   },
   {
     name: "Aminocaproic acid",
     aliases: ["epsilon-aminocaproic acid", "EACA", "Amicar"],
     kinds: ["onDemand", "other"],
-    units: ["mg", "g", "mg/kg", "mg/mL"],
     routes: ["Oral", "Intravenous (IV)"],
   },
   {
@@ -331,7 +289,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["FXI concentrate", "factor 11 concentrate"],
     kinds: ["onDemand"],
     diagnoses: FXI,
-    units: ["FXI IU", "FXI IU/kg"],
     routes: FACTOR_ROUTES,
   },
   {
@@ -339,7 +296,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["FFP", "Octaplas", "pathogen-reduced plasma", "pooled plasma"],
     kinds: ["onDemand"],
     diagnoses: FXI,
-    units: ["mL", "mL/kg", "unit", "bag"],
     routes: ["Intravenous transfusion"],
   },
   {
@@ -347,7 +303,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["fibrin glue", "topical fibrin sealant"],
     kinds: ["onDemand", "other"],
     diagnoses: FXI,
-    units: ["mL", "kit", "application"],
     routes: ["Topical / local"],
   },
   {
@@ -355,7 +310,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["FVIII ITI", "factor VIII immune tolerance therapy"],
     kinds: ["other"],
     diagnoses: A,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -363,7 +317,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["FIX ITI", "factor IX immune tolerance therapy"],
     kinds: ["other"],
     diagnoses: B,
-    units: FACTOR_UNITS,
     routes: FACTOR_ROUTES,
   },
   {
@@ -371,7 +324,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["corticosteroid"],
     kinds: ["other"],
     diagnoses: ACQUIRED,
-    units: ["mg", "mg/kg/day"],
     routes: ["Oral"],
   },
   {
@@ -379,7 +331,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["corticosteroid"],
     kinds: ["other"],
     diagnoses: ACQUIRED,
-    units: ["mg", "mg/kg/day"],
     routes: ["Oral"],
   },
   {
@@ -387,7 +338,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["anti-CD20 monoclonal antibody"],
     kinds: ["other"],
     diagnoses: ACQUIRED,
-    units: ["mg", "mg/m²"],
     routes: ["Intravenous (IV)", "Subcutaneous injection"],
   },
   {
@@ -395,7 +345,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["cytotoxic immunosuppressive therapy"],
     kinds: ["other"],
     diagnoses: ACQUIRED,
-    units: ["mg", "mg/kg/day", "mg/m²"],
     routes: ["Oral", "Intravenous (IV)"],
   },
   {
@@ -403,63 +352,43 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["MMF", "mycophenolate"],
     kinds: ["other"],
     diagnoses: ACQUIRED,
-    units: ["mg", "g"],
     routes: ["Oral", "Intravenous (IV)"],
   },
   {
     name: "Paracetamol / acetaminophen",
     aliases: ["paracetamol", "acetaminophen", "Panadol", "Tylenol"],
     kinds: ["other"],
-    units: ["mg", "mg/kg", "mL"],
     routes: ["Oral", "Intravenous (IV)", "Rectal"],
   },
   {
     name: "Celecoxib",
     aliases: ["Celebrex", "selective COX-2 inhibitor"],
     kinds: ["other"],
-    units: ["mg"],
     routes: ["Oral"],
   },
   {
     name: "Opioid analgesic",
     aliases: ["opioid pain medicine", "strong pain relief"],
     kinds: ["other"],
-    units: ["mcg", "mg", "mg/kg", "mL"],
-    routes: [
-      "Oral",
-      "Intravenous (IV)",
-      "Subcutaneous injection",
-      "Transdermal",
-      "Transmucosal",
-    ],
+    routes: ["Oral", "Intravenous (IV)", "Subcutaneous injection", "Transdermal", "Transmucosal"],
   },
   {
     name: "Iron replacement",
     aliases: ["oral iron", "intravenous iron", "elemental iron"],
     kinds: ["other"],
-    units: ["mg", "mg elemental iron", "mL"],
     routes: ["Oral", "Intravenous (IV)"],
   },
   {
     name: "Hormonal menstrual suppression",
     aliases: ["combined hormonal contraceptive", "progestin", "levonorgestrel"],
     kinds: ["other"],
-    units: ["mcg", "mg"],
-    routes: [
-      "Oral",
-      "Transdermal",
-      "Vaginal",
-      "Implant",
-      "Injection",
-      "Intrauterine",
-    ],
+    routes: ["Oral", "Transdermal", "Vaginal", "Implant", "Injection", "Intrauterine"],
   },
   {
     name: "Hemgenix",
     aliases: ["etranacogene dezaparvovec-drlb", "AAV5 FIX gene therapy"],
     kinds: ["other"],
     diagnoses: B,
-    units: ["gc", "gc/kg"],
     routes: ["Single intravenous infusion"],
   },
   {
@@ -467,7 +396,6 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["valoctocogene roxaparvovec-rvox", "AAV5 FVIII gene therapy"],
     kinds: ["other"],
     diagnoses: A,
-    units: ["vector genomes/kg", "vector genomes"],
     routes: ["Single intravenous infusion"],
     status: "Withdrawn from the US market in early 2026",
   },
@@ -476,13 +404,11 @@ export const MEDICATIONS: MedicationProduct[] = [
     aliases: ["fidanacogene elaparvovec-dzkt", "FIX gene therapy"],
     kinds: ["other"],
     diagnoses: B,
-    units: ["vector genomes/kg", "vector genomes"],
     routes: ["Single intravenous infusion"],
     status: "Withdrawn from the market in February 2025",
   },
 ];
 
-export const ALL_UNITS = Array.from(new Set(MEDICATIONS.flatMap((item) => item.units)));
 export const ALL_ROUTES = Array.from(new Set(MEDICATIONS.flatMap((item) => item.routes)));
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");

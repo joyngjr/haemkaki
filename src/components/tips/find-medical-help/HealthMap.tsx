@@ -7,29 +7,25 @@ import { healthLocations } from "@/lib/health-locations";
 
 import { makeLocationIcon, userIcon } from "./map-markers";
 
-/** Singapore, at a zoom that fits the island. */
-const ISLAND_CENTER: [number, number] = [1.3521, 103.8198];
-const ISLAND_ZOOM = 11;
+/** South, Southeast and East Asia, where every pin is. */
+const ASIA_CENTER: [number, number] = [20, 100];
+const ASIA_ZOOM = 3;
 
 /** Pans the map once the browser hands back a position. */
 function RecenterOnLocate({ position }: { position: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
-    if (position) map.setView(position, 14);
+    if (position) map.setView(position, 10);
   }, [position, map]);
   return null;
 }
 
-/** The pinned map of hospitals, polyclinics and pharmacies. */
+/** The pinned map of hospitals and haemophilia treatment centres. */
 export function HealthMap({ userPosition }: { userPosition: [number, number] | null }) {
   return (
     // `isolate` keeps Leaflet's high z-index panes under the sticky top bar and the tab bar.
     <div className="isolate overflow-hidden rounded-[28px] shadow-lg" style={{ height: "500px" }}>
-      <MapContainer
-        center={ISLAND_CENTER}
-        zoom={ISLAND_ZOOM}
-        style={{ height: "100%", width: "100%" }}
-      >
+      <MapContainer center={ASIA_CENTER} zoom={ASIA_ZOOM} style={{ height: "100%", width: "100%" }}>
         <TileLayer
           attribution="OpenStreetMap contributors"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

@@ -40,7 +40,7 @@ export type TrackerEntry =
   | (Base & { kind: "refill"; vials: number })
   /**
    * The planned preventative dose. `vials` only when the dose carries its own
-   * count (an import from another tracker); otherwise the schedule on that day
+   * size (typed in, or imported with one); otherwise the schedule on that day
    * sizes it and `appliedVials` says how much, resolved by the API.
    */
   | (Base & { kind: "prophylaxis"; vials?: number })
@@ -55,6 +55,12 @@ export type TrackerEntry =
 
 export type EntryMap = Record<string, TrackerEntry[]>;
 
+/** The API caps every amount — a dose, a refill, the buffer — at 999 vials. */
+export const VIALS_MAX = 999;
+/** How many digits a vial count accepts: as many as `VIALS_MAX` has. */
+export const VIALS_DIGITS = String(VIALS_MAX).length;
+
+/** "3 vials", "1 vial" — every amount the app prints, so they all read the same. */
 export function vialLabel(vials: number) {
   return `${vials} vial${vials === 1 ? "" : "s"}`;
 }
@@ -131,7 +137,7 @@ export type SupplyRow = {
 };
 
 /**
- * The most recent vial movements, newest first, as the API charged them.
+ * The most recent factor movements, newest first, as the API charged them.
  * Entries not yet written, and doses of unknown size, are skipped.
  */
 export function supplyHistory(entries: EntryMap, limit = 5): SupplyRow[] {
@@ -227,7 +233,7 @@ export function entryToApi(entry: TrackerEntry, dateKey: string): TrackingEventD
 }
 
 function amountToApi(amount: DoseAmount): { source: AmountSource; vials?: number } {
-  // `pending` and `routine` carry no vial count — the API rejects one, because
+  // `pending` and `routine` carry no amount — the API rejects one, because
   // folding an amount the user never gave would invent supply.
   return amount.source === "custom"
     ? { source: "custom", vials: amount.vials }

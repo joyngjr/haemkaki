@@ -1,4 +1,4 @@
-# HackitRx Frontend Guidance
+# HaemKaki Frontend Guidance
 
 This file contains project guidance for coding agents working in
 `hackitrx-frontend/`.
@@ -27,7 +27,7 @@ running locally.
 
 ## Mobile-first UI requirements
 
-HackitRx is a web app intended to feel like a mobile application, with a later
+HaemKaki is a web app intended to feel like a mobile application, with a later
 native-app conversion in mind.
 
 - Design the unprefixed Tailwind styles for small screens (about 375px wide).

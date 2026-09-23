@@ -1,6 +1,6 @@
-# HackitRx Agent Guidelines
+# HaemKaki Agent Guidelines
 
-Welcome to the HackitRx project! As an agent assisting on this project, your primary focus is on the **frontend** (`hackitrx-frontend`). The user is a frontend developer and will not be modifying backend code.
+Welcome to the HaemKaki project! As an agent assisting on this project, your primary focus is on the **frontend** (`hackitrx-frontend`). The user is a frontend developer and will not be modifying backend code.
 
 However, you must read and understand the backend code (`hackitrx-backend`) to integrate the frontend seamlessly with the backend APIs.
 

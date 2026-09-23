@@ -1,3 +1,4 @@
+import { doseLabel } from "@/components/profile/clinical-profile";
 import type { ClinicalProfile, Profile } from "@/lib/api";
 
 /**
@@ -59,34 +60,32 @@ export function diagnosisWithSeverity(profile: Profile): string {
   return severity === "Not recorded" ? label : `${label}, ${severity.toLowerCase()}`;
 }
 
-/** "Factor VIII, 2000 IU" — what is being taken, as far as the profile records it. */
+/** "Advate, 2 vials" — what is being taken, as far as the profile records it. */
 export function treatmentLabel(profile: Profile): string {
   const medication = profile.clinical_profile?.prophylactic_medication;
   const name = medication?.name?.trim() || `Factor ${profile.factor_type}`;
-  return medication?.dose && medication.unit
-    ? `${name}, ${medication.dose} ${medication.unit}`
-    : name;
+  const dose = doseLabel(medication);
+  return dose ? `${name}, ${dose}` : name;
 }
 
 /** The medications actually on file, prophylaxis first. */
 export function medicationSummary(clinical: ClinicalProfile | null): string {
   const named = [clinical?.prophylactic_medication, clinical?.on_demand_medication]
     .filter((medication) => medication?.name)
-    .map((medication) =>
-      medication!.dose && medication!.unit
-        ? `${medication!.name} (${medication!.dose} ${medication!.unit})`
-        : medication!.name,
-    );
+    .map((medication) => {
+      const dose = doseLabel(medication);
+      return dose ? `${medication!.name} (${dose})` : medication!.name;
+    });
   return named.length ? named.join(", ") : "Not recorded";
 }
 
-/** The date of birth as the card shows it, or "Not recorded". */
-export function formatDob(iso: string | null | undefined): string {
+/** The date of birth as the card shows it, or "Not recorded". `locale` sets the month name. */
+export function formatDob(iso: string | null | undefined, locale = "en-SG"): string {
   if (!iso) return "Not recorded";
   const date = new Date(`${iso}T00:00:00`);
   return Number.isNaN(date.getTime())
     ? "Not recorded"
-    : new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short", year: "numeric" }).format(
+    : new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(
         date,
       );
 }
@@ -103,3 +102,44 @@ export function drugAllergiesLabel(clinical: ClinicalProfile | null | undefined)
   if (!clinical?.has_drug_allergies) return "None recorded";
   return clinical.drug_allergy_details ?? "Yes — details not recorded";
 }
+
+/**
+ * Every fixed English string the Medical ID card and its PDF can show — what
+ * gets sent for translation. It is the same list for everyone, so the person's
+ * own details never leave for the translation service, and anything not in it
+ * (a name, a phone number, a drug, an allergy note) is shown as entered.
+ *
+ * Titles are in title case and uppercased for display: a translator handles
+ * "Patient Details" far better than "PATIENT DETAILS".
+ */
+export const MEDICAL_ID_COPY: string[] = [
+  "Medical ID",
+  "Bleeding Disorder",
+  "Handle with Care",
+  "Patient Details",
+  "Name",
+  "Blood Type",
+  "Date of Birth",
+  "Medical Information",
+  "Diagnosis",
+  "Severity",
+  "Current Medication",
+  "Drug Allergies",
+  "Allergies",
+  "Emergency Contact",
+  "Relationship",
+  "Phone",
+  "Contact",
+  "Call Emergency Contact",
+  "Primary Doctor (Organisation)",
+  "Organisation",
+  "Doctor",
+  "Call Doctor",
+  "Not recorded",
+  "Not known",
+  "None recorded",
+  "Yes — details not recorded",
+  "Generated on",
+  "Machine-translated from English",
+  ...new Set([...Object.values(DIAGNOSIS_LABELS), ...Object.values(SEVERITY_LABELS)]),
+];

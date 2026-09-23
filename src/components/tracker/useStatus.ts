@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type Status } from "@/lib/api";
 
 /**
- * The folded status for the tracker: vials on hand, the run-out date and the
+ * The folded status for the tracker: factor on hand, the run-out date and the
  * order advice. Re-read whenever `version` moves — the ledger and the
  * schedule each bump theirs after a write — so the supply card follows the
  * calendar without the page running its own copy of the fold.

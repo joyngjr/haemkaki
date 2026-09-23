@@ -13,7 +13,9 @@
  */
 
 import type { DoseState, StockState } from "@/components/platelet/Platelet";
+import { doseLabel } from "@/components/profile/clinical-profile";
 import type { EventKind, Profile, Status } from "@/lib/api";
+import { vialLabel } from "@/lib/tracker-entries";
 
 export type { DoseState };
 
@@ -30,7 +32,7 @@ export interface TreatmentStatus {
   nextDoseAt?: string;
   /**
    * DEMO DATA. Nothing collects this — the onboarding form records a dose in
-   * IU and no half-life — so it is a textbook figure, not this patient's. It
+   * vials and no half-life — so it is a textbook figure, not this patient's. It
    * only positions the status card's meter.
    */
   factorHalfLifeHours: number;
@@ -60,8 +62,6 @@ export interface SupplyStatus {
   vialsOnHand: number;
   /** Calendar days until a planned dose cannot be supplied. */
   daysCover: number;
-  /** `YYYY-MM-DD` of the first day a planned dose cannot be supplied. */
-  runsOutOn?: string;
   stockState: StockState;
   /** What the fold advises ordering, when it advises anything. */
   order?: { byOn: string; vials: number; due: boolean; coversUntil: string };
@@ -174,8 +174,11 @@ export function buildHomeData(
   options: HomeDataOptions = {},
 ): HomeDashboardData {
   const prophylaxis = profile.clinical_profile?.prophylactic_medication ?? null;
-  const prescribedDose =
-    prophylaxis?.dose && prophylaxis.unit ? `${prophylaxis.dose} ${prophylaxis.unit}` : undefined;
+  // Once a routine exists it is what a logged dose actually deducts, so it is
+  // the amount Home shows. Before one is set up, the profile's recorded dose.
+  const prescribedDose = status?.schedule
+    ? vialLabel(status.schedule.vials)
+    : doseLabel(prophylaxis);
   const medicationName = prophylaxis?.name.trim() || trackedProductLabel(profile);
 
   const nextDoseAt = status?.next_dose ? atStartOfSingaporeDay(status.next_dose.on) : undefined;
@@ -210,7 +213,6 @@ export function buildHomeData(
         vialsOnHand: status.vials_on_hand,
         daysCover: status.days_cover,
         stockState: status.stock_state,
-        ...(status.runs_out_on ? { runsOutOn: status.runs_out_on } : {}),
         ...(status.order
           ? {
               order: {
