@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { applyDiff } from "@/components/tracker/useLedger";
 import { api, type Status } from "@/lib/api";
-import { buildHomeData, type AdministerDosePayload, type SaveResult } from "@/lib/home-data";
+import {
+  buildHomeData,
+  type AdministerDosePayload,
+  type SaveResult,
+  type SetUpRoutinePayload,
+} from "@/lib/home-data";
 import { entriesFromApi, recordProphylaxis } from "@/lib/tracker-entries";
 import { HomeDataContext, type HomeDataContextValue } from "@/state/home-context";
 import { useProfiles } from "@/state/profile-context";
@@ -17,8 +22,9 @@ import { useProfiles } from "@/state/profile-context";
  * demo person, and no profile at all reads as nobody.
  *
  * "Taken" writes a prophylaxis event through the same diff-and-re-read path
- * the tracker uses, so the two screens can never disagree about a day. Moving
- * a planned dose belongs to the tracker, which owns the routine.
+ * the tracker uses, so the two screens can never disagree about a day. "Set
+ * up routine" starts the first series from the status card; changing or
+ * removing one, and moving a planned dose, belong to the tracker.
  *
  * On the one-page desktop layout the tracker's cards sit beside the status
  * card, so the two follow each other: `writeVersion` moves after that write
@@ -33,7 +39,7 @@ type LoadedStatus = {
 };
 
 export function HomeDataProvider({ now, children }: { now?: Date; children: ReactNode }) {
-  const { activeProfile, status: profileStatus } = useProfiles();
+  const { activeProfile, status: profileStatus, updateProfile } = useProfiles();
   const [clock, setClock] = useState(() => now ?? new Date());
   const [loaded, setLoaded] = useState<LoadedStatus | null>(null);
   const [writeVersion, setWriteVersion] = useState(0);
@@ -97,6 +103,44 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
     [profileId, load],
   );
 
+  const setUpRoutine = useCallback(
+    async ({
+      schedule,
+      bufferVials,
+      orderDayOfMonth,
+    }: SetUpRoutinePayload): Promise<SaveResult> => {
+      if (profileId === undefined) {
+        return { ok: false, message: "Choose a profile before setting up a routine." };
+      }
+      try {
+        // The series first: the buffer and order day only mean something
+        // against a routine, and a failed schedule write should not leave
+        // them set. They merge into the clinical profile, which the API
+        // replaces whole, so a profile without one has nowhere to keep them.
+        await api.createSchedule(profileId, { ...schedule, replace: true });
+        const clinical = activeProfile?.clinical_profile;
+        if (clinical && (bufferVials !== null || orderDayOfMonth !== null)) {
+          await updateProfile(profileId, {
+            clinical_profile: {
+              ...clinical,
+              minimum_buffer_vials: bufferVials,
+              order_day_of_month: orderDayOfMonth,
+            },
+          });
+        }
+      } catch (cause) {
+        return {
+          ok: false,
+          message: cause instanceof Error ? cause.message : "Could not save the routine.",
+        };
+      }
+      await load(profileId);
+      setWriteVersion((current) => current + 1);
+      return { ok: true };
+    },
+    [profileId, activeProfile, updateProfile, load],
+  );
+
   const data = useMemo(() => {
     if (!activeProfile) return null;
     const status = loaded?.profileId === activeProfile.id ? loaded : null;
@@ -112,9 +156,10 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
       isLoading: profileStatus === "loading",
       writeVersion,
       administerDose,
+      setUpRoutine,
       refreshStatus,
     }),
-    [data, clock, profileStatus, writeVersion, administerDose, refreshStatus],
+    [data, clock, profileStatus, writeVersion, administerDose, setUpRoutine, refreshStatus],
   );
 
   return <HomeDataContext.Provider value={value}>{children}</HomeDataContext.Provider>;

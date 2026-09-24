@@ -13,8 +13,8 @@
  */
 
 import type { DoseState, StockState } from "@/components/platelet/Platelet";
-import { doseLabel } from "@/components/profile/clinical-profile";
-import type { EventKind, Profile, Status } from "@/lib/api";
+import { doseLabel, usualDoseVials } from "@/components/profile/clinical-profile";
+import type { EventKind, Profile, ScheduleDraft, Status } from "@/lib/api";
 import { vialLabel } from "@/lib/tracker-entries";
 
 export type { DoseState };
@@ -86,12 +86,32 @@ export interface LedgerEntrySummary {
   appliedVials: number;
 }
 
+/**
+ * What "Set up routine" seeds its questions with, from the profile. The
+ * routine is the tracker's; only its first setup starts from the status card.
+ */
+export interface RoutineSetup {
+  /** The regular dose recorded on the profile, in vials. Absent when none is, or not in vials. */
+  usualVials?: number;
+  /** Vials to keep at home. Null until it is set. */
+  bufferVials: number | null;
+  /** The day of the month the profile orders on. Null until it is set. */
+  orderDayOfMonth: number | null;
+  /**
+   * Whether the buffer and order day have somewhere to go: they merge into the
+   * clinical profile, and a profile without one is not asked for numbers that
+   * would be dropped.
+   */
+  storesOrderPreferences: boolean;
+}
+
 export interface HomeDashboardData {
   user: HomeUser;
   treatmentStatus: TreatmentStatus;
   activityStatus: ActivityStatus;
   /** Null until the folded status has arrived for this profile. */
   supplyStatus: SupplyStatus | null;
+  routineSetup: RoutineSetup;
   /** Newest first. Empty before the status loads, and for a profile with no ledger. */
   recentEntries: LedgerEntrySummary[];
   /** When the folded status was last fetched. Absent until it has been. */
@@ -101,6 +121,14 @@ export interface HomeDashboardData {
 export interface AdministerDosePayload {
   /** The Singapore calendar day the dose was taken, as `YYYY-MM-DD`. */
   takenOn: string;
+}
+
+export interface SetUpRoutinePayload {
+  /** The series to start; it replaces any other, as the tracker keeps one routine at a time. */
+  schedule: Omit<ScheduleDraft, "replace">;
+  /** Stored on the clinical profile together, as the flow answered them; both null leaves it alone. */
+  bufferVials: number | null;
+  orderDayOfMonth: number | null;
 }
 
 export type SaveResult = { ok: true } | { ok: false; message?: string };
@@ -173,7 +201,8 @@ export function buildHomeData(
   now: Date,
   options: HomeDataOptions = {},
 ): HomeDashboardData {
-  const prophylaxis = profile.clinical_profile?.prophylactic_medication ?? null;
+  const clinical = profile.clinical_profile ?? null;
+  const prophylaxis = clinical?.prophylactic_medication ?? null;
   // Once a routine exists it is what a logged dose actually deducts, so it is
   // the amount Home shows. Before one is set up, the profile's recorded dose.
   const prescribedDose = status?.schedule
@@ -246,11 +275,20 @@ export function buildHomeData(
     )
     .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
 
+  const usualVials = usualDoseVials(clinical);
+  const routineSetup: RoutineSetup = {
+    ...(usualVials !== undefined ? { usualVials } : {}),
+    bufferVials: clinical?.minimum_buffer_vials ?? null,
+    orderDayOfMonth: clinical?.order_day_of_month ?? null,
+    storesOrderPreferences: clinical !== null,
+  };
+
   return {
     user: { firstName: firstNameOf(profile.name) },
     treatmentStatus,
     activityStatus,
     supplyStatus,
+    routineSetup,
     recentEntries,
     ...(options.fetchedAt ? { lastUpdatedAt: options.fetchedAt } : {}),
   };

@@ -59,7 +59,7 @@ function CardGroup({ label, children }: { label: string; children: ReactNode }) 
  * is only the greeting.
  */
 export function Dashboard() {
-  const { data, now, isLoading, administerDose } = useHomeData();
+  const { data, now, isLoading, administerDose, setUpRoutine } = useHomeData();
   const { error } = useProfiles();
   useScrollToHash(data !== null);
 
@@ -72,11 +72,13 @@ export function Dashboard() {
   }
   if (!data) return <EmptyHome error={error} />;
 
-  // Everything the status card would send you to is already on the page.
+  // Everything the status card would send you to is already on the page, and
+  // setting a routine up opens on the card itself rather than on the tracker's
+  // routine card below it.
   const actions: HomeActions = {
     onRecordDose: ({ takenOn }) => administerDose({ takenOn }),
     onRemindLater: () => undefined,
-    onOpenTreatmentSetup: () => scrollToSection("routine"),
+    onSetUpRoutine: setUpRoutine,
     onOpenSupply: () => scrollToSection("supply"),
   };
 
@@ -88,11 +90,12 @@ export function Dashboard() {
       </div>
 
       <Tracker
+        offersRoutineSetup={false}
         layout={(cards) => (
           <PageSection id="tracker" title="Tracker">
             {cards.errors ? <div className="mt-4">{cards.errors}</div> : null}
             <CardGroup label="Doses">
-              <Anchor id="routine">{cards.routine}</Anchor>
+              {cards.routine}
               <Anchor id="calendar">{cards.calendar}</Anchor>
               <RecentEntries entries={data.recentEntries} />
               {cards.planAhead}

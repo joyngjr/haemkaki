@@ -77,6 +77,8 @@ type TrackerProps = {
   ) => Promise<boolean>;
   /** The regular dose recorded on the profile, in vials. Seeds a routine's dose, and a dose logged without one. */
   usualVials?: number;
+  /** Whether the routine card sets a first routine up, or the status card does (the one-page layout). */
+  offersRoutineSetup: boolean;
   layout: TrackerLayout;
 };
 
@@ -146,6 +148,7 @@ function TrackerPage({
   orderDayOfMonth,
   onSaveOrderPreferences,
   usualVials,
+  offersRoutineSetup,
   layout,
 }: TrackerProps) {
   const today = useMemo(() => getSingaporeToday(), []);
@@ -382,6 +385,7 @@ function TrackerPage({
         routine: (
           <RoutineCard
             series={schedule.series}
+            offersSetup={offersRoutineSetup}
             today={today}
             bufferVials={bufferVials}
             orderDayOfMonth={orderDayOfMonth}
@@ -504,8 +508,18 @@ const phoneLayout: TrackerLayout = (cards) => <TrackerScreen cards={cards} />;
 /* Tracker — the adapter between the page and the active profile         */
 /* ===================================================================== */
 
-/** The tracker for the active profile, laid out by `layout` — the phone's tab by default. */
-export function Tracker({ layout = phoneLayout }: { layout?: TrackerLayout }) {
+/**
+ * The tracker for the active profile, laid out by `layout` — the phone's tab
+ * by default, where its routine card also sets a first routine up. A layout
+ * whose status card does that itself passes `offersRoutineSetup={false}`.
+ */
+export function Tracker({
+  layout = phoneLayout,
+  offersRoutineSetup = true,
+}: {
+  layout?: TrackerLayout;
+  offersRoutineSetup?: boolean;
+}) {
   const { activeProfile, updateProfile } = useProfiles();
   const clinical = activeProfile?.clinical_profile ?? null;
   const profileId = activeProfile?.id;
@@ -547,6 +561,7 @@ export function Tracker({ layout = phoneLayout }: { layout?: TrackerLayout }) {
       orderDayOfMonth={clinical?.order_day_of_month ?? null}
       onSaveOrderPreferences={clinical ? saveOrderPreferences : undefined}
       usualVials={usualDoseVials(clinical)}
+      offersRoutineSetup={offersRoutineSetup}
       layout={layout}
     />
   );

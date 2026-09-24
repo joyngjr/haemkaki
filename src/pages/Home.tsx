@@ -27,6 +27,10 @@
  *  - `onRecordDose` writes a prophylaxis event to the same ledger the tracker
  *    edits, on the Singapore day the user picks. The ledger records days, not
  *    minutes, so the sheet asks for a date and nothing else.
+ *  - "Set up routine" is offered only while there is no routine. On a phone
+ *    it goes to the tracker's routine card (`onOpenTreatmentSetup`); on the
+ *    one-page layout the flow opens on the status card itself and saves
+ *    through `onSetUpRoutine`.
  *  - `activityStatus.hasLoggedBleed` is an on-demand dose within the last few
  *    days, folded by the API from the tracker's ledger (`last_bleed_on`).
  */
@@ -43,6 +47,7 @@ import {
 import { StatusScene } from "@/components/platelet/StatusScene";
 import { ProfileButton } from "@/components/profile/ProfileButton";
 import { ProfileSheet } from "@/components/profile/ProfileSheet";
+import { RoutineFlow } from "@/components/tracker/RoutineFlow";
 import { Card, CardHeaderRow } from "@/components/ui/Card";
 import { CriticalButton, OutlineButton, PrimaryButton } from "@/components/ui/Button";
 import { Meter, Stat } from "@/components/ui/Stat";
@@ -56,7 +61,7 @@ import {
   isOverdue,
 } from "@/lib/home-format";
 import { FOCUS_RING, INK, INK_MUTED } from "@/lib/theme";
-import { getSingaporeTodayKey } from "@/lib/tracker-dates";
+import { getSingaporeToday, getSingaporeTodayKey } from "@/lib/tracker-dates";
 import { vialLabel } from "@/lib/tracker-entries";
 import { cn } from "@/lib/utils";
 import type {
@@ -66,6 +71,7 @@ import type {
   HomeUser,
   LedgerEntrySummary,
   SaveResult,
+  SetUpRoutinePayload,
   SupplyStatus,
   TreatmentStatus,
 } from "@/lib/home-data";
@@ -89,7 +95,14 @@ export interface HomeActions {
   onRemindLater?: () => void;
   /** "See all" on the recent entries. Omitted where the calendar is already on the page. */
   onOpenActivity?: () => void;
-  onOpenTreatmentSetup: () => void;
+  /**
+   * Where "Set up routine" goes when the tracker's routine card does the
+   * setting up — the phone, where that card is a tab away. Omitted where the
+   * flow opens on the status card itself and saves through `onSetUpRoutine`.
+   */
+  onOpenTreatmentSetup?: () => void;
+  /** Saves the first routine, with the order buffer and day the flow asks for. */
+  onSetUpRoutine: (payload: SetUpRoutinePayload) => Promise<SaveResult>;
   /** The tracker's "Factor at home" card, with the order advice. */
   onOpenSupply: () => void;
 }
@@ -783,8 +796,10 @@ function StatusActions({
  */
 export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
   const [recordOpen, setRecordOpen] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
+  const [routineError, setRoutineError] = useState<string | null>(null);
 
-  const { treatmentStatus, activityStatus, supplyStatus } = data;
+  const { treatmentStatus, activityStatus, supplyStatus, routineSetup } = data;
   const doseStatus = resolveDoseStatus({
     dose: treatmentStatus.dose,
     hasRecentBleed: activityStatus.hasLoggedBleed,
@@ -806,7 +821,7 @@ export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
           supply={supply}
           now={now}
           onRecord={() => setRecordOpen(true)}
-          onSetUpRoutine={actions.onOpenTreatmentSetup}
+          onSetUpRoutine={actions.onOpenTreatmentSetup ?? (() => setRoutineOpen(true))}
           onOrder={actions.onOpenSupply}
           onRemindLater={actions.onRemindLater}
         />
@@ -817,6 +832,31 @@ export function StatusCard({ data, actions, now = new Date() }: HomePageProps) {
           treatmentStatus={treatmentStatus}
           onClose={() => setRecordOpen(false)}
           onConfirm={actions.onRecordDose}
+        />
+      ) : null}
+
+      {routineOpen ? (
+        <RoutineFlow
+          series={null}
+          today={getSingaporeToday()}
+          bufferVials={routineSetup.bufferVials}
+          orderDayOfMonth={routineSetup.orderDayOfMonth}
+          usualVials={routineSetup.usualVials}
+          asksForOrderPreferences={routineSetup.storesOrderPreferences}
+          error={routineError}
+          onSave={async (schedule, bufferVials, orderDayOfMonth) => {
+            const result = await actions.onSetUpRoutine({ schedule, bufferVials, orderDayOfMonth });
+            if (!result.ok) {
+              setRoutineError(result.message ?? "Could not save the routine.");
+              return;
+            }
+            setRoutineError(null);
+            setRoutineOpen(false);
+          }}
+          onClose={() => {
+            setRoutineError(null);
+            setRoutineOpen(false);
+          }}
         />
       ) : null}
     </>
@@ -881,7 +921,14 @@ export function EmptyHome({ error }: { error: string | null }) {
 }
 
 export function HomeScreen({ now }: { now?: Date }) {
-  const { data, now: contextNow, isLoading, administerDose, refreshStatus } = useHomeData();
+  const {
+    data,
+    now: contextNow,
+    isLoading,
+    administerDose,
+    setUpRoutine,
+    refreshStatus,
+  } = useHomeData();
   const { error } = useProfiles();
   const navigate = useNavigate();
   const clock = now ?? contextNow;
@@ -906,6 +953,7 @@ export function HomeScreen({ now }: { now?: Date }) {
     onRemindLater: () => undefined,
     onOpenActivity: () => navigate("/tracker"),
     onOpenTreatmentSetup: () => navigate("/tracker#routine"),
+    onSetUpRoutine: setUpRoutine,
     onOpenSupply: () => navigate("/tracker#supply"),
   };
 
