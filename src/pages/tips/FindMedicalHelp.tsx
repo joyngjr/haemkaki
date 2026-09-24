@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { BackLink } from "@/components/layout/BackLink";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { healthLocations, type LocationType } from "@/lib/health-locations";
 
 const colors: Record<LocationType, string> = {
@@ -85,7 +86,10 @@ export function FindMedicalHelp() {
   return (
     <div className="px-4 pt-8 pb-8">
       <BackLink to="/tips" />
-      <PageHeader title="Find Medical Help" subtitle="Tap a pin to see the name and address." />
+      <PageHeader title="Find Medical Help" className="mt-4" />
+      <p className="mt-1 text-sm text-gray-500">
+        Major hospitals and haemophilia treatment centres across Asia.
+      </p>
 
       <div className="mt-4 flex items-center justify-between">
         <div className="flex gap-4 text-xs text-gray-600">
