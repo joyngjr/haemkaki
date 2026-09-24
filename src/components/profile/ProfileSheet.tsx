@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { AddProfileForm } from "@/components/profile/AddProfileForm";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
@@ -172,12 +173,12 @@ function DeleteProfileConfirmation({
 }
 
 /**
- * Mounted only while the sheet is open, so it always opens on the list rather
- * than on a half-filled form left over from last time.
+ * Mounted only while the sheet is open, so it always opens on `startWith`
+ * rather than on a half-filled form left over from last time.
  */
-function Sheet({ onClose }: { onClose: () => void }) {
+function Sheet({ onClose, startWith }: { onClose: () => void; startWith: "list" | "add" }) {
   const { profiles, activeProfile, status, error, selectProfile, reload } = useProfiles();
-  const [view, setView] = useState<"list" | "add" | "edit" | "delete">("list");
+  const [view, setView] = useState<"list" | "add" | "edit" | "delete">(startWith);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [deletingProfile, setDeletingProfile] = useState<Profile | null>(null);
 
@@ -196,7 +197,9 @@ function Sheet({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    // A sheet from the bottom on a phone; a centred dialog from `lg`, where it
+    // opens from the account button in the top bar.
+    <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center lg:p-6">
       <button
         type="button"
         aria-label="Close profile switcher"
@@ -208,9 +211,9 @@ function Sheet({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label={view === "delete" ? "Confirm profile deletion" : "Choose a profile"}
-        className="relative max-h-[88vh] animate-sheet-up overflow-y-auto rounded-t-[28px] bg-sand-50 px-5 pb-10 pt-3 shadow-2xl"
+        className="relative max-h-[88vh] animate-sheet-up overflow-y-auto rounded-t-[28px] bg-sand-50 px-5 pb-10 pt-3 shadow-2xl lg:w-full lg:max-w-lg lg:animate-fade-in lg:rounded-[28px] lg:px-7 lg:pb-7 lg:pt-7"
       >
-        <div className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-sand-300" />
+        <div className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-sand-300 lg:hidden" />
 
         {view === "delete" && deletingProfile ? (
           <DeleteProfileConfirmation
@@ -225,7 +228,7 @@ function Sheet({ onClose }: { onClose: () => void }) {
         ) : view === "add" || view === "edit" ? (
           <AddProfileForm
             key={editingProfile?.id ?? "new"}
-            profile={view === "edit" ? editingProfile ?? undefined : undefined}
+            profile={view === "edit" ? (editingProfile ?? undefined) : undefined}
             onDone={onClose}
             onCancel={() => setView("list")}
           />
@@ -251,9 +254,7 @@ function Sheet({ onClose }: { onClose: () => void }) {
             ) : null}
 
             {status === "ready" && profiles.length === 0 ? (
-              <p className="mt-6 text-sm text-sand-600">
-                No profiles yet. Add the first one to open a den.
-              </p>
+              <p className="mt-6 text-sm text-sand-600">No profiles yet.</p>
             ) : null}
 
             <div className="mt-5 space-y-3">
@@ -301,6 +302,20 @@ function Sheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function ProfileSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return open ? <Sheet onClose={onClose} /> : null;
+export function ProfileSheet({
+  open,
+  onClose,
+  startWith = "list",
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Open straight on the new-profile form, e.g. from an empty Home. */
+  startWith?: "list" | "add";
+}) {
+  // Portalled to <body>: the switcher sits inside the desktop top bar, whose
+  // backdrop blur would otherwise become the containing block for `fixed`
+  // and squeeze the whole sheet into the bar.
+  return open
+    ? createPortal(<Sheet onClose={onClose} startWith={startWith} />, document.body)
+    : null;
 }

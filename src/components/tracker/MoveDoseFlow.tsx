@@ -46,14 +46,10 @@ export function MoveDoseFlow({
       onClose={onClose}
       closeLabel="Close all pop-ups"
     >
-      <p className="mt-2 text-xs text-[#806d51]">
-        Only this dose moves; the rest of your routine stays on its cycle.
-      </p>
       {occurrence.moved ? (
         <div className="mt-3">
           <SheetOption
             title={`Move back to ${shortDate(fromKey(occurrence.original_on))}`}
-            description="Return it to its usual day"
             onClick={() => run(onRestore)}
           />
         </div>

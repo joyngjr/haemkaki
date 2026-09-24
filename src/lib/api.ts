@@ -2,6 +2,12 @@ import { type DoseState, type StockState } from "@/components/platelet/Platelet"
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
+/**
+ * The MCP server an assistant connects to — a Claude connector, or
+ * `claude mcp add --transport http haemkakis <url>`. Same origin as the API.
+ */
+export const MCP_URL = `${BASE_URL}/mcp`;
+
 export type FactorType = "VIII" | "IX" | "XI" | "acquired" | "unknown";
 
 export type DiagnosisType =
@@ -13,14 +19,15 @@ export type DiagnosisType =
   | "symptomatic_carrier_b"
   | "other_or_unknown";
 
+/**
+ * A product and how much of it. How often it is taken lives on the tracker's
+ * routine, and the supply buffer is one number per profile.
+ */
 export type MedicationDetails = {
   name: string;
   dose: string;
   unit: string;
-  frequency: string;
-  administration: string;
-  buffer_days: string;
-  /** Backward-compatible storage for sections containing more than one medication. */
+  /** Backward-compatible storage for sections recorded with more than one medication. */
   items_json?: string;
 };
 
@@ -40,30 +47,28 @@ export type CareTeamContact = {
   phone: string | null;
 };
 
+/**
+ * What the app records about a person. Only `diagnosis` is required.
+ *
+ * Three screens own different parts of it and each must preserve the others'
+ * when it saves: onboarding owns the diagnosis and the regular medication, the
+ * Medical ID page owns the severity and everything a responder reads, and the
+ * tracker's routine owns `minimum_buffer_days`.
+ */
 export type ClinicalProfile = {
   diagnosis: DiagnosisType;
-  sex: string;
-  weight_kg: number | null;
-  date_of_birth: string | null;
-  has_drug_allergies: boolean;
-  drug_allergy_details: string | null;
-  diagnosis_factor_activity_percent: number | null;
-  diagnosis_test_date: string | null;
+  /** Severity as recorded at diagnosis; one field per diagnosis family. */
   congenital_severity: string | null;
   factor_xi_deficiency_level: string | null;
-  acquired_inhibitor_titre_bu_ml: number | null;
   acquired_bleeding_severity: string | null;
-  inhibitor_status: string | null;
-  fix_allergy_or_anaphylaxis: string | null;
-  treatment_approach: string | null;
   prophylactic_medication: MedicationDetails | null;
-  minimum_buffer: string | null;
   on_demand_medication: MedicationDetails | null;
-  other_medication: MedicationDetails | null;
-  medication_reminders: boolean;
   /** Days of coverage to keep in reserve before ordering. The order date itself comes from the fold. */
   minimum_buffer_days: number | null;
   /** Medical ID. All optional — the card says "Not recorded" rather than inventing a contact. */
+  date_of_birth: string | null;
+  has_drug_allergies: boolean;
+  drug_allergy_details: string | null;
   blood_type: BloodType | null;
   emergency_contact: EmergencyContact | null;
   primary_doctor: CareTeamContact | null;
@@ -98,10 +103,9 @@ export type ProfileDraft = {
 /* Tracking events — the tracker's ledger                              */
 /* ------------------------------------------------------------------ */
 
-export type EventKind = "refill" | "prophylaxis" | "on-demand" | "follow-up" | "makeup" | "missed";
+export type EventKind = "refill" | "prophylaxis" | "on-demand" | "follow-up" | "makeup";
 
 export type AmountSource = "pending" | "routine" | "custom";
-export type MissedStatus = "awaiting" | "skipped" | "taken";
 
 /**
  * One row of the ledger, exactly as the API returns it.
@@ -120,8 +124,6 @@ export type TrackingEvent = {
   missed_on: string | null;
   amount_source: AmountSource | null;
   amount_vials: number | null;
-  status: MissedStatus | null;
-  taken_on: string | null;
   /**
    * What the fold charged the cupboard for this event: positive for a refill,
    * negative for a dose, zero when the amount is not known. A prophylaxis
@@ -134,21 +136,16 @@ export type TrackingEvent = {
 /** What the API accepts. The shape depends on `kind`, which is why this is a union. */
 export type TrackingEventDraft =
   | { kind: "refill"; occurred_on: string; vials: number }
-  | { kind: "prophylaxis"; occurred_on: string }
+  // `vials` only when the dose carries its own count (an import); otherwise the routine sizes it.
+  | { kind: "prophylaxis"; occurred_on: string; vials?: number }
   | { kind: "on-demand"; occurred_on: string; vials: number }
   | { kind: "follow-up"; occurred_on: string; vials: number }
   | {
       kind: "makeup";
       occurred_on: string;
+      /** The planned day this dose was owed for; it must hold no factor use of its own. */
       missed_on: string;
       amount: { source: AmountSource; vials?: number };
-    }
-  | {
-      kind: "missed";
-      occurred_on: string;
-      status: MissedStatus;
-      taken_on?: string;
-      amount?: { source: AmountSource; vials?: number };
     };
 
 /* ------------------------------------------------------------------ */
@@ -243,6 +240,12 @@ export type Status = {
   order: OrderAdvice | null;
   dose_state: DoseState;
   stock_state: StockState;
+  /**
+   * Planned days over the last 30, before today, with no factor use on them —
+   * newest first. Derived by the fold, never stored: a missed dose is the
+   * absence of an entry, so there is no event to read it from.
+   */
+  missed_doses: string[];
   recent_events: TrackingEvent[];
 };
 

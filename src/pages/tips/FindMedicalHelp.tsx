@@ -84,28 +84,8 @@ export function FindMedicalHelp() {
 
   return (
     <div className="px-4 pt-8 pb-8">
-      <Link
-        to="/tips"
-        className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Back
-      </Link>
-
-      <div className="mt-4">
-        <h1 className="text-2xl font-extrabold text-gray-900">Find Medical Help</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Major hospitals and haemophilia treatment centres across Asia.
-        </p>
-      </div>
+      <BackLink to="/tips" />
+      <PageHeader title="Find Medical Help" subtitle="Tap a pin to see the name and address." />
 
       <div className="mt-4 flex items-center justify-between">
         <div className="flex gap-4 text-xs text-gray-600">

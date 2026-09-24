@@ -7,13 +7,13 @@
  * "not enough information", and with no profile at all Home shows nobody
  * rather than a demo person.
  *
- * Two things are still demo content because nothing collects or stores them,
- * and they are marked at their definitions rather than left to look real:
- * `factorHalfLifeHours` and `dailyTip`.
+ * One thing is still demo content because nothing collects or stores it, and
+ * it is marked at its definition rather than left to look real:
+ * `factorHalfLifeHours`.
  */
 
-import type { DoseState } from "@/components/platelet/Platelet";
-import type { Profile, Status } from "@/lib/api";
+import type { DoseState, StockState } from "@/components/platelet/Platelet";
+import type { EventKind, Profile, Status } from "@/lib/api";
 
 export type { DoseState };
 
@@ -31,7 +31,7 @@ export interface TreatmentStatus {
   /**
    * DEMO DATA. Nothing collects this — the onboarding form records a dose in
    * IU and no half-life — so it is a textbook figure, not this patient's. It
-   * only positions the marker on the Activity card's bar.
+   * only positions the status card's meter.
    */
   factorHalfLifeHours: number;
   /**
@@ -45,13 +45,6 @@ export interface TreatmentStatus {
   hasSchedule?: boolean;
 }
 
-export interface CoverStatus {
-  state: "estimated" | "approaching" | "needsReview" | "unavailable";
-  displayValue?: string;
-  source: "scheduleEstimate" | "validatedPK" | "unavailable";
-  supportingText: string;
-}
-
 export interface ActivityStatus {
   /** An on-demand dose within {@link RECENT_BLEED_DAYS} of today. */
   hasLoggedBleed: boolean;
@@ -59,22 +52,48 @@ export interface ActivityStatus {
   lastBleedAt?: string;
 }
 
-/** DEMO DATA. There is no tip content source and no clinical review process. */
-export interface DailyTipData {
-  id: string;
-  title: string;
-  body: string;
-  sourceLabel?: string;
-  sourceUrl?: string;
-  reviewedAt?: string;
-  clinicalReviewStatus?: "pending" | "reviewed";
+/**
+ * What is in the cupboard, as the fold reports it. Null until the status has
+ * loaded — the overview then says nothing rather than guessing at zero.
+ */
+export interface SupplyStatus {
+  vialsOnHand: number;
+  /** Calendar days until a planned dose cannot be supplied. */
+  daysCover: number;
+  /** `YYYY-MM-DD` of the first day a planned dose cannot be supplied. */
+  runsOutOn?: string;
+  stockState: StockState;
+  /** What the fold advises ordering, when it advises anything. */
+  order?: { byOn: string; vials: number; due: boolean; coversUntil: string };
+}
+
+/** One row in "Recent entries", flattened out of the ledger. */
+/**
+ * What a "Recent entries" row can be. `missed` is not an event kind: a missed
+ * dose is a planned day the ledger has nothing for, which the fold reports as
+ * `status.missed_doses`, so it joins the list here rather than coming from a
+ * row of its own.
+ */
+export type LedgerRowKind = EventKind | "missed";
+
+export interface LedgerEntrySummary {
+  /** Stable across re-reads, and unique across events and derived misses alike. */
+  key: string;
+  kind: LedgerRowKind;
+  /** `YYYY-MM-DD`, the day key the calendar files it under. */
+  occurredOn: string;
+  /** What the fold charged the cupboard: negative for a dose, positive for a refill. */
+  appliedVials: number;
 }
 
 export interface HomeDashboardData {
   user: HomeUser;
   treatmentStatus: TreatmentStatus;
   activityStatus: ActivityStatus;
-  dailyTip: DailyTipData;
+  /** Null until the folded status has arrived for this profile. */
+  supplyStatus: SupplyStatus | null;
+  /** Newest first. Empty before the status loads, and for a profile with no ledger. */
+  recentEntries: LedgerEntrySummary[];
   /** When the folded status was last fetched. Absent until it has been. */
   lastUpdatedAt?: string;
 }
@@ -82,11 +101,6 @@ export interface HomeDashboardData {
 export interface AdministerDosePayload {
   /** The Singapore calendar day the dose was taken, as `YYYY-MM-DD`. */
   takenOn: string;
-}
-
-export interface MoveDosePayload {
-  /** The Singapore calendar day the next planned dose should move to, as `YYYY-MM-DD`. */
-  movedTo: string;
 }
 
 export type SaveResult = { ok: true } | { ok: false; message?: string };
@@ -100,15 +114,6 @@ export const RECENT_BLEED_DAYS = 3;
 
 /** DEMO DATA — see `TreatmentStatus.factorHalfLifeHours`. */
 const DEMO_HALF_LIFE_HOURS = 24;
-
-/** DEMO DATA. One fixed tip until there is a reviewed content source. */
-export const DAILY_TIP: DailyTipData = {
-  id: "tip-keep-records-current",
-  title: "Keep your records current",
-  body: "Recording changes when they happen can make your next care conversation easier.",
-  sourceLabel: "HaemKakis demo content",
-  clinicalReviewStatus: "pending",
-};
 
 const DAY = 86_400_000;
 
@@ -147,6 +152,14 @@ export interface HomeDataOptions {
   /** When `status` was fetched. */
   fetchedAt?: string;
 }
+
+/** The kinds that belong in "Recent entries" — a refill is supply, not treatment. */
+const LEDGER_ROW_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
+  "prophylaxis",
+  "on-demand",
+  "follow-up",
+  "makeup",
+]);
 
 /**
  * Everything Home shows, from what the API actually knows.
@@ -192,11 +205,51 @@ export function buildHomeData(
     ...(lastBleedOn ? { lastBleedAt: atStartOfSingaporeDay(lastBleedOn) } : {}),
   };
 
+  const supplyStatus: SupplyStatus | null = status
+    ? {
+        vialsOnHand: status.vials_on_hand,
+        daysCover: status.days_cover,
+        stockState: status.stock_state,
+        ...(status.runs_out_on ? { runsOutOn: status.runs_out_on } : {}),
+        ...(status.order
+          ? {
+              order: {
+                byOn: status.order.by_on,
+                vials: status.order.vials,
+                due: status.order.due,
+                coversUntil: status.order.covers_until,
+              },
+            }
+          : {}),
+      }
+    : null;
+
+  // `recent_events` arrives oldest first; the overview reads newest first. The
+  // days the fold found no dose for are rows too, with nothing charged.
+  const recentEntries: LedgerEntrySummary[] = (status?.recent_events ?? [])
+    .filter((event) => LEDGER_ROW_KINDS.has(event.kind))
+    .map((event) => ({
+      key: `event-${event.id}`,
+      kind: event.kind as LedgerRowKind,
+      occurredOn: event.occurred_on,
+      appliedVials: event.applied_vials,
+    }))
+    .concat(
+      (status?.missed_doses ?? []).map((occurredOn) => ({
+        key: `missed-${occurredOn}`,
+        kind: "missed" as LedgerRowKind,
+        occurredOn,
+        appliedVials: 0,
+      })),
+    )
+    .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
+
   return {
     user: { firstName: firstNameOf(profile.name) },
     treatmentStatus,
     activityStatus,
-    dailyTip: DAILY_TIP,
+    supplyStatus,
+    recentEntries,
     ...(options.fetchedAt ? { lastUpdatedAt: options.fetchedAt } : {}),
   };
 }

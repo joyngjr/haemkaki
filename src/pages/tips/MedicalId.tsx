@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import html2canvas from "html2canvas";
+import { useState } from "react";
+import { Download, Pencil } from "lucide-react";
+import { BackLink } from "@/components/layout/BackLink";
+import { MedicalIdForm } from "@/components/profile/MedicalIdForm";
 import { CallLink } from "@/components/tips/medical-id/CallLink";
-import { Field, SectionCard } from "@/components/tips/medical-id/SectionCard";
+import { Field, Section } from "@/components/tips/medical-id/Section";
 import {
   CapsuleIcon,
   PersonIcon,
@@ -10,9 +11,9 @@ import {
   PlusIcon,
   StethoscopeIcon,
 } from "@/components/tips/medical-id/SectionIcons";
+import { downloadMedicalIdPdf } from "@/lib/medical-id-pdf";
 import type { ClinicalProfile, Profile } from "@/lib/api";
 import { useProfiles } from "@/state/profile-context";
-
 type Lang = "en" | "zh" | "ms" | "ta";
 
 const LANG_LABELS: Record<Lang, string> = {
@@ -126,11 +127,7 @@ const SEVERITY_LABELS: Record<Lang, Record<string, string>> = {
   },
 };
 
-function severityLabel(
-  clinical: ClinicalProfile | null | undefined,
-  lang: Lang,
-  notRecorded: string,
-): string {
+function severityLabel(clinical: ClinicalProfile | null | undefined, lang: Lang, notRecorded: string): string {
   const recorded =
     clinical?.congenital_severity ??
     clinical?.factor_xi_deficiency_level ??
@@ -143,28 +140,17 @@ function formatDob(iso: string | null | undefined, notRecorded: string): string 
   if (!iso) return notRecorded;
   const date = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(date.getTime())) return notRecorded;
-  return new Intl.DateTimeFormat("en-SG", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
-function bloodTypeLabel(
-  clinical: ClinicalProfile | null | undefined,
-  notRecorded: string,
-  notKnown: string,
-): string {
+function bloodTypeLabel(clinical: ClinicalProfile | null | undefined, notRecorded: string, notKnown: string): string {
   const recorded = clinical?.blood_type;
   if (!recorded) return notRecorded;
   return recorded === "unknown" ? notKnown : recorded;
 }
 
 /** Real medication names/doses on file — never translated, since these are exact drug names. */
-function medicationSummary(
-  clinical: ClinicalProfile | null | undefined,
-  notRecorded: string,
-): string {
+function medicationSummary(clinical: ClinicalProfile | null | undefined, notRecorded: string): string {
   const named = [clinical?.prophylactic_medication, clinical?.on_demand_medication]
     .filter((medication) => medication?.name)
     .map((medication) =>
@@ -177,13 +163,9 @@ function medicationSummary(
 
 const T: Record<Lang, Record<string, string>> = {
   en: {
-    back: "Back",
     medicalId: "MEDICAL ID",
     bleedingDisorder: "BLEEDING DISORDER",
     handleWithCare: "HANDLE WITH CARE",
-    bannerIntro: "This patient has",
-    bannerDetail:
-      "Please ensure appropriate treatment and avoid unnecessary procedures or injections.",
     patientDetails: "PATIENT DETAILS",
     name: "Name",
     bloodType: "Blood Type",
@@ -204,17 +186,15 @@ const T: Record<Lang, Record<string, string>> = {
     callDoctor: "Call Doctor",
     notRecorded: "Not recorded",
     notKnown: "Not known",
-    notRecordedNote: "Not recorded. Add one under Emergency when editing this profile.",
-    language: "Language",
-    download: "Download",
+    download: "Download as PDF",
+    edit: "Edit medical ID",
+    fillIn: "Fill in your Medical ID",
+    noProfile: "No profile yet.",
   },
   zh: {
-    back: "返回",
     medicalId: "医疗身份证",
     bleedingDisorder: "出血性疾病",
     handleWithCare: "请小心处理",
-    bannerIntro: "此患者患有",
-    bannerDetail: "请确保给予适当治疗，并避免不必要的手术或注射。",
     patientDetails: "患者详情",
     name: "姓名",
     bloodType: "血型",
@@ -235,18 +215,15 @@ const T: Record<Lang, Record<string, string>> = {
     callDoctor: "拨打医生电话",
     notRecorded: "未记录",
     notKnown: "未知",
-    notRecordedNote: "未记录。编辑此档案时可在「紧急」部分添加。",
-    language: "语言",
-    download: "下载",
+    download: "下载为PDF",
+    edit: "编辑医疗身份证",
+    fillIn: "填写您的医疗身份证",
+    noProfile: "尚无档案。",
   },
   ms: {
-    back: "Kembali",
     medicalId: "ID PERUBATAN",
     bleedingDisorder: "GANGGUAN PENDARAHAN",
     handleWithCare: "KENDALIKAN DENGAN BERHATI-HATI",
-    bannerIntro: "Pesakit ini mempunyai",
-    bannerDetail:
-      "Sila pastikan rawatan yang sesuai diberikan dan elakkan prosedur atau suntikan yang tidak perlu.",
     patientDetails: "BUTIRAN PESAKIT",
     name: "Nama",
     bloodType: "Jenis Darah",
@@ -267,18 +244,15 @@ const T: Record<Lang, Record<string, string>> = {
     callDoctor: "Hubungi Doktor",
     notRecorded: "Tidak direkodkan",
     notKnown: "Tidak diketahui",
-    notRecordedNote: "Tidak direkodkan. Tambah satu di bawah Kecemasan semasa mengedit profil ini.",
-    language: "Bahasa",
-    download: "Muat Turun",
+    download: "Muat Turun sebagai PDF",
+    edit: "Edit ID perubatan",
+    fillIn: "Isi ID Perubatan Anda",
+    noProfile: "Belum ada profil.",
   },
   ta: {
-    back: "பின்செல்",
     medicalId: "மருத்துவ அடையாள அட்டை",
     bleedingDisorder: "இரத்தப்போக்கு கோளாறு",
     handleWithCare: "கவனமாக கையாளவும்",
-    bannerIntro: "இந்த நோயாளிக்கு",
-    bannerDetail:
-      "பொருத்தமான சிகிச்சை அளிக்கப்படுவதை உறுதிசெய்து, தேவையற்ற செயல்முறைகள் அல்லது ஊசிகளைத் தவிர்க்கவும்.",
     patientDetails: "நோயாளர் விவரங்கள்",
     name: "பெயர்",
     bloodType: "இரத்த வகை",
@@ -299,10 +273,10 @@ const T: Record<Lang, Record<string, string>> = {
     callDoctor: "மருத்துவரை அழைக்கவும்",
     notRecorded: "பதிவு செய்யப்படவில்லை",
     notKnown: "தெரியவில்லை",
-    notRecordedNote:
-      "பதிவு செய்யப்படவில்லை. இந்த சுயவிவரத்தைத் திருத்தும்போது அவசரநிலை பிரிவின் கீழ் ஒன்றைச் சேர்க்கவும்.",
-    language: "மொழி",
-    download: "பதிவிறக்கம்",
+    download: "PDF ஆக பதிவிறக்கவும்",
+    edit: "மருத்துவ அடையாள அட்டையைத் திருத்தவும்",
+    fillIn: "உங்கள் மருத்துவ அடையாள அட்டையை நிரப்பவும்",
+    noProfile: "இன்னும் சுயவிவரம் இல்லை.",
   },
 };
 
@@ -310,45 +284,16 @@ export function MedicalId() {
   const { activeProfile, status } = useProfiles();
   const [lang, setLang] = useState<Lang>("en");
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
   const t = T[lang];
 
   async function handleDownload() {
-    if (!cardRef.current || downloading) return;
+    if (!activeProfile || downloading) return;
     setDownloading(true);
     try {
-      const canvas = await html2canvas(cardRef.current, { backgroundColor: "#f9fafb", scale: 2 });
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          setDownloading(false);
-          return;
-        }
-        const file = new File([blob], "medical-id.png", { type: "image/png" });
-        const nav = navigator as Navigator & {
-          canShare?: (data: { files: File[] }) => boolean;
-          share?: (data: { files: File[]; title?: string }) => Promise<void>;
-        };
-        if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
-          try {
-            await nav.share({ files: [file], title: "Medical ID" });
-            setDownloading(false);
-            return;
-          } catch {
-            // user cancelled the share sheet, or it's unsupported here; fall through to download
-          }
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "medical-id.png";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setDownloading(false);
-      });
-    } catch {
+      await downloadMedicalIdPdf(activeProfile);
+    } finally {
       setDownloading(false);
     }
   }
@@ -364,24 +309,23 @@ export function MedicalId() {
   if (!activeProfile) {
     return (
       <div className="px-4 pt-8">
-        <Link
-          to="/tips"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Back
-        </Link>
-        <p className="mt-4 text-sm text-gray-400">
-          No profile selected yet. Create a profile to see a Medical ID.
-        </p>
+        <BackLink to="/tips" />
+        <p className="mt-4 text-sm text-gray-400">{t.noProfile}</p>
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div className="px-4 pt-8">
+        <BackLink to="/tips" />
+        <div className="mt-4">
+          <MedicalIdForm
+            profile={activeProfile}
+            onDone={() => setEditing(false)}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
       </div>
     );
   }
@@ -394,185 +338,129 @@ export function MedicalId() {
   return (
     <div className="px-4 pt-8 pb-8">
       <div className="flex items-center justify-between">
-        <Link
-          to="/tips"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {t.back}
-        </Link>
+        <BackLink to="/tips" />
 
-        <div className="flex items-center gap-2">
-          {/* Language selector */}
-          <div className="relative">
-            <button
-              onClick={() => setLangMenuOpen((open) => !open)}
-              className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M3 12h18M12 3c2.5 2.5 3.5 6 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-6-3.5-9s1-6.5 3.5-9z" />
-              </svg>
-              {LANG_LABELS[lang]}
-            </button>
-            {langMenuOpen && (
-              <div className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5">
-                {(Object.keys(LANG_LABELS) as Lang[]).map((code) => (
-                  <button
-                    key={code}
-                    onClick={() => {
-                      setLang(code);
-                      setLangMenuOpen(false);
-                    }}
-                    className={
-                      "block w-full px-4 py-2.5 text-left text-sm " +
-                      (lang === code ? "bg-blue-50 font-semibold text-blue-700" : "text-gray-700")
-                    }
-                  >
-                    {LANG_LABELS[code]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Download button */}
+        {/* Language selector */}
+        <div className="relative">
           <button
-            onClick={handleDownload}
-            disabled={downloading}
-            aria-label={t.download}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 disabled:opacity-50"
+            onClick={() => setLangMenuOpen((open) => !open)}
+            className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700"
           >
-            {downloading ? (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-4 w-4 animate-spin"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
-                <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path
-                  d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18M12 3c2.5 2.5 3.5 6 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-6-3.5-9s1-6.5 3.5-9z" />
+            </svg>
+            {LANG_LABELS[lang]}
           </button>
+          {langMenuOpen && (
+            <div className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5">
+              {(Object.keys(LANG_LABELS) as Lang[]).map((code) => (
+                <button
+                  key={code}
+                  onClick={() => {
+                    setLang(code);
+                    setLangMenuOpen(false);
+                  }}
+                  className={
+                    "block w-full px-4 py-2.5 text-left text-sm " +
+                    (lang === code ? "bg-blue-50 font-semibold text-blue-700" : "text-gray-700")
+                  }
+                >
+                  {LANG_LABELS[code]}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Everything inside this ref is what gets captured for the download */}
-      <div ref={cardRef} className="bg-gray-50">
-        <div className="mt-4 rounded-[20px] border border-gray-100 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold tracking-widest text-blue-700">{t.medicalId}</p>
-          <h1 className="mt-1 text-4xl font-extrabold text-red-600">{label}</h1>
-          <p className="mt-1 text-xs font-bold tracking-wide text-gray-500">
-            {t.bleedingDisorder} &nbsp;&#8226;&nbsp; {t.handleWithCare}
-          </p>
-        </div>
-
-        {/* The line a responder should read first, so it sits above the details. */}
-        <div className="mt-4 rounded-[20px] bg-blue-50 p-4">
-          <p className="text-sm font-bold text-blue-900">
-            {t.bannerIntro} {label}.
-          </p>
-          <p className="mt-1 text-sm text-blue-800">{t.bannerDetail}</p>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-4">
-          <SectionCard title={t.patientDetails} iconBg="#1e3a8a" icon={<PersonIcon />}>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={t.name} value={activeProfile.name} />
-              <Field
-                label={t.bloodType}
-                value={bloodTypeLabel(clinical, t.notRecorded, t.notKnown)}
-              />
-            </div>
-            <Field label={t.dob} value={formatDob(clinical?.date_of_birth, t.notRecorded)} />
-          </SectionCard>
-
-          <SectionCard title={t.medicalInformation} iconBg="#2563eb" icon={<CapsuleIcon />}>
-            <Field label={t.diagnosisLabel} value={label} />
-            <Field label={t.severity} value={severityLabel(clinical, lang, t.notRecorded)} />
-            <Field label={t.currentMedication} value={medicationSummary(clinical, t.notRecorded)} />
-          </SectionCard>
-
-          <SectionCard title={t.drugAllergies} iconBg="#2563eb" icon={<PlusIcon />}>
-            <p className="text-sm text-gray-800">
-              {clinical?.has_drug_allergies
-                ? (clinical.drug_allergy_details ?? t.yesDetailsNotRecorded)
-                : t.noneRecorded}
+      {/* One card, so the whole ID reads as a single document. */}
+      <div className="mt-4 overflow-hidden rounded-[20px] border border-gray-100 bg-white shadow-sm">
+        <div className="flex items-start justify-between gap-3 px-4 pt-5 pb-4 md:px-6">
+          <div>
+            <p className="text-xs font-bold tracking-widest text-blue-700">{t.medicalId}</p>
+            <h1 className="mt-1 text-3xl font-extrabold text-red-600 md:text-4xl">{label}</h1>
+            <p className="mt-1 text-xs font-bold tracking-wide text-gray-500">
+              {t.bleedingDisorder} &nbsp;&#8226;&nbsp; {t.handleWithCare}
             </p>
-          </SectionCard>
-
-          {/* Both contacts come from the profile's Emergency step. A card that shows
-              "Not recorded" is honest; one that shows a placeholder stranger's number
-              in an emergency is not. */}
-          <SectionCard
-            title={t.emergencyContact}
-            titleColor="text-red-600"
-            iconBg="#fecaca"
-            icon={<PhoneIcon />}
-          >
-            {contact ? (
-              <>
-                <Field label={t.name} value={contact.name} />
-                {contact.relationship ? (
-                  <Field label={t.relationship} value={contact.relationship} />
-                ) : null}
-                <Field label={t.phone} value={contact.phone} />
-                <CallLink phone={contact.phone} label={t.callEmergency} className="bg-red-600" />
-              </>
-            ) : (
-              <p className="text-sm text-gray-800">{t.notRecordedNote}</p>
-            )}
-          </SectionCard>
-
-          <SectionCard title={t.primaryDoctor} iconBg="#2563eb" icon={<StethoscopeIcon />}>
-            {doctor ? (
-              <>
-                <Field label={t.name} value={doctor.name} />
-                {doctor.organisation ? (
-                  <Field label={t.organisation} value={doctor.organisation} />
-                ) : null}
-                {doctor.phone ? (
-                  <>
-                    <Field label={t.phone} value={doctor.phone} />
-                    <CallLink phone={doctor.phone} label={t.callDoctor} className="bg-blue-600" />
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-sm text-gray-800">{t.notRecordedNote}</p>
-            )}
-          </SectionCard>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={downloading}
+              aria-label={t.download}
+              title={t.download}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 active:bg-gray-100 disabled:opacity-50"
+            >
+              <Download className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label={clinical ? t.edit : t.fillIn}
+              title={clinical ? t.edit : t.fillIn}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-blue-700 active:bg-blue-50"
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+          </div>
         </div>
+
+        <Section title={t.patientDetails} iconBg="#1e3a8a" icon={<PersonIcon />}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t.name} value={activeProfile.name} />
+            <Field label={t.bloodType} value={bloodTypeLabel(clinical, t.notRecorded, t.notKnown)} />
+          </div>
+          <Field label={t.dob} value={formatDob(clinical?.date_of_birth, t.notRecorded)} />
+        </Section>
+
+        <Section title={t.medicalInformation} iconBg="#2563eb" icon={<CapsuleIcon />}>
+          <Field label={t.diagnosisLabel} value={label} />
+          <Field label={t.severity} value={severityLabel(clinical, lang, t.notRecorded)} />
+          <Field label={t.currentMedication} value={medicationSummary(clinical, t.notRecorded)} />
+        </Section>
+
+        <Section title={t.drugAllergies} iconBg="#2563eb" icon={<PlusIcon />}>
+          <p className="text-sm text-gray-800">
+            {clinical?.has_drug_allergies
+              ? (clinical.drug_allergy_details ?? t.yesDetailsNotRecorded)
+              : t.noneRecorded}
+          </p>
+        </Section>
+
+        {/* Both contacts come from the profile's Emergency step. A section that shows
+            "Not recorded" is honest; one that shows a placeholder stranger's number
+            in an emergency is not. */}
+        <Section title={t.emergencyContact} titleColor="text-red-600" iconBg="#fecaca" icon={<PhoneIcon />}>
+          {contact ? (
+            <>
+              <Field label={t.name} value={contact.name} />
+              {contact.relationship ? <Field label={t.relationship} value={contact.relationship} /> : null}
+              <Field label={t.phone} value={contact.phone} />
+              <CallLink phone={contact.phone} label={t.callEmergency} className="bg-red-600" />
+            </>
+          ) : (
+            <p className="text-sm text-gray-800">{t.notRecorded}.</p>
+          )}
+        </Section>
+
+        <Section title={t.primaryDoctor} iconBg="#2563eb" icon={<StethoscopeIcon />}>
+          {doctor ? (
+            <>
+              <Field label={t.name} value={doctor.name} />
+              {doctor.organisation ? <Field label={t.organisation} value={doctor.organisation} /> : null}
+              {doctor.phone ? (
+                <>
+                  <Field label={t.phone} value={doctor.phone} />
+                  <CallLink phone={doctor.phone} label={t.callDoctor} className="bg-blue-600" />
+                </>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-gray-800">{t.notRecorded}.</p>
+          )}
+        </Section>
       </div>
     </div>
   );

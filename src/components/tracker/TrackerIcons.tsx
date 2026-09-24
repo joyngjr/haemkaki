@@ -35,6 +35,14 @@ export function ChevronRightIcon(props: IconProps) {
   );
 }
 
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Glyph>
+  );
+}
+
 export function PlusIcon(props: IconProps) {
   return (
     <Glyph {...props}>
@@ -124,25 +132,6 @@ export function SyringeIcon({ className = "" }: IconProps) {
   );
 }
 
-export function WarningIcon({ className = "" }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m12 3 10 18H2L12 3Z" />
-      <path d="M12 9v5M12 17h.01" />
-    </svg>
-  );
-}
-
-/** The blood drop that marks on-demand use — a bleed — on the calendar and in lists. */
 export function BleedDropIcon({ className = "", label }: IconProps & { label?: string }) {
   return (
     <svg

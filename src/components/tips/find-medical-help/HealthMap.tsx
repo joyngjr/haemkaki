@@ -23,7 +23,8 @@ function RecenterOnLocate({ position }: { position: [number, number] | null }) {
 /** The pinned map of hospitals, polyclinics and pharmacies. */
 export function HealthMap({ userPosition }: { userPosition: [number, number] | null }) {
   return (
-    <div className="overflow-hidden rounded-[28px] shadow-lg" style={{ height: "500px" }}>
+    // `isolate` keeps Leaflet's high z-index panes under the sticky top bar and the tab bar.
+    <div className="isolate overflow-hidden rounded-[28px] shadow-lg" style={{ height: "500px" }}>
       <MapContainer
         center={ISLAND_CENTER}
         zoom={ISLAND_ZOOM}
