@@ -119,12 +119,16 @@ export type AmountSource = "pending" | "routine" | "custom";
  * timeline be a plain `events.map(...)`. `fromApi` in `@/lib/tracker-entries`
  * narrows it back into a `TrackerEntry`.
  */
+/** How an on-demand bleed started. The tracker asks; imported history has null. */
+export type BleedNature = "spontaneous" | "traumatic";
+
 export type TrackingEvent = {
   id: number;
   kind: EventKind;
   /** `YYYY-MM-DD` — the same day key the calendar files entries under. */
   occurred_on: string;
   vials: number | null;
+  bleed_nature: BleedNature | null;
   missed_on: string | null;
   amount_source: AmountSource | null;
   amount_vials: number | null;
@@ -142,7 +146,7 @@ export type TrackingEventDraft =
   | { kind: "refill"; occurred_on: string; vials: number }
   // `vials` only when the dose carries its own size; otherwise the routine sizes it.
   | { kind: "prophylaxis"; occurred_on: string; vials?: number }
-  | { kind: "on-demand"; occurred_on: string; vials: number }
+  | { kind: "on-demand"; occurred_on: string; vials: number; bleed_nature?: BleedNature }
   | { kind: "follow-up"; occurred_on: string; vials: number }
   | {
       kind: "makeup";

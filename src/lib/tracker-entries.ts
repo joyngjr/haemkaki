@@ -1,6 +1,7 @@
 import type {
   AmountSource,
   TrackingEvent as ApiTrackingEvent,
+  BleedNature,
   TrackingEventDraft,
 } from "@/lib/api";
 import { fromKey, shortDate } from "@/lib/tracker-dates";
@@ -44,7 +45,8 @@ export type TrackerEntry =
    * sizes it and `appliedVials` says how much, resolved by the API.
    */
   | (Base & { kind: "prophylaxis"; vials?: number })
-  | (Base & { kind: "on-demand"; vials: number })
+  /** `nature` is unset on a dose logged before it was asked, and on imported history. */
+  | (Base & { kind: "on-demand"; vials: number; nature?: BleedNature })
   | (Base & { kind: "follow-up"; vials: number })
   /**
    * A planned dose taken late, filed on the day it was actually taken.
@@ -59,6 +61,11 @@ export type EntryMap = Record<string, TrackerEntry[]>;
 export const VIALS_MAX = 999;
 /** How many digits a vial count accepts: as many as `VIALS_MAX` has. */
 export const VIALS_DIGITS = String(VIALS_MAX).length;
+
+export const BLEED_NATURE_LABEL: Record<BleedNature, string> = {
+  spontaneous: "Spontaneous",
+  traumatic: "Traumatic",
+};
 
 /** "3 vials", "1 vial" — every amount the app prints, so they all read the same. */
 export function vialLabel(vials: number) {
@@ -93,7 +100,9 @@ export function entryDetail(entry: TrackerEntry): string {
       return vials ? `Regular prophylaxis use — ${vialLabel(vials)}` : "Regular prophylaxis use";
     }
     case "on-demand":
-      return `On-demand use — ${vialLabel(entry.vials)}`;
+      return entry.nature
+        ? `On-demand use (${entry.nature} bleed) — ${vialLabel(entry.vials)}`
+        : `On-demand use — ${vialLabel(entry.vials)}`;
     case "follow-up":
       return `Follow-up use after a bleed — ${vialLabel(entry.vials)}`;
     case "makeup":
@@ -181,8 +190,14 @@ function entryFromApi(event: ApiTrackingEvent): TrackerEntry | null {
       // freezes the routine's size into the row.
       return { ...base, kind: "prophylaxis", ...(event.vials ? { vials: event.vials } : {}) };
     case "on-demand":
+      return {
+        ...base,
+        kind: "on-demand",
+        vials: event.vials ?? 0,
+        ...(event.bleed_nature ? { nature: event.bleed_nature } : {}),
+      };
     case "follow-up":
-      return { ...base, kind: event.kind, vials: event.vials ?? 0 };
+      return { ...base, kind: "follow-up", vials: event.vials ?? 0 };
     case "makeup":
       return {
         ...base,
@@ -220,8 +235,14 @@ export function entryToApi(entry: TrackerEntry, dateKey: string): TrackingEventD
         ...(entry.vials ? { vials: entry.vials } : {}),
       };
     case "on-demand":
+      return {
+        kind: "on-demand",
+        occurred_on: dateKey,
+        vials: entry.vials,
+        ...(entry.nature ? { bleed_nature: entry.nature } : {}),
+      };
     case "follow-up":
-      return { kind: entry.kind, occurred_on: dateKey, vials: entry.vials };
+      return { kind: "follow-up", occurred_on: dateKey, vials: entry.vials };
     case "makeup":
       return {
         kind: "makeup",

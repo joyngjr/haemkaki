@@ -96,6 +96,7 @@ export function Dashboard() {
               <Anchor id="calendar">{cards.calendar}</Anchor>
               <RecentEntries entries={data.recentEntries} />
               {cards.planAhead}
+              {cards.device}
             </CardGroup>
             <CardGroup label="Supplies">
               <Anchor id="supply">{cards.supply}</Anchor>

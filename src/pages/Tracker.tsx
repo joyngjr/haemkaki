@@ -4,6 +4,7 @@ import type { Occurrence } from "@/lib/api";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DayActionsSheet, type DayFlow } from "@/components/tracker/DayActionsSheet";
+import { DeviceCard } from "@/components/tracker/DeviceCard";
 import { FactorSupplyCard, SupplyHistorySheet } from "@/components/tracker/FactorSupplyCard";
 import { FactorUseFlow, type FactorUse, type SavedUse } from "@/components/tracker/FactorUseFlow";
 import { InventoryCard } from "@/components/tracker/InventoryCard";
@@ -14,10 +15,12 @@ import { RefillSheet } from "@/components/tracker/RefillSheet";
 import { RoutineCard } from "@/components/tracker/RoutineCard";
 import { SavedEntriesPanel } from "@/components/tracker/SavedEntriesPanel";
 import { ScheduleShiftPrompt } from "@/components/tracker/ScheduleShiftPrompt";
+import { useDevice } from "@/components/tracker/useDevice";
 import { useLedger } from "@/components/tracker/useLedger";
 import { usePlans } from "@/components/tracker/usePlans";
 import { useSchedule } from "@/components/tracker/useSchedule";
 import { useStatus } from "@/components/tracker/useStatus";
+import { formatDeviceDate } from "@/lib/arduino";
 import {
   frequencyOf,
   frequencyToApi,
@@ -29,6 +32,7 @@ import {
 } from "@/lib/tracker-dates";
 import {
   FACTOR_USE_KINDS,
+  recordProphylaxis,
   supplyHistory,
   withEntry,
   type EntryMap,
@@ -53,6 +57,8 @@ export type TrackerCards = {
   inventory: ReactNode;
   routine: ReactNode;
   planAhead: ReactNode;
+  /** The USB dose device. Null wherever the browser cannot open a serial port. */
+  device: ReactNode;
 };
 
 export type TrackerLayout = (cards: TrackerCards) => ReactNode;
@@ -82,6 +88,11 @@ const USE_KINDS = new Set<TrackerEntry["kind"]>(FACTOR_USE_KINDS);
 
 /** A dose is made up within the week; anything later is a new dose entirely. */
 const MAKEUP_WINDOW_DAYS = 7;
+
+/** Whether a day already holds a factor use of any kind. */
+function dayHasUse(entries: EntryMap, dateKey: string) {
+  return (entries[dateKey] ?? []).some((entry) => USE_KINDS.has(entry.kind));
+}
 
 /**
  * The planned days that were missed: in the past, with no factor use on them,
@@ -194,6 +205,27 @@ function TrackerPage({
   const errors = [ledgerError, schedule.error, statusError].filter((message): message is string =>
     Boolean(message),
   );
+
+  /**
+   * The USB board. Its button means "I took my routine dose now", filed like
+   * Home's "Taken": one use per day, so a second press changes nothing. Its
+   * display follows the fold — vials at home and the next planned dose — and
+   * its reminder sounds while that dose is due and nothing is logged today.
+   */
+  const todayKey = toKey(today);
+  const usedToday = dayHasUse(entries, todayKey);
+  const logDeviceDose = useCallback(() => {
+    mutate((current) =>
+      dayHasUse(current, todayKey) ? current : recordProphylaxis(current, todayKey, Date.now()),
+    );
+  }, [mutate, todayKey]);
+  const device = useDevice({
+    todayKey,
+    vials: status?.vials_on_hand,
+    dateLabel: formatDeviceDate(status?.next_dose ? fromKey(status.next_dose.on) : today),
+    doseDue: Boolean(status?.next_dose && status.next_dose.on <= todayKey && !usedToday),
+    onDoseTaken: logDeviceDose,
+  });
 
   /** Replace the entries on one day. */
   function updateDay(dateKey: string, update: (current: TrackerEntry[]) => TrackerEntry[]) {
@@ -371,6 +403,7 @@ function TrackerPage({
             onRemove={plans.remove}
           />
         ),
+        device: <DeviceCard device={device} />,
       })}
 
       {selectedDate && (
@@ -459,6 +492,7 @@ function TrackerScreen({ cards }: { cards: TrackerCards }) {
           {cards.routine}
         </div>
         {cards.planAhead}
+        {cards.device}
       </div>
     </div>
   );

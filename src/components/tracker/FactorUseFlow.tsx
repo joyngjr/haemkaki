@@ -1,7 +1,9 @@
 import { useState } from "react";
 
+import type { BleedNature } from "@/lib/api";
 import { fromKey } from "@/lib/tracker-dates";
 import {
+  BLEED_NATURE_LABEL,
   VIALS_DIGITS,
   chargedVials,
   type DoseAmount,
@@ -16,9 +18,11 @@ export type UseType = "prophylaxis" | "on-demand" | "follow-up" | "makeup";
 /** The entry this sheet hands back, before the ledger gives it an id. */
 export type FactorUse =
   | { kind: "prophylaxis"; vials?: number }
-  | { kind: "on-demand"; vials: number }
+  | { kind: "on-demand"; vials: number; nature: BleedNature }
   | { kind: "follow-up"; vials: number }
   | { kind: "makeup"; missedDateKey: string; amount: DoseAmount };
+
+const NATURES = Object.keys(BLEED_NATURE_LABEL) as BleedNature[];
 
 /** The day's factor use, when one is already logged. */
 export type SavedUse = Extract<TrackerEntry, { kind: UseType }>;
@@ -121,14 +125,21 @@ export function FactorUseFlow({
   const [makeupDay, setMakeupDay] = useState<string | null>(
     (saved?.kind === "makeup" ? saved.missedDateKey : null) ?? missedDays[0] ?? null,
   );
+  // Asked for a bleed. Empty on an entry logged before the question existed.
+  const [nature, setNature] = useState<BleedNature | null>(
+    saved?.kind === "on-demand" ? (saved.nature ?? null) : null,
+  );
 
   /** A typed amount is the user's own, even one that happens to match the routine. */
   const typeAmount = (raw: string) =>
     setAmount({ vials: Number(raw.replace(/[^0-9]/g, "").slice(0, VIALS_DIGITS)), custom: true });
 
   const save = () => {
-    if (usageType === "on-demand" || usageType === "follow-up")
-      return onSave({ kind: usageType, vials: amount.vials });
+    if (usageType === "on-demand") {
+      if (!nature) return;
+      return onSave({ kind: "on-demand", vials: amount.vials, nature });
+    }
+    if (usageType === "follow-up") return onSave({ kind: "follow-up", vials: amount.vials });
     if (usageType === "prophylaxis")
       return onSave({ kind: "prophylaxis", ...(amount.custom ? { vials: amount.vials } : {}) });
     if (!makeupDay) return;
@@ -140,6 +151,7 @@ export function FactorUseFlow({
   };
 
   const noDayToMakeUp = usageType === "makeup" && !makeupDay;
+  const noBleedNature = usageType === "on-demand" && !nature;
 
   return (
     <Sheet
@@ -175,6 +187,26 @@ export function FactorUseFlow({
           <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5C646C]" />
         </div>
       </label>
+
+      {usageType === "on-demand" ? (
+        <div className="mt-4">
+          <p className="text-sm font-bold text-[#242A2F]">Bleed</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {NATURES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setNature(option)}
+                aria-pressed={option === nature}
+                style={option === nature ? { boxShadow: "0 0 0 2px #2C7A70" } : undefined}
+                className="min-h-11 rounded-full border border-[#E7E5E0] bg-[#F7F6F3] px-4 py-2 text-xs font-bold text-[#242A2F] transition"
+              >
+                {BLEED_NATURE_LABEL[option]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {usageType === "makeup" ? (
         missedDays.length ? (
@@ -229,7 +261,7 @@ export function FactorUseFlow({
       </div>
 
       <button
-        disabled={noDayToMakeUp || amount.vials <= 0}
+        disabled={noDayToMakeUp || noBleedNature || amount.vials <= 0}
         onClick={save}
         className="mt-4 w-full rounded-xl bg-[#274A63] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#274A63] disabled:cursor-not-allowed disabled:opacity-40"
       >
