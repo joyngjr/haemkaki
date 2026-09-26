@@ -1,12 +1,13 @@
 import { doseLabel } from "@/components/profile/clinical-profile";
 import type { ClinicalProfile, MedicationDetails, Profile } from "@/lib/api";
+import type { MedicalTerm } from "@/lib/medical-id-glossary";
 
 /**
  * The labels the Medical ID and the Resources summary card both read off a
  * profile. Shared so the two can never disagree about a diagnosis.
  */
 
-const DIAGNOSIS_LABELS: Record<string, string> = {
+const DIAGNOSIS_LABELS: Record<string, MedicalTerm> = {
   haemophilia_a: "Haemophilia A",
   haemophilia_b: "Haemophilia B",
   factor_xi_deficiency: "Factor XI Deficiency",
@@ -31,7 +32,7 @@ export function diagnosisLabel(profile: Profile): string {
   return "Bleeding Disorder";
 }
 
-const SEVERITY_LABELS: Record<string, string> = {
+const SEVERITY_LABELS: Record<string, MedicalTerm> = {
   severe: "Severe",
   moderate: "Moderate",
   mild: "Mild",
@@ -116,9 +117,11 @@ export function drugAllergiesLabel(clinical: ClinicalProfile | null | undefined)
 
 /**
  * Every fixed English string the Medical ID card and its PDF can show — what
- * gets sent for translation. It is the same list for everyone, so the person's
- * own details never leave for the translation service, and anything not in it
- * (a name, a phone number, a drug, an allergy note) is shown as entered.
+ * gets translated, by hand from `MEDICAL_ID_GLOSSARY` where it can be and by
+ * the translation service otherwise. It is the same list for everyone, so the
+ * person's own details never leave for the translation service, and anything
+ * not in it (a name, a phone number, a drug, an allergy note) is shown as
+ * entered.
  *
  * Titles are in title case and uppercased for display: a translator handles
  * "Patient Details" far better than "PATIENT DETAILS".

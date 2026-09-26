@@ -1,12 +1,15 @@
 import { api, type TranslationTarget } from "@/lib/api";
 import { MEDICAL_ID_COPY } from "@/lib/medical-id";
+import { MEDICAL_ID_GLOSSARY } from "@/lib/medical-id-glossary";
 
 /**
  * The Medical ID in the language of whoever is reading it.
  *
- * Translation is live — the backend proxies LibreTranslate — and covers only
- * the card's fixed copy (`MEDICAL_ID_COPY`). Everything else passes through
- * `Translate` unchanged, so a name or a drug is never "translated".
+ * Only the card's fixed copy (`MEDICAL_ID_COPY`) is translated: from the hand
+ * translations in `MEDICAL_ID_GLOSSARY` where they have the string, and live
+ * through the backend's LibreTranslate proxy for the rest. Everything else
+ * passes through `Translate` unchanged, so a name or a drug is never
+ * "translated".
  */
 
 export type LanguageCode = "en" | TranslationTarget;
@@ -52,8 +55,14 @@ export function loadTranslation(code: LanguageCode): Promise<Translate> {
 
   let pending = loaded.get(code);
   if (!pending) {
-    pending = api.translate(code, MEDICAL_ID_COPY).then(({ translations }) => {
-      const table = new Map(MEDICAL_ID_COPY.map((text, i) => [text, translations[i] ?? text]));
+    const glossary = new Map(Object.entries(MEDICAL_ID_GLOSSARY[code]));
+    const machine = MEDICAL_ID_COPY.filter((text) => !glossary.has(text));
+    const translated = machine.length
+      ? api.translate(code, machine).then(({ translations }) => translations)
+      : Promise.resolve([]);
+    pending = translated.then((translations) => {
+      const table = new Map(machine.map((text, i) => [text, translations[i] ?? text]));
+      for (const [english, hand] of glossary) table.set(english, hand);
       return (english: string) => table.get(english) ?? english;
     });
     pending.catch(() => loaded.delete(code));
