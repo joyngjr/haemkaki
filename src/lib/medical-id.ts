@@ -1,5 +1,5 @@
 import { doseLabel } from "@/components/profile/clinical-profile";
-import type { ClinicalProfile, Profile } from "@/lib/api";
+import type { ClinicalProfile, MedicationDetails, Profile } from "@/lib/api";
 
 /**
  * The labels the Medical ID and the Resources summary card both read off a
@@ -60,11 +60,22 @@ export function diagnosisWithSeverity(profile: Profile): string {
   return severity === "Not recorded" ? label : `${label}, ${severity.toLowerCase()}`;
 }
 
-/** "Advate, 2 vials" — what is being taken, as far as the profile records it. */
+/**
+ * "2 vials of 1000 IU", "1000 IU vials" — the dose with the vial's strength, so
+ * a responder can tell how much factor that is. Undefined when neither is recorded.
+ */
+function doseWithStrength(medication: MedicationDetails | null | undefined): string | undefined {
+  const dose = doseLabel(medication);
+  const iu = medication?.iu_per_vial;
+  if (!iu) return dose;
+  return dose ? `${dose} of ${iu} IU` : `${iu} IU vials`;
+}
+
+/** "Advate, 2 vials of 1000 IU" — what is being taken, as far as the profile records it. */
 export function treatmentLabel(profile: Profile): string {
   const medication = profile.clinical_profile?.prophylactic_medication;
   const name = medication?.name?.trim() || `Factor ${profile.factor_type}`;
-  const dose = doseLabel(medication);
+  const dose = doseWithStrength(medication);
   return dose ? `${name}, ${dose}` : name;
 }
 
@@ -73,7 +84,7 @@ export function medicationSummary(clinical: ClinicalProfile | null): string {
   const named = [clinical?.prophylactic_medication, clinical?.on_demand_medication]
     .filter((medication) => medication?.name)
     .map((medication) => {
-      const dose = doseLabel(medication);
+      const dose = doseWithStrength(medication);
       return dose ? `${medication!.name} (${dose})` : medication!.name;
     });
   return named.length ? named.join(", ") : "Not recorded";

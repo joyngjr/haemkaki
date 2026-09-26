@@ -29,16 +29,16 @@ export function emptyClinicalProfile(diagnosis: DiagnosisType): ClinicalProfile 
 }
 
 /**
- * What a form edits: one product and its dose. The unit is not a field — the
- * forms only take vials, so storage always says so — and the storage-only keys
- * stay out.
+ * What a form edits: one product, its dose, and the IU in one vial, as typed.
+ * The unit is not a field — the forms only take vials, so storage always says
+ * so — and the storage-only keys stay out.
  */
-export type MedicationDraft = Pick<MedicationDetails, "name" | "dose">;
+export type MedicationDraft = Pick<MedicationDetails, "name" | "dose"> & { iuPerVial: string };
 
 /** The one unit the medication forms accept, and the one the tracker counts in. */
 export const MEDICATION_UNIT = "vials";
 
-export const emptyMedication = (): MedicationDraft => ({ name: "", dose: "" });
+export const emptyMedication = (): MedicationDraft => ({ name: "", dose: "", iuPerVial: "" });
 
 /**
  * A stored medication section as a draft.
@@ -50,12 +50,19 @@ export const emptyMedication = (): MedicationDraft => ({ name: "", dose: "" });
  */
 export function medicationFromStorage(stored: MedicationDetails | null): MedicationDraft {
   if (!stored) return emptyMedication();
-  return { name: stored.name, dose: stored.dose };
+  return { name: stored.name, dose: stored.dose, iuPerVial: stored.iu_per_vial?.toString() ?? "" };
 }
 
 /** The draft as the API stores it, or null when no product was named. Always in vials. */
 export function medicationForStorage(draft: MedicationDraft): MedicationDetails | null {
-  return draft.name.trim() ? { ...draft, name: draft.name.trim(), unit: MEDICATION_UNIT } : null;
+  if (!draft.name.trim()) return null;
+  const iuPerVial = Number(draft.iuPerVial);
+  return {
+    name: draft.name.trim(),
+    dose: draft.dose,
+    unit: MEDICATION_UNIT,
+    iu_per_vial: Number.isInteger(iuPerVial) && iuPerVial > 0 ? iuPerVial : null,
+  };
 }
 
 /**

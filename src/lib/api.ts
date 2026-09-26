@@ -29,6 +29,8 @@ export type MedicationDetails = {
   name: string;
   dose: string;
   unit: string;
+  /** The strength on the vial's label. Shown on the Medical ID; nothing converts with it. */
+  iu_per_vial?: number | null;
   /** Backward-compatible storage for sections recorded with more than one medication. */
   items_json?: string;
 };

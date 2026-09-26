@@ -11,10 +11,14 @@ import {
 } from "@/lib/medication-catalog";
 import { VIALS_DIGITS } from "@/lib/tracker-entries";
 
+/** Matches `IU_PER_VIAL_MAX` in the API's schemas.py. */
+const IU_PER_VIAL_MAX = 10_000;
+
 /**
- * Product and dose, with the catalog's suggestions filtered to the diagnosis.
- * Anything can be typed as the product; the dose is whole vials, the only unit
- * the app counts in, so the unit is shown beside the field rather than asked.
+ * Product, dose and vial strength, with the catalog's suggestions filtered to
+ * the diagnosis. Anything can be typed as the product; the dose is whole vials,
+ * the only unit the app counts in, so the unit is shown beside the field rather
+ * than asked. The IU per vial is only printed on the Medical ID.
  */
 export function MedicationFields({
   medication,
@@ -98,6 +102,26 @@ export function MedicationFields({
           />
           <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-semibold text-sand-600">
             {MEDICATION_UNIT}
+          </span>
+        </div>
+      </Field>
+      <Field label="IU per vial">
+        <div className="relative">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            className={`${inputClass} pr-14`}
+            value={medication.iuPerVial}
+            placeholder="As on the vial's label"
+            onChange={(event) => {
+              const digits = event.target.value.replace(/[^0-9]/g, "").replace(/^0+/, "");
+              // Past the API's cap the keystroke is dropped rather than saved into a 422.
+              if (Number(digits) <= IU_PER_VIAL_MAX) update({ iuPerVial: digits });
+            }}
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-semibold text-sand-600">
+            IU
           </span>
         </div>
       </Field>
