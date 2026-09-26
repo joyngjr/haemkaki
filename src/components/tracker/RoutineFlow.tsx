@@ -23,9 +23,9 @@ function SaveError({ message }: { message: string | null | undefined }) {
 }
 
 /**
- * The questions a routine is made of, asked in order. An every-X-days routine
- * needs a start date to anchor its cycle; fixed weekdays do not, so that path
- * skips the calendar and starts today. Saving replaces the series outright: a
+ * The questions a routine is made of, asked in order. Both kinds of routine
+ * ask for a start date: it anchors an every-X-days cycle, and it is the first
+ * day a weekday routine counts from. Saving replaces the series outright: a
  * new start date is a permanent shift of the cycle.
  *
  * The buffer and the order day come last. They are not part of the series —
@@ -78,7 +78,6 @@ export function RoutineFlow({
   const [saving, setSaving] = useState(false);
   const eyebrow = series ? "Change routine" : "Set up routine";
   const confirmLabel = saving ? "Saving…" : series ? "Start new routine" : "Start routine";
-  const byInterval = frequency?.unit === "days";
 
   function save(bufferToSave: number | null, orderDayToSave: number | null) {
     if (saving || !frequency) return;
@@ -103,12 +102,7 @@ export function RoutineFlow({
           confirmLabel="Next"
           onConfirm={(chosen) => {
             setFrequency(chosen);
-            if (chosen.unit === "days") {
-              setStep("start");
-            } else {
-              setStart(today);
-              setStep("vials");
-            }
+            setStep("start");
           }}
         />
       </Sheet>
@@ -145,8 +139,8 @@ export function RoutineFlow({
         tier="action"
         eyebrow={eyebrow}
         title="How much factor per dose?"
-        onBack={() => setStep(byInterval ? "start" : "frequency")}
-        backLabel={byInterval ? "Back to start date" : "Back to frequency"}
+        onBack={() => setStep("start")}
+        backLabel="Back to start date"
         onClose={onClose}
       >
         <NumberField
