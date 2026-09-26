@@ -415,7 +415,7 @@ export const api = {
   deletePlan: (userId: number, planId: number) =>
     request<void>(`/users/${userId}/plans/${planId}`, { method: "DELETE" }),
 
-  /** Machine translation of fixed English copy; `translations` comes back in the same order. */
+  /** Machine translation of English text; `translations` comes back in the same order. */
   translate: (target: TranslationTarget, texts: string[]) =>
     request<Translation>("/translate", { method: "POST", body: JSON.stringify({ target, texts }) }),
 

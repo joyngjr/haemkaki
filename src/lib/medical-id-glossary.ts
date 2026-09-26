@@ -1,4 +1,5 @@
 import type { TranslationTarget } from "@/lib/api";
+import type { DoseWords } from "@/lib/medical-id";
 
 /**
  * The card's clinical vocabulary: every diagnosis and severity label in
@@ -74,6 +75,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     Organisation: "医疗机构",
     "Call Doctor": "致电医生",
     "Yes — details not recorded": "有（未记录详情）",
+    "Original (English)": "原文（英文）",
   },
   "zh-Hant": {
     "Bleeding Disorder": "出血性疾病",
@@ -105,6 +107,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     "Call Doctor": "致電醫生",
     "Yes — details not recorded": "有（未記錄詳情）",
     "Machine-translated from English": "由英文機器翻譯",
+    "Original (English)": "原文（英文）",
   },
   ms: {
     "Bleeding Disorder": "Gangguan Pendarahan",
@@ -135,6 +138,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     "Medical Information": "Maklumat Perubatan",
     "Call Doctor": "Hubungi Doktor",
     "Machine-translated from English": "Diterjemah oleh mesin daripada bahasa Inggeris",
+    "Original (English)": "Asal (bahasa Inggeris)",
   },
   id: {
     "Bleeding Disorder": "Gangguan Perdarahan",
@@ -166,6 +170,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     "None recorded": "Tidak ada yang dicatat",
     "Yes — details not recorded": "Ya — rincian tidak dicatat",
     "Machine-translated from English": "Diterjemahkan mesin dari bahasa Inggris",
+    "Original (English)": "Asli (bahasa Inggris)",
   },
   th: {
     "Bleeding Disorder": "ภาวะเลือดออกผิดปกติ",
@@ -200,6 +205,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     Organisation: "สถานพยาบาล",
     "Yes — details not recorded": "มี — ไม่ได้บันทึกรายละเอียด",
     "Machine-translated from English": "แปลด้วยเครื่องจากภาษาอังกฤษ",
+    "Original (English)": "ต้นฉบับ (ภาษาอังกฤษ)",
   },
   vi: {
     "Bleeding Disorder": "Rối loạn đông máu",
@@ -233,6 +239,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     Organisation: "Cơ sở y tế",
     "None recorded": "Không có ghi nhận",
     "Machine-translated from English": "Dịch máy từ tiếng Anh",
+    "Original (English)": "Bản gốc (tiếng Anh)",
   },
   tl: {
     "Bleeding Disorder": "Karamdaman sa Pagdurugo",
@@ -266,6 +273,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     Organisation: "Organisasyon",
     "Generated on": "Ginawa noong",
     "Machine-translated from English": "Isinalin ng makina mula sa Ingles",
+    "Original (English)": "Orihinal (Ingles)",
   },
   ja: {
     "Bleeding Disorder": "出血性疾患",
@@ -305,6 +313,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     "Yes — details not recorded": "あり（詳細は未記録）",
     "Generated on": "作成日",
     "Machine-translated from English": "英語から機械翻訳",
+    "Original (English)": "原文（英語）",
   },
   ko: {
     "Bleeding Disorder": "출혈성 질환",
@@ -344,6 +353,7 @@ export const MEDICAL_ID_GLOSSARY: Record<
     "Yes — details not recorded": "있음 (세부 사항 기록 없음)",
     "Generated on": "생성일",
     "Machine-translated from English": "영어에서 기계 번역됨",
+    "Original (English)": "원문(영어)",
   },
   hi: {
     "Bleeding Disorder": "रक्तस्राव विकार",
@@ -374,5 +384,336 @@ export const MEDICAL_ID_GLOSSARY: Record<
     "Call Doctor": "डॉक्टर को कॉल करें",
     "Generated on": "निर्माण तिथि",
     "Machine-translated from English": "अंग्रेज़ी से मशीनी अनुवाद",
+    "Original (English)": "मूल (अंग्रेज़ी)",
+  },
+};
+
+/**
+ * The relationships people most often give for an emergency contact, as the
+ * key `relationshipKey` reduces them to. LibreTranslate read "mother in law" as
+ * "mother of the law" in five languages and "husband" as "madam" in Japanese,
+ * so these are by hand; anything else the person writes is machine-translated.
+ * In-laws use a spouse's-parent wording where a language would otherwise have
+ * to say whose side.
+ */
+export type Relationship =
+  | "mother"
+  | "father"
+  | "parent"
+  | "husband"
+  | "wife"
+  | "spouse"
+  | "partner"
+  | "son"
+  | "daughter"
+  | "brother"
+  | "sister"
+  | "grandmother"
+  | "grandfather"
+  | "friend"
+  | "guardian"
+  | "caregiver"
+  | "mother in law"
+  | "father in law"
+  | "son in law"
+  | "daughter in law";
+
+/** Other ways of writing a relationship, after `relationshipKey` has lowercased and unhyphenated them. */
+export const RELATIONSHIP_ALIASES: Record<string, Relationship> = {
+  mum: "mother",
+  mom: "mother",
+  mummy: "mother",
+  mommy: "mother",
+  mama: "mother",
+  dad: "father",
+  daddy: "father",
+  papa: "father",
+  parents: "parent",
+  hubby: "husband",
+  grandma: "grandmother",
+  granny: "grandmother",
+  grandpa: "grandfather",
+  granddad: "grandfather",
+  grandad: "grandfather",
+  carer: "caregiver",
+};
+
+export const RELATIONSHIPS: Record<TranslationTarget, Record<Relationship, string>> = {
+  "zh-Hans": {
+    mother: "母亲",
+    father: "父亲",
+    parent: "父母",
+    husband: "丈夫",
+    wife: "妻子",
+    spouse: "配偶",
+    partner: "伴侣",
+    son: "儿子",
+    daughter: "女儿",
+    brother: "兄弟",
+    sister: "姐妹",
+    grandmother: "祖母",
+    grandfather: "祖父",
+    friend: "朋友",
+    guardian: "监护人",
+    caregiver: "照顾者",
+    "mother in law": "配偶的母亲",
+    "father in law": "配偶的父亲",
+    "son in law": "女婿",
+    "daughter in law": "儿媳",
+  },
+  "zh-Hant": {
+    mother: "母親",
+    father: "父親",
+    parent: "父母",
+    husband: "丈夫",
+    wife: "妻子",
+    spouse: "配偶",
+    partner: "伴侶",
+    son: "兒子",
+    daughter: "女兒",
+    brother: "兄弟",
+    sister: "姐妹",
+    grandmother: "祖母",
+    grandfather: "祖父",
+    friend: "朋友",
+    guardian: "監護人",
+    caregiver: "照顧者",
+    "mother in law": "配偶的母親",
+    "father in law": "配偶的父親",
+    "son in law": "女婿",
+    "daughter in law": "兒媳",
+  },
+  ms: {
+    mother: "Ibu",
+    father: "Bapa",
+    parent: "Ibu bapa",
+    husband: "Suami",
+    wife: "Isteri",
+    spouse: "Pasangan",
+    partner: "Pasangan",
+    son: "Anak lelaki",
+    daughter: "Anak perempuan",
+    brother: "Saudara lelaki",
+    sister: "Saudara perempuan",
+    grandmother: "Nenek",
+    grandfather: "Datuk",
+    friend: "Kawan",
+    guardian: "Penjaga sah",
+    caregiver: "Penjaga",
+    "mother in law": "Ibu mertua",
+    "father in law": "Bapa mertua",
+    "son in law": "Menantu lelaki",
+    "daughter in law": "Menantu perempuan",
+  },
+  id: {
+    mother: "Ibu",
+    father: "Ayah",
+    parent: "Orang tua",
+    husband: "Suami",
+    wife: "Istri",
+    spouse: "Pasangan",
+    partner: "Pasangan",
+    son: "Anak laki-laki",
+    daughter: "Anak perempuan",
+    brother: "Saudara laki-laki",
+    sister: "Saudara perempuan",
+    grandmother: "Nenek",
+    grandfather: "Kakek",
+    friend: "Teman",
+    guardian: "Wali",
+    caregiver: "Pengasuh",
+    "mother in law": "Ibu mertua",
+    "father in law": "Ayah mertua",
+    "son in law": "Menantu laki-laki",
+    "daughter in law": "Menantu perempuan",
+  },
+  th: {
+    mother: "แม่",
+    father: "พ่อ",
+    parent: "พ่อแม่",
+    husband: "สามี",
+    wife: "ภรรยา",
+    spouse: "คู่สมรส",
+    partner: "คู่ชีวิต",
+    son: "ลูกชาย",
+    daughter: "ลูกสาว",
+    brother: "พี่ชาย/น้องชาย",
+    sister: "พี่สาว/น้องสาว",
+    grandmother: "ย่า/ยาย",
+    grandfather: "ปู่/ตา",
+    friend: "เพื่อน",
+    guardian: "ผู้ปกครอง",
+    caregiver: "ผู้ดูแล",
+    "mother in law": "แม่ของคู่สมรส",
+    "father in law": "พ่อของคู่สมรส",
+    "son in law": "ลูกเขย",
+    "daughter in law": "ลูกสะใภ้",
+  },
+  vi: {
+    mother: "Mẹ",
+    father: "Bố",
+    parent: "Phụ huynh",
+    husband: "Chồng",
+    wife: "Vợ",
+    spouse: "Vợ/chồng",
+    partner: "Bạn đời",
+    son: "Con trai",
+    daughter: "Con gái",
+    brother: "Anh/em trai",
+    sister: "Chị/em gái",
+    grandmother: "Bà",
+    grandfather: "Ông",
+    friend: "Bạn",
+    guardian: "Người giám hộ",
+    caregiver: "Người chăm sóc",
+    "mother in law": "Mẹ vợ/mẹ chồng",
+    "father in law": "Bố vợ/bố chồng",
+    "son in law": "Con rể",
+    "daughter in law": "Con dâu",
+  },
+  tl: {
+    mother: "Nanay",
+    father: "Tatay",
+    parent: "Magulang",
+    husband: "Asawang lalaki",
+    wife: "Asawang babae",
+    spouse: "Asawa",
+    partner: "Kapareha",
+    son: "Anak na lalaki",
+    daughter: "Anak na babae",
+    brother: "Kapatid na lalaki",
+    sister: "Kapatid na babae",
+    grandmother: "Lola",
+    grandfather: "Lolo",
+    friend: "Kaibigan",
+    guardian: "Tagapangalaga",
+    caregiver: "Tagapag-alaga",
+    "mother in law": "Biyenang babae",
+    "father in law": "Biyenang lalaki",
+    "son in law": "Manugang na lalaki",
+    "daughter in law": "Manugang na babae",
+  },
+  ja: {
+    mother: "母",
+    father: "父",
+    parent: "親",
+    husband: "夫",
+    wife: "妻",
+    spouse: "配偶者",
+    partner: "パートナー",
+    son: "息子",
+    daughter: "娘",
+    brother: "兄弟",
+    sister: "姉妹",
+    grandmother: "祖母",
+    grandfather: "祖父",
+    friend: "友人",
+    guardian: "保護者",
+    caregiver: "介護者",
+    "mother in law": "義母",
+    "father in law": "義父",
+    "son in law": "義理の息子",
+    "daughter in law": "義理の娘",
+  },
+  ko: {
+    mother: "어머니",
+    father: "아버지",
+    parent: "부모",
+    husband: "남편",
+    wife: "아내",
+    spouse: "배우자",
+    partner: "파트너",
+    son: "아들",
+    daughter: "딸",
+    brother: "형제",
+    sister: "자매",
+    grandmother: "할머니",
+    grandfather: "할아버지",
+    friend: "친구",
+    guardian: "보호자",
+    caregiver: "간병인",
+    "mother in law": "배우자의 어머니",
+    "father in law": "배우자의 아버지",
+    "son in law": "사위",
+    "daughter in law": "며느리",
+  },
+  hi: {
+    mother: "माँ",
+    father: "पिता",
+    parent: "माता-पिता",
+    husband: "पति",
+    wife: "पत्नी",
+    spouse: "जीवनसाथी",
+    partner: "साथी",
+    son: "बेटा",
+    daughter: "बेटी",
+    brother: "भाई",
+    sister: "बहन",
+    grandmother: "दादी/नानी",
+    grandfather: "दादा/नाना",
+    friend: "मित्र",
+    guardian: "अभिभावक",
+    caregiver: "देखभालकर्ता",
+    "mother in law": "सास",
+    "father in law": "ससुर",
+    "son in law": "दामाद",
+    "daughter in law": "बहू",
+  },
+};
+
+/**
+ * The medication line's dose in each language: "1000 IU × 2 vials" rather
+ * than a sentence, so no language has to decline "vial" around the numbers.
+ */
+export const DOSE_WORDS: Record<TranslationTarget, DoseWords> = {
+  "zh-Hans": {
+    vials: (count) => `${count}瓶`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `${iu} IU/瓶`,
+  },
+  "zh-Hant": {
+    vials: (count) => `${count}瓶`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `${iu} IU/瓶`,
+  },
+  ms: {
+    vials: (count) => `${count} vial`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `vial ${iu} IU`,
+  },
+  id: {
+    vials: (count) => `${count} vial`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `vial ${iu} IU`,
+  },
+  th: {
+    vials: (count) => `${count} ขวด`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `ขวดละ ${iu} IU`,
+  },
+  vi: {
+    vials: (count) => `${count} lọ`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `lọ ${iu} IU`,
+  },
+  tl: {
+    vials: (count) => `${count} vial`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `vial na ${iu} IU`,
+  },
+  ja: {
+    vials: (count) => `${count}バイアル`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `${iu} IUバイアル`,
+  },
+  ko: {
+    vials: (count) => `${count}바이알`,
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `${iu} IU 바이알`,
+  },
+  hi: {
+    vials: (count) => (count === 1 ? "1 शीशी" : `${count} शीशियाँ`),
+    of: (dose, iu) => `${iu} IU × ${dose}`,
+    iuVials: (iu) => `${iu} IU की शीशियाँ`,
   },
 };

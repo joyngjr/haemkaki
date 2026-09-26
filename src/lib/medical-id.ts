@@ -1,6 +1,7 @@
-import { doseLabel } from "@/components/profile/clinical-profile";
+import { doseLabel, MEDICATION_UNIT } from "@/components/profile/clinical-profile";
 import type { ClinicalProfile, MedicationDetails, Profile } from "@/lib/api";
 import type { MedicalTerm } from "@/lib/medical-id-glossary";
+import { vialLabel } from "@/lib/tracker-entries";
 
 /**
  * The labels the Medical ID and the Resources summary card both read off a
@@ -62,14 +63,41 @@ export function diagnosisWithSeverity(profile: Profile): string {
 }
 
 /**
+ * How a language writes a dose. Built from the numbers rather than translated,
+ * because LibreTranslate turns "1000 IU vials" into "1000 vials" in Vietnamese.
+ * The other languages are in `DOSE_WORDS`.
+ */
+export type DoseWords = {
+  /** "2 vials" */
+  vials: (count: number) => string;
+  /** "2 vials of 1000 IU", from the dose as `vials` wrote it. */
+  of: (dose: string, iu: number) => string;
+  /** "1000 IU vials" — the strength, with no count recorded. */
+  iuVials: (iu: number) => string;
+};
+
+export const ENGLISH_DOSE: DoseWords = {
+  vials: vialLabel,
+  of: (dose, iu) => `${dose} of ${iu} IU`,
+  iuVials: (iu) => `${iu} IU vials`,
+};
+
+/**
  * "2 vials of 1000 IU", "1000 IU vials" — the dose with the vial's strength, so
  * a responder can tell how much factor that is. Undefined when neither is recorded.
  */
-function doseWithStrength(medication: MedicationDetails | null | undefined): string | undefined {
-  const dose = doseLabel(medication);
+function doseWithStrength(
+  medication: MedicationDetails | null | undefined,
+  words: DoseWords = ENGLISH_DOSE,
+): string | undefined {
+  const count = Number(medication?.dose);
+  const dose =
+    medication?.unit === MEDICATION_UNIT && Number.isInteger(count) && count > 0
+      ? words.vials(count)
+      : doseLabel(medication);
   const iu = medication?.iu_per_vial;
   if (!iu) return dose;
-  return dose ? `${dose} of ${iu} IU` : `${iu} IU vials`;
+  return dose ? words.of(dose, iu) : words.iuVials(iu);
 }
 
 /** "Advate, 2 vials of 1000 IU" — what is being taken, as far as the profile records it. */
@@ -80,12 +108,15 @@ export function treatmentLabel(profile: Profile): string {
   return dose ? `${name}, ${dose}` : name;
 }
 
-/** The medications actually on file, prophylaxis first. */
-export function medicationSummary(clinical: ClinicalProfile | null): string {
+/** The medications actually on file, prophylaxis first. The drug names stay as entered. */
+export function medicationSummary(
+  clinical: ClinicalProfile | null,
+  words: DoseWords = ENGLISH_DOSE,
+): string {
   const named = [clinical?.prophylactic_medication, clinical?.on_demand_medication]
     .filter((medication) => medication?.name)
     .map((medication) => {
-      const dose = doseWithStrength(medication);
+      const dose = doseWithStrength(medication, words);
       return dose ? `${medication!.name} (${dose})` : medication!.name;
     });
   return named.length ? named.join(", ") : "Not recorded";
@@ -115,13 +146,26 @@ export function drugAllergiesLabel(clinical: ClinicalProfile | null | undefined)
   return clinical.drug_allergy_details ?? "Yes — details not recorded";
 }
 
+/** The allergy note as the person wrote it, when the card shows one. */
+export function drugAllergyNote(clinical: ClinicalProfile | null | undefined): string | null {
+  return clinical?.has_drug_allergies ? (clinical.drug_allergy_details ?? null) : null;
+}
+
+/**
+ * What the person wrote that the card translates: the emergency contact's
+ * relationship and the allergy note. Names, phone numbers, the doctor's
+ * organisation and drug names are shown as entered — a responder has to match
+ * them against a person, a phone or a vial label.
+ */
+export function medicalIdFreeText(clinical: ClinicalProfile | null | undefined): string[] {
+  const texts = [clinical?.emergency_contact?.relationship, drugAllergyNote(clinical)];
+  return texts.filter((text): text is string => Boolean(text?.trim()));
+}
+
 /**
  * Every fixed English string the Medical ID card and its PDF can show — what
  * gets translated, by hand from `MEDICAL_ID_GLOSSARY` where it can be and by
- * the translation service otherwise. It is the same list for everyone, so the
- * person's own details never leave for the translation service, and anything
- * not in it (a name, a phone number, a drug, an allergy note) is shown as
- * entered.
+ * the translation service otherwise.
  *
  * Titles are in title case and uppercased for display: a translator handles
  * "Patient Details" far better than "PATIENT DETAILS".
@@ -155,5 +199,6 @@ export const MEDICAL_ID_COPY: string[] = [
   "Yes — details not recorded",
   "Generated on",
   "Machine-translated from English",
+  "Original (English)",
   ...new Set([...Object.values(DIAGNOSIS_LABELS), ...Object.values(SEVERITY_LABELS)]),
 ];

@@ -1,15 +1,20 @@
 import { api, type TranslationTarget } from "@/lib/api";
-import { MEDICAL_ID_COPY } from "@/lib/medical-id";
-import { MEDICAL_ID_GLOSSARY } from "@/lib/medical-id-glossary";
+import { type DoseWords, ENGLISH_DOSE, MEDICAL_ID_COPY } from "@/lib/medical-id";
+import {
+  DOSE_WORDS,
+  MEDICAL_ID_GLOSSARY,
+  RELATIONSHIP_ALIASES,
+  RELATIONSHIPS,
+} from "@/lib/medical-id-glossary";
 
 /**
  * The Medical ID in the language of whoever is reading it.
  *
- * Only the card's fixed copy (`MEDICAL_ID_COPY`) is translated: from the hand
- * translations in `MEDICAL_ID_GLOSSARY` where they have the string, and live
- * through the backend's LibreTranslate proxy for the rest. Everything else
- * passes through `Translate` unchanged, so a name or a drug is never
- * "translated".
+ * The card's fixed copy (`MEDICAL_ID_COPY`) and what the person wrote that it
+ * translates (`medicalIdFreeText`) come from the hand translations in
+ * `medical-id-glossary.ts` where those have them, and live through the
+ * backend's LibreTranslate proxy otherwise. Anything else passes through
+ * `Translate` unchanged, so a name or a drug is never "translated".
  */
 
 export type LanguageCode = "en" | TranslationTarget;
@@ -41,32 +46,57 @@ export function languageFor(code: LanguageCode): Language {
   return LANGUAGES.find((language) => language.code === code) ?? LANGUAGES[0];
 }
 
-/** English in, the chosen language out; anything not in the copy comes back as it went in. */
+/** English in, the chosen language out; anything not translated comes back as it went in. */
 export type Translate = (english: string) => string;
 
 export const untranslated: Translate = (text) => text;
 
-// One request per language per page load. A failure is forgotten, so picking
-// the language again retries it.
-const loaded = new Map<TranslationTarget, Promise<Translate>>();
+/** How the medication line writes a dose in `code`. */
+export function doseWordsFor(code: LanguageCode): DoseWords {
+  return code === "en" ? ENGLISH_DOSE : DOSE_WORDS[code];
+}
 
-export function loadTranslation(code: LanguageCode): Promise<Translate> {
-  if (code === "en") return Promise.resolve(untranslated);
+/** "Mother-in-law", "my Mum" → "mother in law", "mother". */
+function relationshipKey(text: string): string {
+  const key = text
+    .trim()
+    .toLowerCase()
+    .replace(/^my\s+/, "")
+    .replace(/[\s_-]+/g, " ")
+    .replace(/[.!]+$/, "");
+  return RELATIONSHIP_ALIASES[key] ?? key;
+}
 
-  let pending = loaded.get(code);
-  if (!pending) {
-    const glossary = new Map(Object.entries(MEDICAL_ID_GLOSSARY[code]));
-    const machine = MEDICAL_ID_COPY.filter((text) => !glossary.has(text));
-    const translated = machine.length
-      ? api.translate(code, machine).then(({ translations }) => translations)
-      : Promise.resolve([]);
-    pending = translated.then((translations) => {
-      const table = new Map(machine.map((text, i) => [text, translations[i] ?? text]));
-      for (const [english, hand] of glossary) table.set(english, hand);
-      return (english: string) => table.get(english) ?? english;
-    });
-    pending.catch(() => loaded.delete(code));
-    loaded.set(code, pending);
+/** The hand translation of `english`, if there is one: the card's copy first, then a relationship. */
+function handTranslator(code: TranslationTarget): (english: string) => string | undefined {
+  const glossary = new Map(Object.entries(MEDICAL_ID_GLOSSARY[code]));
+  const relationships = new Map<string, string>(Object.entries(RELATIONSHIPS[code]));
+  return (english) => glossary.get(english) ?? relationships.get(relationshipKey(english));
+}
+
+// LibreTranslate's answers, per language, for the page load. Only what is not
+// here yet is asked for, so a language costs one request and an edited profile
+// one more for its new text. A failed request adds nothing, so picking the
+// language again retries it.
+const machine = new Map<TranslationTarget, Map<string, string>>();
+
+/** The card in `code`, with the person's own `freeText` translated too. */
+export async function loadTranslation(
+  code: LanguageCode,
+  freeText: string[] = [],
+): Promise<Translate> {
+  if (code === "en") return untranslated;
+
+  const hand = handTranslator(code);
+  let known = machine.get(code);
+  if (!known) machine.set(code, (known = new Map()));
+
+  const missing = [...new Set([...MEDICAL_ID_COPY, ...freeText])].filter(
+    (text) => hand(text) === undefined && !known.has(text),
+  );
+  if (missing.length) {
+    const { translations } = await api.translate(code, missing);
+    missing.forEach((text, i) => known.set(text, translations[i] ?? text));
   }
-  return pending;
+  return (english) => hand(english) ?? known.get(english) ?? english;
 }

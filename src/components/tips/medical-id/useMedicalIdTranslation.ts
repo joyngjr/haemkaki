@@ -14,37 +14,49 @@ export type MedicalIdTranslation = {
   status: "ready" | "loading" | "error";
 };
 
-/** The card's copy in `code`, fetched when it is picked. */
-export function useMedicalIdTranslation(code: LanguageCode): MedicalIdTranslation {
-  const [loaded, setLoaded] = useState<{ code: LanguageCode; t: Translate }>({
-    code: "en",
+/**
+ * The card's copy and the person's `freeText` in `code`, fetched when the
+ * language is picked and again when the text changes.
+ */
+export function useMedicalIdTranslation(
+  code: LanguageCode,
+  freeText: string[],
+): MedicalIdTranslation {
+  // One string standing for everything asked for, so the effect reruns when
+  // either the language or the text changes, not on every new array.
+  const request = JSON.stringify([code, freeText]);
+
+  const [loaded, setLoaded] = useState<{ request: string; t: Translate }>({
+    request: JSON.stringify(["en", []]),
     t: untranslated,
   });
-  const [failed, setFailed] = useState<LanguageCode | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
 
-  // Picking a language that failed before is a retry, so it starts as loading.
-  const [requested, setRequested] = useState(code);
-  if (requested !== code) {
-    setRequested(code);
+  // Asking again for something that failed before is a retry, so it starts as loading.
+  const [requested, setRequested] = useState(request);
+  if (requested !== request) {
+    setRequested(request);
     setFailed(null);
   }
 
   useEffect(() => {
     let current = true;
-    loadTranslation(code).then(
+    const [language, texts] = JSON.parse(request) as [LanguageCode, string[]];
+    loadTranslation(language, texts).then(
       (t) => {
-        if (current) setLoaded({ code, t });
+        if (current) setLoaded({ request, t });
       },
       () => {
-        if (current) setFailed(code);
+        if (current) setFailed(request);
       },
     );
     return () => {
       current = false;
     };
-  }, [code]);
+  }, [request]);
 
-  if (loaded.code === code) return { shown: code, t: loaded.t, status: "ready" };
-  if (failed === code) return { shown: "en", t: untranslated, status: "error" };
+  if (code === "en") return { shown: "en", t: untranslated, status: "ready" };
+  if (loaded.request === request) return { shown: code, t: loaded.t, status: "ready" };
+  if (failed === request) return { shown: "en", t: untranslated, status: "error" };
   return { shown: "en", t: untranslated, status: "loading" };
 }

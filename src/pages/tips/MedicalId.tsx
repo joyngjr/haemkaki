@@ -18,18 +18,29 @@ import {
   bloodTypeLabel,
   diagnosisLabel,
   drugAllergiesLabel,
+  drugAllergyNote,
   formatDob,
+  medicalIdFreeText,
   medicationSummary,
   severityOf,
 } from "@/lib/medical-id";
-import { LANGUAGES, type LanguageCode, languageFor } from "@/lib/medical-id-translation";
+import {
+  doseWordsFor,
+  LANGUAGES,
+  type LanguageCode,
+  languageFor,
+} from "@/lib/medical-id-translation";
 import { useProfiles } from "@/state/profile-context";
 
 export function MedicalId() {
   const { activeProfile, status } = useProfiles();
   const [editing, setEditing] = useState(false);
   const [languageCode, setLanguageCode] = useState<LanguageCode>("en");
-  const { shown, t, status: translation } = useMedicalIdTranslation(languageCode);
+  const {
+    shown,
+    t,
+    status: translation,
+  } = useMedicalIdTranslation(languageCode, medicalIdFreeText(activeProfile?.clinical_profile));
   const language = languageFor(shown);
 
   if (status === "loading") {
@@ -68,6 +79,11 @@ export function MedicalId() {
   const clinical = activeProfile.clinical_profile;
   const contact = clinical?.emergency_contact ?? null;
   const doctor = clinical?.primary_doctor ?? null;
+  // A machine-translated allergy note keeps the original beside it: LibreTranslate
+  // has turned "allergic to penicillin" into "immune disease", and a responder
+  // who reads English should be able to catch that.
+  const allergyNote = drugAllergyNote(clinical);
+  const allergyTranslated = allergyNote !== null && t(allergyNote) !== allergyNote;
 
   return (
     <div className="px-4 pt-8 pb-8">
@@ -152,11 +168,19 @@ export function MedicalId() {
         <Section title={t("Medical Information")} iconBg="#2563eb" icon={<CapsuleIcon />}>
           <Field label={t("Diagnosis")} value={label} />
           <Field label={t("Severity")} value={t(severityOf(clinical))} />
-          <Field label={t("Current Medication")} value={t(medicationSummary(clinical))} />
+          <Field
+            label={t("Current Medication")}
+            value={t(medicationSummary(clinical, doseWordsFor(shown)))}
+          />
         </Section>
 
         <Section title={t("Drug Allergies")} iconBg="#2563eb" icon={<PlusIcon />}>
           <p className="text-sm text-gray-800">{t(drugAllergiesLabel(clinical))}</p>
+          {allergyTranslated ? (
+            <p className="mt-1 text-xs text-gray-400">
+              {t("Original (English)")}: {allergyNote}
+            </p>
+          ) : null}
         </Section>
 
         {/* Both contacts come from the profile's Emergency step. A section that
@@ -172,7 +196,7 @@ export function MedicalId() {
             <>
               <Field label={t("Name")} value={contact.name} />
               {contact.relationship ? (
-                <Field label={t("Relationship")} value={contact.relationship} />
+                <Field label={t("Relationship")} value={t(contact.relationship)} />
               ) : null}
               <Field label={t("Phone")} value={contact.phone} />
               <CallLink

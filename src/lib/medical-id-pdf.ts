@@ -5,11 +5,12 @@ import {
   bloodTypeLabel,
   diagnosisLabel,
   drugAllergiesLabel,
+  drugAllergyNote,
   formatDob,
   medicationSummary,
   severityOf,
 } from "@/lib/medical-id";
-import type { Language, Translate } from "@/lib/medical-id-translation";
+import { doseWordsFor, type Language, type Translate } from "@/lib/medical-id-translation";
 
 /**
  * The Medical ID as a one-page A4 PDF, drawn as text rather than as a
@@ -36,11 +37,14 @@ const PAGE_WIDTH = 595.28; // A4 portrait, in points.
 const PAGE_HEIGHT = 841.89;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
-function sectionsFor(profile: Profile, t: Translate, locale: string): Section[] {
+function sectionsFor(profile: Profile, t: Translate, language: Language): Section[] {
   const clinical = profile.clinical_profile ?? null;
   const contact = clinical?.emergency_contact ?? null;
   const doctor = clinical?.primary_doctor ?? null;
   const notRecorded = t("Not recorded");
+  // As on the card, a machine-translated allergy note keeps its original.
+  const allergyNote = drugAllergyNote(clinical);
+  const allergyTranslated = allergyNote !== null && t(allergyNote) !== allergyNote;
 
   const sections: Section[] = [
     {
@@ -48,7 +52,10 @@ function sectionsFor(profile: Profile, t: Translate, locale: string): Section[] 
       rows: [
         { label: t("Name"), value: profile.name },
         { label: t("Blood Type"), value: t(bloodTypeLabel(clinical)) },
-        { label: t("Date of Birth"), value: t(formatDob(clinical?.date_of_birth, locale)) },
+        {
+          label: t("Date of Birth"),
+          value: t(formatDob(clinical?.date_of_birth, language.locale)),
+        },
       ],
     },
     {
@@ -56,12 +63,18 @@ function sectionsFor(profile: Profile, t: Translate, locale: string): Section[] 
       rows: [
         { label: t("Diagnosis"), value: t(diagnosisLabel(profile)) },
         { label: t("Severity"), value: t(severityOf(clinical)) },
-        { label: t("Current Medication"), value: t(medicationSummary(clinical)) },
+        {
+          label: t("Current Medication"),
+          value: t(medicationSummary(clinical, doseWordsFor(language.code))),
+        },
       ],
     },
     {
       title: t("Drug Allergies"),
-      rows: [{ label: t("Allergies"), value: t(drugAllergiesLabel(clinical)) }],
+      rows: [
+        { label: t("Allergies"), value: t(drugAllergiesLabel(clinical)) },
+        ...(allergyTranslated ? [{ label: t("Original (English)"), value: allergyNote }] : []),
+      ],
     },
     {
       title: t("Emergency Contact"),
@@ -70,7 +83,7 @@ function sectionsFor(profile: Profile, t: Translate, locale: string): Section[] 
         ? [
             { label: t("Name"), value: contact.name },
             ...(contact.relationship
-              ? [{ label: t("Relationship"), value: contact.relationship }]
+              ? [{ label: t("Relationship"), value: t(contact.relationship) }]
               : []),
             { label: t("Phone"), value: contact.phone },
           ]
@@ -256,7 +269,7 @@ export function downloadMedicalIdPdf(
 
   y += 22;
 
-  for (const section of sectionsFor(profile, t, locale)) {
+  for (const section of sectionsFor(profile, t, language)) {
     y = breakIfNeeded(doc, y, 90);
 
     doc.setDrawColor(...LINE);
