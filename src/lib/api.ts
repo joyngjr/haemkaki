@@ -220,8 +220,11 @@ export type PlanDraft = Omit<Plan, "id">;
  * When to order and how much, from stock, the schedule, the buffer and the
  * order day. `by_on` is the next monthly order day (`on_order_day`), or earlier
  * when the stock is forecast to fall below the buffer or run out first; `due`
- * means it has arrived. The rest is the working: the doses planned after
- * `by_on` through `covers_until` (the following order day), plus the buffer,
+ * means it has arrived. An order on the order day is next month's supply:
+ * `covers_from` is the 1st and `covers_until` the last day, so the delivery
+ * has until the 1st to arrive. An early order runs until the next regular
+ * order's month begins. The rest is the working: the doses planned in that
+ * window, the bridge doses between `by_on` and `covers_from`, plus the buffer,
  * less what is left after `by_on`'s dose. Missed doses never count as used.
  */
 export type OrderAdvice = {
@@ -229,9 +232,14 @@ export type OrderAdvice = {
   vials: number;
   due: boolean;
   on_order_day: boolean;
+  covers_from: string;
   covers_until: string;
+  /** The doses planned from `covers_from` through `covers_until`. */
   planned_doses: number;
   planned_vials: number;
+  /** The doses after `by_on` and before `covers_from`, still paid from the stock. */
+  bridge_doses: number;
+  bridge_vials: number;
   leftover_vials: number;
   buffer_vials: number;
 };

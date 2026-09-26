@@ -192,7 +192,7 @@ export function RoutineCard({
   );
 }
 
-/** "Order buffer: 4 vials — order on day 5 of each month." */
+/** "Bleed buffer: 4 vials — order next month’s factor on day 5 of each month." */
 function OrderBufferNote({
   bufferVials,
   orderDayOfMonth,
@@ -204,11 +204,11 @@ function OrderBufferNote({
 }) {
   return (
     <p className={cn("text-xs leading-relaxed text-[#5C646C]", className)}>
-      Order buffer:{" "}
+      Bleed buffer:{" "}
       <span className="font-semibold text-[#242A2F]">
         {bufferVials === null ? "Not set" : vialLabel(bufferVials)}
       </span>{" "}
-      — order on day {orderDayOfMonth ?? "not set"} of each month.
+      — order next month’s factor on day {orderDayOfMonth ?? "not set"} of each month.
     </p>
   );
 }

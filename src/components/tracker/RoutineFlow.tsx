@@ -162,18 +162,18 @@ export function RoutineFlow({
       <Sheet
         tier="action"
         eyebrow={eyebrow}
-        title="How much cover do you want left when you order?"
+        title="How many vials do you want in case of a bleed?"
         onBack={() => setStep("vials")}
         backLabel="Back to dosage"
         onClose={onClose}
       >
         <NumberField
-          label="Vials in reserve"
+          label="Bleed buffer"
           value={buffer}
           onChange={setBuffer}
           maxLength={VIALS_DIGITS}
           suffix="vials"
-          hint="We’ll warn you if your stock falls below this reserve."
+          hint="Extra vials on top of your routine doses, for any bleeds in the coming month. We’ll warn you if your stock dips into them."
           confirmLabel="Next"
           onConfirm={() => setStep("orderDay")}
         />
@@ -185,9 +185,9 @@ export function RoutineFlow({
     <Sheet
       tier="action"
       eyebrow={eyebrow}
-      title="Which day do you order each month?"
+      title="Which day do you order next month’s factor?"
       onBack={() => setStep("buffer")}
-      backLabel="Back to vial reserve"
+      backLabel="Back to bleed buffer"
       onClose={onClose}
     >
       <NumberField
@@ -195,7 +195,7 @@ export function RoutineFlow({
         value={orderDay}
         onChange={setOrderDay}
         max={31}
-        hint="For shorter months, we’ll use the final day of the month."
+        hint="Pick a day that leaves time for delivery, so your vials arrive before the 1st. Short months use their last day."
         confirmLabel={confirmLabel}
         onConfirm={() =>
           save(buffer === "" ? null : Number(buffer), orderDay === "" ? null : Number(orderDay))

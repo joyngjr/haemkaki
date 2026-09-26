@@ -34,6 +34,23 @@ function mediumDate(date: Date) {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
+const monthName = (key: string) => fromKey(key).toLocaleDateString("en-SG", { month: "long" });
+
+/**
+ * The card's one line of advice. A regular order is next month's supply, so
+ * it names the month and the 1st the delivery has to beat; an early one says
+ * why it is early and how long it lasts.
+ */
+function orderSentence(order: OrderAdvice, orderDayOfMonth: number | null) {
+  const byOn = mediumDate(fromKey(order.by_on));
+  if (order.on_order_day) {
+    return order.vials > 0
+      ? `Order ${plural(order.vials, "vial")} by ${byOn} so they arrive before ${mediumDate(fromKey(order.covers_from))}. That covers ${monthName(order.covers_from)} and your bleed buffer.`
+      : `You already have enough for ${monthName(order.covers_from)} and your bleed buffer, so no order is needed on ${byOn}.`;
+  }
+  return `Your stock is forecast to fall below your bleed buffer by ${byOn}${orderDayOfMonth ? ", before your next regular order" : ""}. Ordering ${plural(order.vials, "vial")} covers planned use through ${mediumDate(fromKey(order.covers_until))} and keeps your bleed buffer.`;
+}
+
 /**
  * "Factor at home" — vials on hand and the order advice, exactly as the API
  * folded them from the ledger, the schedule, the buffer and the order day. The card counts
@@ -114,9 +131,7 @@ export function FactorSupplyCard({
             {!hasSchedule
               ? "Set up a routine to forecast when you may need to order more factor."
               : order
-                ? order.on_order_day
-                  ? `Your next regular order is ${mediumDate(fromKey(order.by_on))}. Ordering ${plural(order.vials, "vial")} covers planned use until your following monthly order and leaves your chosen reserve.`
-                  : `Your stock is forecast to fall below your reserve by ${mediumDate(fromKey(order.by_on))}${orderDayOfMonth ? ", before your next regular order" : ""}. Ordering ${plural(order.vials, "vial")} covers planned use until ${mediumDate(fromKey(order.covers_until))} and leaves your chosen reserve.`
+                ? orderSentence(order, orderDayOfMonth)
                 : "Set a monthly order day to receive an order recommendation."}
           </p>
         </div>
@@ -198,19 +213,33 @@ function OrderHelpSheet({
       onClose={onClose}
     >
       <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-        We project how many vials will remain immediately after your dose on the next order day. We
-        then calculate the planned use until the following monthly order day.
+        {!order
+          ? "Each order is next month’s supply: it should last from the 1st to the last day of the month, plus your bleed buffer."
+          : order.on_order_day
+            ? `Order on your order day so the delivery arrives before ${mediumDate(fromKey(order.covers_from))}. It should last from ${mediumDate(fromKey(order.covers_from))} to ${mediumDate(fromKey(order.covers_until))}: every planned dose that month, plus your bleed buffer.`
+            : `Your stock runs low before your next regular order, so this order should last until ${mediumDate(fromKey(order.covers_until))}, plus your bleed buffer.`}
       </p>
       {order ? (
         <div className="mt-4 space-y-2">
           <HelpRow
-            label={`Planned use after ${shortDate(fromKey(order.by_on))} through ${shortDate(fromKey(order.covers_until))}`}
+            label={`Planned use ${shortDate(fromKey(order.covers_from))} – ${shortDate(fromKey(order.covers_until))}`}
             detail={plural(order.planned_doses, "dose")}
             value={plural(order.planned_vials, "vial")}
           />
-          <HelpRow label="+ Reserve you want to keep" value={plural(order.buffer_vials, "vial")} />
+          {order.bridge_doses > 0 ? (
+            <HelpRow
+              label={`+ Doses still to come before ${shortDate(fromKey(order.covers_from))}`}
+              detail={plural(order.bridge_doses, "dose")}
+              value={plural(order.bridge_vials, "vial")}
+            />
+          ) : null}
           <HelpRow
-            label="− Projected stock after your order-day dose"
+            label="+ Bleed buffer"
+            detail="In case of a bleed"
+            value={plural(order.buffer_vials, "vial")}
+          />
+          <HelpRow
+            label={`− Projected stock after ${shortDate(fromKey(order.by_on))}`}
             value={plural(order.leftover_vials, "vial")}
           />
           <HelpRow label="= Recommended order" value={plural(order.vials, "vial")} strong />
@@ -224,11 +253,11 @@ function OrderHelpSheet({
       )}
       <p className="mt-3 text-[12.5px] leading-relaxed text-ink-subtle">
         {orderDayOfMonth
-          ? `Your regular order day is day ${orderDayOfMonth} of each month. `
+          ? `Your order day is day ${orderDayOfMonth} of each month; leave enough time for delivery before the 1st. `
           : "No regular monthly order day is recorded. "}
         {bufferVials !== null
-          ? `If your recorded stock is forecast to fall below ${plural(bufferVials, "vial")} before then, the app brings the order date forward.`
-          : "No vial reserve is recorded."}
+          ? `If your recorded stock is forecast to dip into your ${plural(bufferVials, "vial")} bleed buffer before then, the app brings the order date forward.`
+          : "No bleed buffer is recorded."}
       </p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-subtle">
         This is a planning estimate, not a placed order. Record each delivery as a refill so the
