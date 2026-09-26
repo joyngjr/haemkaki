@@ -31,7 +31,7 @@ const messageOf = (cause: unknown, fallback: string) =>
  *
  * The API owns the recurrence: this hook only asks for the planned doses in a
  * window and reports the writes. Every write is followed by a re-read, and
- * `version` moves so `useStatus` re-reads the fold too — the order date and
+ * `version` moves so the tracker re-reads the fold too — the order date and
  * the next dose both depend on the schedule.
  *
  * The planned doses also depend on the plans (`usePlans`), so its `version`

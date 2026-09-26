@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 
+import type { Status } from "@/lib/api";
 import type {
   AdministerDosePayload,
   HomeDashboardData,
@@ -10,6 +11,14 @@ import type {
 export type HomeDataContextValue = {
   /** Null until a profile is active — Home shows an empty state, not a demo person. */
   data: HomeDashboardData | null;
+  /**
+   * The active profile's fold as the API returned it, null until it lands.
+   * The tracker reads this rather than fetching its own copy, so the status
+   * card and the supply card can never show two different vial counts.
+   */
+  status: Status | null;
+  /** Why the last status read failed, or null. Home stays quiet; the tracker shows it. */
+  statusError: string | null;
   /** Injectable clock, so relative times are deterministic during a demo. */
   now: Date;
   /** True until the profile list resolves, so Home can hold the skeleton. */

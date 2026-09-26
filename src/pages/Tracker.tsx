@@ -20,7 +20,6 @@ import { useDevice } from "@/components/tracker/useDevice";
 import { useLedger } from "@/components/tracker/useLedger";
 import { usePlans } from "@/components/tracker/usePlans";
 import { useSchedule } from "@/components/tracker/useSchedule";
-import { useStatus } from "@/components/tracker/useStatus";
 import { formatDeviceDate } from "@/lib/arduino";
 import {
   frequencyOf,
@@ -133,16 +132,17 @@ function missedDays(
  * for logging a day. Every card and sheet is a component under
  * `@/components/tracker`; `layout` decides where the cards go.
  *
- * Four hooks own the data and nothing is derived in the page:
+ * Three hooks own the data and nothing is derived in the page:
  * `useLedger` for the entries (with what the API charged for each),
  * `useSchedule` for the routine and the doses it plans in the visible grid,
- * `usePlans` for the temporary changes to it, and `useStatus` for the fold —
- * factor on hand, the run-out date and the order advice — re-read whenever
- * any of the other three writes.
+ * and `usePlans` for the temporary changes to it. The fold — factor on hand,
+ * the run-out date and the order advice — is the one `HomeDataProvider`
+ * holds for the status card, re-read through `refreshStatus` whenever any of
+ * the three writes. There is one copy, so the status card's "Vials at home"
+ * and the supply card's figure cannot disagree.
  *
  * The status card writes to the same ledger and routine. Its writes move
- * `writeVersion`, which re-reads all three here; this page's writes re-read
- * the status card's figures through `refreshStatus`.
+ * `writeVersion`, which re-reads all three here.
  */
 function TrackerPage({
   profileId,
@@ -163,7 +163,7 @@ function TrackerPage({
   /** An off-cycle dose the user just logged; the prompt offers to restart the routine from it. */
   const [shiftFrom, setShiftFrom] = useState<Date | null>(null);
 
-  const { writeVersion, refreshStatus } = useHomeData();
+  const { status, statusError, writeVersion, refreshStatus } = useHomeData();
   const {
     entries,
     mutate,
@@ -175,10 +175,9 @@ function TrackerPage({
   // The planned doses follow the plans, so a plan write re-reads the window.
   const schedule = useSchedule(profileId, range, plans.version + writeVersion);
   const trackerVersion = ledgerVersion + schedule.version + plans.version;
-  const { status, error: statusError } = useStatus(profileId, trackerVersion + writeVersion);
   const routineFrequency = schedule.series ? frequencyOf(schedule.series) : undefined;
 
-  // The status card reads the same fold; keep it level with every write here.
+  // The fold follows every write here; the status card reads the same copy.
   useEffect(() => {
     if (trackerVersion > 0) void refreshStatus();
   }, [trackerVersion, refreshStatus]);

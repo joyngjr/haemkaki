@@ -23,7 +23,7 @@ const messageOf = (cause: unknown, fallback: string) =>
  * Same shape as `useSchedule`: the API owns what a plan does to the calendar;
  * this hook only lists the plans and reports the writes, each followed by a
  * re-read. `version` moves after a write so `useSchedule` re-asks for the
- * planned doses and `useStatus` re-reads the fold — both depend on the plans.
+ * planned doses and the tracker re-reads the fold — both depend on the plans.
  */
 export function usePlans(profileId: number | undefined): Plans {
   const [plans, setPlans] = useState<PlanAhead[]>([]);

@@ -29,7 +29,8 @@ import { useProfiles } from "@/state/profile-context";
  * On the one-page desktop layout the tracker's cards sit beside the status
  * card, so the two follow each other: `writeVersion` moves after that write
  * and the tracker re-reads on it, and the tracker calls `refreshStatus` after
- * its own writes.
+ * its own writes. The fold itself is fetched only here — the tracker's supply
+ * card and the dose device read `status` rather than keeping a second copy.
  */
 
 type LoadedStatus = {
@@ -42,6 +43,7 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
   const { activeProfile, status: profileStatus, updateProfile } = useProfiles();
   const [clock, setClock] = useState(() => now ?? new Date());
   const [loaded, setLoaded] = useState<LoadedStatus | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [writeVersion, setWriteVersion] = useState(0);
   /** Only the newest request may land, so a slow response for the previous profile is dropped. */
   const ticket = useRef(0);
@@ -58,12 +60,14 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
         (status) => {
           if (mine !== ticket.current) return;
           setLoaded({ profileId: id, status, fetchedAt: new Date().toISOString() });
+          setStatusError(null);
           setClock(now ?? new Date());
         },
-        () => {
-          // Deliberately quiet. Home is a summary; the tracker says out loud
-          // when the API is unreachable, and the profile row still draws the
-          // hero without the timings.
+        (cause: unknown) => {
+          if (mine !== ticket.current) return;
+          // Home stays quiet about this — it is a summary, and the profile
+          // row still draws the hero without the timings. The tracker shows it.
+          setStatusError(cause instanceof Error ? cause.message : "Could not load your supply");
         },
       );
     },
@@ -141,17 +145,22 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
     [profileId, activeProfile, updateProfile, load],
   );
 
+  // Only the active profile's fold; a response for the previous one reads as not yet loaded.
+  const current = activeProfile && loaded?.profileId === activeProfile.id ? loaded : null;
+  const status = current?.status ?? null;
+
   const data = useMemo(() => {
     if (!activeProfile) return null;
-    const status = loaded?.profileId === activeProfile.id ? loaded : null;
-    return buildHomeData(activeProfile, status?.status ?? null, clock, {
-      ...(status ? { fetchedAt: status.fetchedAt } : {}),
+    return buildHomeData(activeProfile, current?.status ?? null, clock, {
+      ...(current ? { fetchedAt: current.fetchedAt } : {}),
     });
-  }, [activeProfile, loaded, clock]);
+  }, [activeProfile, current, clock]);
 
   const value = useMemo<HomeDataContextValue>(
     () => ({
       data,
+      status,
+      statusError,
       now: clock,
       isLoading: profileStatus === "loading",
       writeVersion,
@@ -159,7 +168,17 @@ export function HomeDataProvider({ now, children }: { now?: Date; children: Reac
       setUpRoutine,
       refreshStatus,
     }),
-    [data, clock, profileStatus, writeVersion, administerDose, setUpRoutine, refreshStatus],
+    [
+      data,
+      status,
+      statusError,
+      clock,
+      profileStatus,
+      writeVersion,
+      administerDose,
+      setUpRoutine,
+      refreshStatus,
+    ],
   );
 
   return <HomeDataContext.Provider value={value}>{children}</HomeDataContext.Provider>;
