@@ -1,11 +1,11 @@
 import type { Occurrence } from "@/lib/api";
 
 import { Sheet } from "./Sheet";
-import { MoveIcon, PlusIcon, SyringeIcon } from "./TrackerIcons";
+import { MinusIcon, MoveIcon, PlusIcon, SyringeIcon } from "./TrackerIcons";
 import { ConfusedPlatelet } from "./TrackerMascots";
 
 /** Which of the day's flows is open, if any. */
-export type DayFlow = "refill" | "use" | "move";
+export type DayFlow = "refill" | "removal" | "use" | "move";
 
 type DayActionsSheetProps = {
   date: Date;
@@ -66,6 +66,14 @@ export function DayActionsSheet({
             pressed={activeFlow === "refill"}
             ringColor="#274A63"
             onClick={() => onPick("refill")}
+          />
+          <ActionRow
+            title="Remove Factor"
+            icon={<MinusIcon className="h-6 w-6" />}
+            iconClass="bg-brick-100 text-brick-600"
+            pressed={activeFlow === "removal"}
+            ringColor="#A63A2E"
+            onClick={() => onPick("removal")}
           />
           <ActionRow
             title="Factor Use"

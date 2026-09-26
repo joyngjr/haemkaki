@@ -32,13 +32,15 @@ type Base = {
   id: number;
   /**
    * What the fold charged the cupboard for this entry: positive for a refill,
-   * negative for a dose. From the API, so absent on an entry not yet written.
+   * negative for a removal or dose. From the API, so absent on a new entry.
    */
   appliedVials?: number;
 };
 
 export type TrackerEntry =
   | (Base & { kind: "refill"; vials: number })
+  /** Stock removed without an injection: expired factor or correction of an erroneous refill. */
+  | (Base & { kind: "removal"; vials: number })
   /**
    * The planned preventative dose. `vials` only when the dose carries its own
    * size (typed in, or imported with one); otherwise the schedule on that day
@@ -74,7 +76,9 @@ export function vialLabel(vials: number) {
 
 /** The heading shown on an entry row, and the grouping the calendar dots use. */
 export function entryLabel(entry: TrackerEntry) {
-  return entry.kind === "refill" ? "Factor Refill" : "Factor Use";
+  if (entry.kind === "refill") return "Factor Refill";
+  if (entry.kind === "removal") return "Factor Removed";
+  return "Factor Use";
 }
 
 /** The size of a routine-sized dose, once the API has charged it. */
@@ -95,6 +99,8 @@ export function entryDetail(entry: TrackerEntry): string {
   switch (entry.kind) {
     case "refill":
       return `${vialLabel(entry.vials)} added`;
+    case "removal":
+      return `${vialLabel(entry.vials)} removed`;
     case "prophylaxis": {
       const vials = entry.vials ?? chargedVials(entry);
       return vials ? `Regular prophylaxis use — ${vialLabel(vials)}` : "Regular prophylaxis use";
@@ -184,6 +190,8 @@ function entryFromApi(event: ApiTrackingEvent): TrackerEntry | null {
   switch (event.kind) {
     case "refill":
       return { ...base, kind: "refill", vials: event.vials ?? 0 };
+    case "removal":
+      return { ...base, kind: "removal", vials: event.vials ?? 0 };
     case "prophylaxis":
       // Only an explicit count is the entry's own; a routine-sized dose keeps
       // `vials` empty and shows `appliedVials` instead, so a round-trip never
@@ -228,6 +236,8 @@ export function entryToApi(entry: TrackerEntry, dateKey: string): TrackingEventD
   switch (entry.kind) {
     case "refill":
       return { kind: "refill", occurred_on: dateKey, vials: entry.vials };
+    case "removal":
+      return { kind: "removal", occurred_on: dateKey, vials: entry.vials };
     case "prophylaxis":
       return {
         kind: "prophylaxis",

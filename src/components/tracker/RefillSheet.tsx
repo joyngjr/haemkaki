@@ -47,3 +47,44 @@ export function RefillSheet({
     </Sheet>
   );
 }
+
+/** Record stock that should no longer be counted, without calling it a treatment dose. */
+export function RemoveFactorSheet({
+  savedVials,
+  onSave,
+  onBack,
+  onClose,
+}: {
+  savedVials: number | undefined;
+  onSave: (vials: number) => void;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const [count, setCount] = useState(savedVials ? String(savedVials) : "");
+
+  return (
+    <Sheet
+      tier="action"
+      offset="top"
+      eyebrow="Remove Factor"
+      title="How many vials should be removed?"
+      onBack={onBack}
+      backLabel="Back to date actions"
+      onClose={onClose}
+      closeLabel="Close all pop-ups"
+    >
+      <p className="mb-4 text-sm leading-relaxed text-ink-muted">
+        Use this to correct an erroneous factor refill or account for vials that have expired.
+      </p>
+      <NumberField
+        label="Vials"
+        value={count}
+        onChange={setCount}
+        maxLength={VIALS_DIGITS}
+        suffix="vials"
+        confirmLabel="Remove factor"
+        onConfirm={() => onSave(Number(count))}
+      />
+    </Sheet>
+  );
+}

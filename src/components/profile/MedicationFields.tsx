@@ -77,7 +77,7 @@ export function MedicationFields({
           ) : null}
         </div>
       </Field>
-      <Field label="Dose">
+      <Field label="Dose per injection">
         <div className="relative">
           <input
             type="text"
@@ -86,7 +86,7 @@ export function MedicationFields({
             autoComplete="off"
             className={`${inputClass} pr-14`}
             value={medication.dose}
-            placeholder="Enter dose"
+            placeholder="Enter dose per injection"
             onChange={(event) =>
               update({
                 dose: event.target.value

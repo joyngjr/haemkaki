@@ -51,6 +51,14 @@ export function PlusIcon(props: IconProps) {
   );
 }
 
+export function MinusIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M5 12h14" />
+    </Glyph>
+  );
+}
+
 export function CloseIcon(props: IconProps) {
   return (
     <Glyph {...props}>

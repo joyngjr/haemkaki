@@ -82,7 +82,7 @@ export interface LedgerEntrySummary {
   kind: LedgerRowKind;
   /** `YYYY-MM-DD`, the day key the calendar files it under. */
   occurredOn: string;
-  /** What the fold charged the cupboard: negative for a dose, positive for a refill. */
+  /** What the fold charged the cupboard: negative for a removal or dose, positive for a refill. */
   appliedVials: number;
 }
 

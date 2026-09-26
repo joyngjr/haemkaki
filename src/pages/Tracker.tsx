@@ -11,7 +11,7 @@ import { InventoryCard } from "@/components/tracker/InventoryCard";
 import { MonthCalendar } from "@/components/tracker/MonthCalendar";
 import { MoveDoseFlow } from "@/components/tracker/MoveDoseFlow";
 import { PlanAheadCard } from "@/components/tracker/PlanAheadCard";
-import { RefillSheet } from "@/components/tracker/RefillSheet";
+import { RefillSheet, RemoveFactorSheet } from "@/components/tracker/RefillSheet";
 import { RoutineCard } from "@/components/tracker/RoutineCard";
 import { SavedEntriesPanel } from "@/components/tracker/SavedEntriesPanel";
 import { ScheduleShiftPrompt } from "@/components/tracker/ScheduleShiftPrompt";
@@ -203,7 +203,7 @@ function TrackerPage({
   const canMovePlanned =
     Boolean(plannedOnSelected && plannedOnSelected.schedule_id !== null) &&
     !isPastDate &&
-    dayEntries.every((entry) => entry.kind === "refill");
+    dayEntries.every((entry) => entry.kind === "refill" || entry.kind === "removal");
 
   const errors = [ledgerError, schedule.error, statusError].filter((message): message is string =>
     Boolean(message),
@@ -284,8 +284,15 @@ function TrackerPage({
     setFlow(next);
   }
 
+  /** Supply-card shortcuts are exactly today's calendar flows, with no duplicate form state. */
+  function openTodayFlow(next: "refill" | "removal") {
+    setViewMonth(today);
+    setSelectedDate(today);
+    setFlow(next);
+  }
+
   /** The day's factor use, if it has one. The tracker records at most one. */
-  const savedUse = dayEntries.find((entry): entry is SavedUse => entry.kind !== "refill");
+  const savedUse = dayEntries.find((entry): entry is SavedUse => USE_KINDS.has(entry.kind));
 
   /**
    * One injection, whichever kind it is — the sheet hands back a whole entry.
@@ -313,9 +320,15 @@ function TrackerPage({
     closeFlows();
   }
 
+  function saveRemoval(vials: number) {
+    if (!selectedKey) return;
+    putEntry(selectedKey, { id: Date.now(), kind: "removal", vials }, ["removal"]);
+    closeFlows();
+  }
+
   /** The Factor Use sheet opens on whatever the day already holds, so kind is enough. */
   function editEntry(entry: TrackerEntry) {
-    setFlow(entry.kind === "refill" ? "refill" : "use");
+    setFlow(entry.kind === "refill" ? "refill" : entry.kind === "removal" ? "removal" : "use");
   }
 
   /**
@@ -378,6 +391,8 @@ function TrackerPage({
             hasSchedule={Boolean(status?.schedule)}
             order={status?.order ?? null}
             isLoading={status === null}
+            onAddFactor={() => openTodayFlow("refill")}
+            onRemoveFactor={() => openTodayFlow("removal")}
             onShowHistory={() => setShowSupplyHistory(true)}
           />
         ),
@@ -441,6 +456,15 @@ function TrackerPage({
           usualVials={usualVials}
           missedDays={makeupCandidates}
           onSave={saveUse}
+          onBack={closeFlows}
+          onClose={closeAll}
+        />
+      )}
+
+      {selectedDate && flow === "removal" && (
+        <RemoveFactorSheet
+          savedVials={dayEntries.find((entry) => entry.kind === "removal")?.vials}
+          onSave={saveRemoval}
           onBack={closeFlows}
           onClose={closeAll}
         />

@@ -107,7 +107,13 @@ export type ProfileDraft = {
 /* Tracking events — the tracker's ledger                              */
 /* ------------------------------------------------------------------ */
 
-export type EventKind = "refill" | "prophylaxis" | "on-demand" | "follow-up" | "makeup";
+export type EventKind =
+  | "refill"
+  | "removal"
+  | "prophylaxis"
+  | "on-demand"
+  | "follow-up"
+  | "makeup";
 
 export type AmountSource = "pending" | "routine" | "custom";
 
@@ -134,7 +140,7 @@ export type TrackingEvent = {
   amount_vials: number | null;
   /**
    * What the fold charged the cupboard for this event: positive for a refill,
-   * negative for a dose, zero when the amount is not known. A prophylaxis
+   * negative for a removal or dose, zero when the amount is not known. A prophylaxis
    * dose is sized by the schedule in force on its day, so this is the only
    * place the tracker learns how big one was.
    */
@@ -144,6 +150,7 @@ export type TrackingEvent = {
 /** What the API accepts. The shape depends on `kind`, which is why this is a union. */
 export type TrackingEventDraft =
   | { kind: "refill"; occurred_on: string; vials: number }
+  | { kind: "removal"; occurred_on: string; vials: number }
   // `vials` only when the dose carries its own size; otherwise the routine sizes it.
   | { kind: "prophylaxis"; occurred_on: string; vials?: number }
   | { kind: "on-demand"; occurred_on: string; vials: number; bleed_nature?: BleedNature }
@@ -229,6 +236,8 @@ export type OrderAdvice = {
   covers_until: string;
   planned_doses: number;
   planned_vials: number;
+  /** Predicted bleed-treatment use over the next 30 days, from a six-month EWMA. */
+  bleed_vials: number;
   leftover_vials: number;
   buffer_vials: number;
 };

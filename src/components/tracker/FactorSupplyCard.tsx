@@ -22,6 +22,8 @@ type FactorSupplyCardProps = {
   hasSchedule: boolean;
   order: OrderAdvice | null;
   isLoading: boolean;
+  onAddFactor: () => void;
+  onRemoveFactor: () => void;
   onShowHistory: () => void;
   className?: string;
 };
@@ -53,6 +55,8 @@ export function FactorSupplyCard({
   hasSchedule,
   order,
   isLoading,
+  onAddFactor,
+  onRemoveFactor,
   onShowHistory,
   className,
 }: FactorSupplyCardProps) {
@@ -96,10 +100,32 @@ export function FactorSupplyCard({
               ? "Set up a routine to forecast when you may need to order more factor."
               : order
                 ? order.on_order_day
-                  ? `Your next regular order is ${mediumDate(fromKey(order.by_on))}. Ordering ${plural(order.vials, "vial")} covers planned use until your following monthly order and leaves your chosen reserve.`
-                  : `Your stock is forecast to fall below your reserve by ${mediumDate(fromKey(order.by_on))}${orderDayOfMonth ? ", before your next regular order" : ""}. Ordering ${plural(order.vials, "vial")} covers planned use until ${mediumDate(fromKey(order.covers_until))} and leaves your chosen reserve.`
+                  ? `Your next regular order is ${mediumDate(fromKey(order.by_on))}. Ordering ${plural(order.vials, "vial")} covers planned use, predicted bleed treatment, and your chosen reserve.`
+                  : `Your stock is forecast to fall below your reserve by ${mediumDate(fromKey(order.by_on))}${orderDayOfMonth ? ", before your next regular order" : ""}. Ordering ${plural(order.vials, "vial")} covers planned use through ${mediumDate(fromKey(order.covers_until))}, predicted bleed treatment, and your chosen reserve.`
                 : "Set a monthly order day to receive an order recommendation."}
           </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onAddFactor}
+              className={cn(
+                "min-h-11 rounded-xl bg-slate-600 px-3 text-sm font-semibold text-white hover:bg-slate-700",
+                FOCUS_RING,
+              )}
+            >
+              Add factor
+            </button>
+            <button
+              type="button"
+              onClick={onRemoveFactor}
+              className={cn(
+                "min-h-11 rounded-xl border border-sand-300 bg-card px-3 text-sm font-semibold text-ink-strong hover:bg-soft",
+                FOCUS_RING,
+              )}
+            >
+              Remove factor
+            </button>
+          </div>
         </div>
 
         <div className="lg:mt-1.5 lg:w-[380px] lg:shrink-0 xl:w-[400px]">
@@ -180,7 +206,8 @@ function OrderHelpSheet({
     >
       <p className="mt-3 text-sm leading-relaxed text-ink-muted">
         We project how many vials will remain immediately after your dose on the next order day. We
-        then calculate the planned use until the following monthly order day.
+        then calculate the planned use until the following monthly order day and add predicted bleed
+        treatment for the next 30 days.
       </p>
       {order ? (
         <div className="mt-4 space-y-2">
@@ -188,6 +215,11 @@ function OrderHelpSheet({
             label={`Planned use after ${shortDate(fromKey(order.by_on))} through ${shortDate(fromKey(order.covers_until))}`}
             detail={plural(order.planned_doses, "dose")}
             value={plural(order.planned_vials, "vial")}
+          />
+          <HelpRow
+            label="+ Predicted bleed treatment in the next 30 days"
+            detail="Exponentially weighted moving average"
+            value={plural(order.bleed_vials, "vial")}
           />
           <HelpRow label="+ Reserve you want to keep" value={plural(order.buffer_vials, "vial")} />
           <HelpRow
@@ -210,6 +242,11 @@ function OrderHelpSheet({
         {bufferVials !== null
           ? `If your recorded stock is forecast to fall below ${plural(bufferVials, "vial")} before then, the app brings the order date forward.`
           : "No vial reserve is recorded."}
+      </p>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-ink-subtle">
+        Bleed prediction uses six trailing 30-day periods and α = 0.29: EWMAₜ = 0.29 ×
+        vialsₜ + 0.71 × EWMAₜ₋₁, starting from zero and rounding the final prediction up to
+        a whole vial. Bleed vials include on-demand and follow-up doses.
       </p>
       <p className="mt-2 text-[12.5px] leading-relaxed text-ink-subtle">
         This is a planning estimate, not a placed order. Record each delivery as a refill so the

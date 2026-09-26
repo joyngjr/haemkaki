@@ -168,18 +168,22 @@ export function RoutineFlow({
       <Sheet
         tier="action"
         eyebrow={eyebrow}
-        title="How much cover do you want left when you order?"
+        title="How much extra buffer do you want?"
         onBack={() => setStep("vials")}
         backLabel="Back to dosage"
         onClose={onClose}
       >
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+          Your monthly order already includes your regular prophylaxis doses and predicted factor
+          use for treating bleeds. This buffer is extra stock on top of both.
+        </p>
         <NumberField
           label="Vials in reserve"
           value={buffer}
           onChange={setBuffer}
           maxLength={VIALS_DIGITS}
           suffix="vials"
-          hint="We’ll warn you if your stock falls below this reserve."
+          hint="We’ll warn you if your stock falls below this extra reserve."
           confirmLabel="Next"
           onConfirm={() => setStep("orderDay")}
         />
