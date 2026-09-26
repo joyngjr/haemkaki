@@ -30,8 +30,8 @@ export function shortDate(date: Date) {
 /**
  * A dose every N days, or on fixed days of the week (0 = Sunday … 6 =
  * Saturday, sorted, at least one). The API stores the same two shapes as
- * `interval_days` / `weekdays` on a series and on a plan, and it — not the
- * page — turns them into dates.
+ * `interval_days` / `weekdays` on a series, and it — not the page — turns
+ * them into dates. A plan picks its dose days outright instead.
  */
 export type Frequency = { unit: "days"; days: number } | { unit: "week"; weekdays: number[] };
 

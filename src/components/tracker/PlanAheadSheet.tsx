@@ -1,30 +1,22 @@
 import { useMemo, useState } from "react";
 
-import {
-  DAYS,
-  fixedMonthGrid,
-  fromKey,
-  shortDate,
-  toKey,
-  type Frequency,
-} from "@/lib/tracker-dates";
+import { DAYS, fromKey, monthGrid, shortDate, toKey } from "@/lib/tracker-dates";
 import { VIALS_DIGITS, vialLabel } from "@/lib/tracker-entries";
 import { plansOverlap, type PlanAhead, type PlanAheadDraft } from "@/lib/tracker-plans";
 
-import { FrequencyEditor } from "./FrequencyEditor";
 import { NumberField } from "./NumberField";
 import { Sheet, SheetOption } from "./Sheet";
 import { ChevronLeftIcon, ChevronRightIcon } from "./TrackerIcons";
 
-type Step = "dates" | "what" | "frequency" | "dosage";
+type Step = "dates" | "what" | "days" | "dosage";
 
 const NEXT_BUTTON =
   "mt-4 w-full rounded-xl bg-[#274A63] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#274A63] disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
  * Adding a plan, one question at a time: which dates, what changes, then the
- * details of each change. Frequency covers both "every N days" and "on these
- * weekdays", since the editor offers both.
+ * details of each change. Dose days are tapped on the calendar one by one,
+ * inside the plan's dates, rather than set as a repeating rule.
  *
  * `onSave` is the API write; the sheet stays open until it resolves, and the
  * card closes it only if the write landed, so a refused plan (overlapping
@@ -34,7 +26,6 @@ export function PlanAheadSheet({
   today,
   plans,
   initial,
-  routineFrequency,
   routineVials,
   onSave,
   onClose,
@@ -43,7 +34,6 @@ export function PlanAheadSheet({
   plans: PlanAhead[];
   /** The plan being edited. Omitted when adding a new one. */
   initial?: PlanAhead;
-  routineFrequency: Frequency | undefined;
   routineVials: number | undefined;
   onSave: (plan: PlanAheadDraft) => Promise<void>;
   onClose: () => void;
@@ -52,9 +42,10 @@ export function PlanAheadSheet({
   const [startKey, setStartKey] = useState<string | null>(initial?.startKey ?? null);
   const [endKey, setEndKey] = useState<string | null>(initial?.endKey ?? null);
   const [month, setMonth] = useState(initial ? fromKey(initial.startKey) : today);
-  const [changesFrequency, setChangesFrequency] = useState(Boolean(initial?.frequency));
+  const [changesDays, setChangesDays] = useState(Boolean(initial?.doseKeys));
   const [changesDosage, setChangesDosage] = useState(Boolean(initial?.vials));
-  const [frequency, setFrequency] = useState<Frequency | undefined>(initial?.frequency);
+  const [doseKeys, setDoseKeys] = useState<string[]>(initial?.doseKeys ?? []);
+  const [daysMonth, setDaysMonth] = useState(month);
   const [count, setCount] = useState(initial?.vials ? String(initial.vials) : "");
   const [busy, setBusy] = useState(false);
 
@@ -62,41 +53,64 @@ export function PlanAheadSheet({
     startKey && endKey && plansOverlap(plans, startKey, endKey, initial?.id),
   );
 
-  function finish(nextFrequency: Frequency | undefined, vials: number | undefined) {
+  // Narrowing the dates after picking days drops the days now outside them.
+  const pickedKeys = doseKeys.filter(
+    (key) => startKey && endKey && key >= startKey && key <= endKey,
+  );
+
+  function finish(vials: number | undefined) {
     if (!startKey || !endKey || busy) return;
     setBusy(true);
     void onSave({
       startKey,
       endKey,
-      ...(nextFrequency ? { frequency: nextFrequency } : {}),
+      ...(changesDays && pickedKeys.length ? { doseKeys: pickedKeys } : {}),
       ...(vials ? { vials } : {}),
     }).finally(() => setBusy(false));
+  }
+
+  function toggleDay(key: string) {
+    setDoseKeys((current) =>
+      current.includes(key) ? current.filter((picked) => picked !== key) : [...current, key].sort(),
+    );
   }
 
   const eyebrow = initial ? "Edit plan" : "Plan ahead";
   const closeLabel = "Close all pop-ups";
   const saveLabel = busy ? "Saving…" : "Save plan";
 
-  if (step === "frequency") {
+  if (step === "days" && startKey && endKey) {
     return (
       <Sheet
         tier="action"
         eyebrow={eyebrow}
-        title="How often will you take it?"
+        title="Which days will you take a dose?"
         onBack={() => setStep("what")}
         backLabel="Back to what changes"
         onClose={onClose}
         closeLabel={closeLabel}
       >
-        <FrequencyEditor
-          initial={frequency ?? routineFrequency}
-          confirmLabel={changesDosage ? "Next" : saveLabel}
-          onConfirm={(chosen) => {
-            setFrequency(chosen);
-            if (changesDosage) setStep("dosage");
-            else finish(chosen, undefined);
-          }}
+        <MonthGrid
+          month={daysMonth}
+          onMonthChange={setDaysMonth}
+          earliest={startKey}
+          latest={endKey}
+          tone={(key) => (pickedKeys.includes(key) ? "picked" : "plain")}
+          onPick={toggleDay}
+          multiple
         />
+        <p className="mt-3 rounded-xl bg-[#F7F6F3] px-3 py-2 text-center text-sm font-bold text-[#242A2F]">
+          {pickedKeys.length
+            ? `${pickedKeys.length} dose ${pickedKeys.length === 1 ? "day" : "days"}`
+            : "Pick your dose days"}
+        </p>
+        <button
+          disabled={!pickedKeys.length || busy}
+          onClick={() => (changesDosage ? setStep("dosage") : finish(undefined))}
+          className={NEXT_BUTTON}
+        >
+          {changesDosage ? "Next" : saveLabel}
+        </button>
       </Sheet>
     );
   }
@@ -107,7 +121,7 @@ export function PlanAheadSheet({
         tier="action"
         eyebrow={eyebrow}
         title="How much factor per dose?"
-        onBack={() => setStep(changesFrequency ? "frequency" : "what")}
+        onBack={() => setStep(changesDays ? "days" : "what")}
         backLabel="Back"
         onClose={onClose}
         closeLabel={closeLabel}
@@ -120,7 +134,7 @@ export function PlanAheadSheet({
           suffix="vials"
           hint={routineVials ? `Your usual dosage is ${vialLabel(routineVials)}.` : undefined}
           confirmLabel={saveLabel}
-          onConfirm={() => finish(changesFrequency ? frequency : undefined, Number(count))}
+          onConfirm={() => finish(Number(count))}
         />
       </Sheet>
     );
@@ -139,9 +153,9 @@ export function PlanAheadSheet({
       >
         <div className="mt-4 space-y-3">
           <SheetOption
-            title="Frequency or days"
-            pressed={changesFrequency}
-            onClick={() => setChangesFrequency((current) => !current)}
+            title="Dose days"
+            pressed={changesDays}
+            onClick={() => setChangesDays((current) => !current)}
           />
           <SheetOption
             title="Dosage"
@@ -150,8 +164,12 @@ export function PlanAheadSheet({
           />
         </div>
         <button
-          disabled={!changesFrequency && !changesDosage}
-          onClick={() => setStep(changesFrequency ? "frequency" : "dosage")}
+          disabled={!changesDays && !changesDosage}
+          onClick={() => {
+            if (!changesDays) return setStep("dosage");
+            if (startKey) setDaysMonth(fromKey(startKey));
+            setStep("days");
+          }}
           className={NEXT_BUTTON}
         >
           Next
@@ -164,7 +182,7 @@ export function PlanAheadSheet({
     <Sheet
       tier="action"
       eyebrow={eyebrow}
-      title="When will your routine be different?"
+      title="Select plan period"
       onClose={onClose}
       closeLabel={closeLabel}
     >
@@ -201,7 +219,7 @@ export function PlanAheadSheet({
   );
 }
 
-/** A month grid where the first tap sets the start and the second sets the end. */
+/** The first tap sets the start and the second, if later, sets the end. */
 function RangePicker({
   today,
   month,
@@ -217,12 +235,8 @@ function RangePicker({
   onMonthChange: (month: Date) => void;
   onChange: (start: string, end: string) => void;
 }) {
-  const days = useMemo(() => fixedMonthGrid(month), [month]);
-  const todayKey = toKey(today);
   // Once a start is set and the end hasn't been chosen separately, the next tap is the end.
   const choosingEnd = Boolean(startKey && startKey === endKey);
-  const shiftMonth = (amount: number) =>
-    onMonthChange(new Date(month.getFullYear(), month.getMonth() + amount, 1));
 
   function pick(key: string) {
     if (choosingEnd && startKey && key > startKey) onChange(startKey, key);
@@ -230,12 +244,59 @@ function RangePicker({
   }
 
   return (
+    <MonthGrid
+      month={month}
+      onMonthChange={onMonthChange}
+      earliest={toKey(today)}
+      tone={(key) =>
+        key === startKey || key === endKey
+          ? "picked"
+          : startKey && endKey && key > startKey && key < endKey
+            ? "between"
+            : "plain"
+      }
+      onPick={pick}
+    />
+  );
+}
+
+type DayTone = "picked" | "between" | "plain";
+
+/**
+ * One month of days with arrows to the next and previous. Days outside
+ * `earliest`–`latest` cannot be tapped, and the arrows stop at their months.
+ * `multiple` marks each day as a toggle, for pickers that collect several.
+ */
+function MonthGrid({
+  month,
+  onMonthChange,
+  earliest,
+  latest,
+  tone,
+  onPick,
+  multiple = false,
+}: {
+  month: Date;
+  onMonthChange: (month: Date) => void;
+  earliest: string;
+  latest?: string;
+  tone: (key: string) => DayTone;
+  onPick: (key: string) => void;
+  multiple?: boolean;
+}) {
+  const days = useMemo(() => monthGrid(month), [month]);
+  const monthKey = toKey(month).slice(0, 7);
+  const shiftMonth = (amount: number) =>
+    onMonthChange(new Date(month.getFullYear(), month.getMonth() + amount, 1));
+
+  return (
     <>
       <div className="mt-3 flex items-center justify-between">
         <button
           onClick={() => shiftMonth(-1)}
+          disabled={monthKey <= earliest.slice(0, 7)}
           aria-label="Previous month"
-          className="grid h-11 w-11 place-items-center rounded-lg text-[#5C646C] transition hover:bg-soft"
+          className="grid h-11 w-11 place-items-center rounded-lg text-[#5C646C] transition hover:bg-soft disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
@@ -244,8 +305,9 @@ function RangePicker({
         </span>
         <button
           onClick={() => shiftMonth(1)}
+          disabled={Boolean(latest && monthKey >= latest.slice(0, 7))}
           aria-label="Next month"
-          className="grid h-11 w-11 place-items-center rounded-lg text-[#5C646C] transition hover:bg-soft"
+          className="grid h-11 w-11 place-items-center rounded-lg text-[#5C646C] transition hover:bg-soft disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ChevronRightIcon className="h-4 w-4" />
         </button>
@@ -259,15 +321,16 @@ function RangePicker({
         {days.map((date) => {
           const key = toKey(date);
           const inMonth = date.getMonth() === month.getMonth();
-          const isPast = key < todayKey;
-          const isEnd = key === startKey || key === endKey;
-          const inRange = Boolean(startKey && endKey && key > startKey && key < endKey);
+          const outside = key < earliest || Boolean(latest && key > latest);
+          const dayTone = tone(key);
           return (
             <button
               key={key}
-              disabled={isPast}
-              onClick={() => pick(key)}
-              className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${isEnd ? "bg-[#274A63] text-white" : inRange ? "bg-[#EDEBE6] text-[#242A2F]" : inMonth ? "text-[#242A2F] hover:bg-[#F7F6F3]" : "text-sand-400 hover:bg-[#F7F6F3]"}`}
+              disabled={outside}
+              onClick={() => onPick(key)}
+              aria-label={shortDate(date)}
+              aria-pressed={multiple ? dayTone === "picked" : undefined}
+              className={`grid h-9 place-items-center rounded-lg text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${dayTone === "picked" ? "bg-[#274A63] text-white" : dayTone === "between" ? "bg-[#EDEBE6] text-[#242A2F]" : inMonth ? "text-[#242A2F] hover:bg-[#F7F6F3]" : "text-sand-400 hover:bg-[#F7F6F3]"}`}
             >
               {date.getDate()}
             </button>

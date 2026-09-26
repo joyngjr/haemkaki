@@ -1,15 +1,6 @@
 import type { Plan, PlanDraft } from "@/lib/api";
 import { vialLabel } from "@/lib/tracker-entries";
-import {
-  frequencyLabel,
-  frequencyOf,
-  frequencyToApi,
-  fromKey,
-  shortDate,
-  toKey,
-  weekdayList,
-  type Frequency,
-} from "@/lib/tracker-dates";
+import { fromKey, shortDate, toKey } from "@/lib/tracker-dates";
 
 /**
  * A temporary change to the usual routine over a date range — a trip, an
@@ -25,7 +16,8 @@ export type PlanAhead = {
   /** First and last day of the plan, inclusive, as `YYYY-MM-DD`. */
   startKey: string;
   endKey: string;
-  frequency?: Frequency;
+  /** The days a dose is due, sorted, all inside the plan's dates. */
+  doseKeys?: string[];
   /** Vials per dose while the plan is in effect. */
   vials?: number;
 };
@@ -33,12 +25,11 @@ export type PlanAhead = {
 export type PlanAheadDraft = Omit<PlanAhead, "id">;
 
 export function planFromApi(plan: Plan): PlanAhead {
-  const frequency = frequencyOf(plan);
   return {
     id: plan.id,
     startKey: plan.start_on,
     endKey: plan.end_on,
-    ...(frequency ? { frequency } : {}),
+    ...(plan.dose_dates ? { doseKeys: plan.dose_dates } : {}),
     ...(plan.vials ? { vials: plan.vials } : {}),
   };
 }
@@ -47,7 +38,7 @@ export function planToApi(draft: PlanAheadDraft): PlanDraft {
   return {
     start_on: draft.startKey,
     end_on: draft.endKey,
-    ...frequencyToApi(draft.frequency),
+    dose_dates: draft.doseKeys ?? null,
     vials: draft.vials ?? null,
   };
 }
@@ -73,14 +64,14 @@ export function planDates(plan: PlanAhead) {
   return plan.startKey === plan.endKey ? start : `${start} – ${shortDate(fromKey(plan.endKey))}`;
 }
 
-/** "Every 2 days · 3 vials per dose" */
+/** "Doses on 3 Oct, 5 Oct · 3 vials per dose", or "6 dose days" once the list is long. */
 export function planChanges(plan: PlanAhead) {
   const parts: string[] = [];
-  if (plan.frequency) {
+  if (plan.doseKeys) {
     parts.push(
-      plan.frequency.unit === "week"
-        ? `${frequencyLabel(plan.frequency)} (${weekdayList(plan.frequency.weekdays)})`
-        : frequencyLabel(plan.frequency),
+      plan.doseKeys.length <= 3
+        ? `Doses on ${plan.doseKeys.map((key) => shortDate(fromKey(key))).join(", ")}`
+        : `${plan.doseKeys.length} dose days`,
     );
   }
   if (plan.vials) parts.push(`${vialLabel(plan.vials)} per dose`);

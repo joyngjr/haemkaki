@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { type Frequency } from "@/lib/tracker-dates";
 import {
   planChanges,
   planDates,
@@ -28,7 +27,6 @@ const STATUS: Record<ReturnType<typeof planStatus>, { label: string; className: 
 export function PlanAheadCard({
   plans,
   today,
-  routineFrequency,
   routineVials,
   error,
   onAdd,
@@ -37,7 +35,6 @@ export function PlanAheadCard({
 }: {
   plans: PlanAhead[];
   today: Date;
-  routineFrequency: Frequency | undefined;
   routineVials: number | undefined;
   /** Why the last write failed, if it did. */
   error: string | null;
@@ -134,7 +131,6 @@ export function PlanAheadCard({
           today={today}
           plans={plans}
           initial={editing === "new" ? undefined : editing}
-          routineFrequency={routineFrequency}
           routineVials={routineVials}
           onSave={async (plan) => {
             const ok = editing === "new" ? await onAdd(plan) : await onUpdate(editing.id, plan);

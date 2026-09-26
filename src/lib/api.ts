@@ -203,16 +203,16 @@ export type Occurrence = {
 
 /**
  * A temporary change to the routine between two dates, inclusive — "Plan
- * Ahead". A null frequency or `vials` means "as the routine has it". The API
- * applies it inside the fold, so planned doses, the run-out date and the
- * order advice all follow it.
+ * Ahead". `dose_dates` are the exact days a dose is due inside the range and
+ * replace the routine's there; null `dose_dates` or `vials` means "as the
+ * routine has it". The API applies it inside the fold, so planned doses, the
+ * run-out date and the order advice all follow it.
  */
 export type Plan = {
   id: number;
   start_on: string;
   end_on: string;
-  interval_days: number | null;
-  weekdays: number[] | null;
+  dose_dates: string[] | null;
   vials: number | null;
 };
 

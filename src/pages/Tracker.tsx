@@ -425,7 +425,6 @@ function TrackerPage({
           <PlanAheadCard
             plans={plans.plans}
             today={today}
-            routineFrequency={routineFrequency}
             routineVials={schedule.series?.vials}
             error={plans.error}
             onAdd={plans.add}
