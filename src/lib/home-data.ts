@@ -181,7 +181,7 @@ export interface HomeDataOptions {
   fetchedAt?: string;
 }
 
-/** The kinds that belong in "Recent entries" — a refill is supply, not treatment. */
+/** The kinds that belong in "Recent entries" — a refill or a count is supply, not treatment. */
 const LEDGER_ROW_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   "prophylaxis",
   "on-demand",

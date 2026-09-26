@@ -107,7 +107,7 @@ export type ProfileDraft = {
 /* Tracking events — the tracker's ledger                              */
 /* ------------------------------------------------------------------ */
 
-export type EventKind = "refill" | "prophylaxis" | "on-demand" | "follow-up" | "makeup";
+export type EventKind = "refill" | "prophylaxis" | "on-demand" | "follow-up" | "makeup" | "count";
 
 export type AmountSource = "pending" | "routine" | "custom";
 
@@ -134,7 +134,8 @@ export type TrackingEvent = {
   amount_vials: number | null;
   /**
    * What the fold charged the cupboard for this event: positive for a refill,
-   * negative for a dose, zero when the amount is not known. A prophylaxis
+   * negative for a dose, zero when the amount is not known, and for a count
+   * the correction it made to the running total. A prophylaxis
    * dose is sized by the schedule in force on its day, so this is the only
    * place the tracker learns how big one was.
    */
@@ -154,7 +155,9 @@ export type TrackingEventDraft =
       /** The planned day this dose was owed for; it must hold no factor use of its own. */
       missed_on: string;
       amount: { source: AmountSource; vials?: number };
-    };
+    }
+  /** The vials actually at home that day. The fold takes it over the running total; zero is allowed. */
+  | { kind: "count"; occurred_on: string; vials: number };
 
 /* ------------------------------------------------------------------ */
 /* Dose schedules — the routine as a calendar's recurring event         */

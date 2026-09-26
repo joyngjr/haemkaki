@@ -15,6 +15,7 @@ import { RefillSheet } from "@/components/tracker/RefillSheet";
 import { RoutineCard } from "@/components/tracker/RoutineCard";
 import { SavedEntriesPanel } from "@/components/tracker/SavedEntriesPanel";
 import { ScheduleShiftPrompt } from "@/components/tracker/ScheduleShiftPrompt";
+import { StockCountSheet } from "@/components/tracker/StockCountSheet";
 import { useDevice } from "@/components/tracker/useDevice";
 import { useLedger } from "@/components/tracker/useLedger";
 import { usePlans } from "@/components/tracker/usePlans";
@@ -156,6 +157,8 @@ function TrackerPage({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [flow, setFlow] = useState<DayFlow | null>(null);
   const [showSupplyHistory, setShowSupplyHistory] = useState(false);
+  /** The day a stock count is being entered for: today from the supply card, or the day being edited. */
+  const [countOn, setCountOn] = useState<string | null>(null);
   /** An off-cycle dose the user just logged; the prompt offers to restart the routine from it. */
   const [shiftFrom, setShiftFrom] = useState<Date | null>(null);
 
@@ -203,7 +206,7 @@ function TrackerPage({
   const canMovePlanned =
     Boolean(plannedOnSelected && plannedOnSelected.schedule_id !== null) &&
     !isPastDate &&
-    dayEntries.every((entry) => entry.kind === "refill");
+    !dayEntries.some((entry) => USE_KINDS.has(entry.kind));
 
   const errors = [ledgerError, schedule.error, statusError].filter((message): message is string =>
     Boolean(message),
@@ -285,7 +288,7 @@ function TrackerPage({
   }
 
   /** The day's factor use, if it has one. The tracker records at most one. */
-  const savedUse = dayEntries.find((entry): entry is SavedUse => entry.kind !== "refill");
+  const savedUse = dayEntries.find((entry): entry is SavedUse => USE_KINDS.has(entry.kind));
 
   /**
    * One injection, whichever kind it is — the sheet hands back a whole entry.
@@ -313,8 +316,22 @@ function TrackerPage({
     closeFlows();
   }
 
+  /**
+   * The vials actually at home on `countOn`. One count per day, so saving
+   * replaces any count already there.
+   */
+  function saveCount(vials: number) {
+    if (!countOn) return;
+    putEntry(countOn, { id: Date.now(), kind: "count", vials }, ["count"]);
+    setCountOn(null);
+  }
+
   /** The Factor Use sheet opens on whatever the day already holds, so kind is enough. */
   function editEntry(entry: TrackerEntry) {
+    if (entry.kind === "count") {
+      if (selectedKey) setCountOn(selectedKey);
+      return;
+    }
     setFlow(entry.kind === "refill" ? "refill" : "use");
   }
 
@@ -379,6 +396,7 @@ function TrackerPage({
             order={status?.order ?? null}
             isLoading={status === null}
             onShowHistory={() => setShowSupplyHistory(true)}
+            onCorrect={() => setCountOn(todayKey)}
           />
         ),
         inventory: <InventoryCard profileId={profileId} />,
@@ -462,6 +480,19 @@ function TrackerPage({
           doseDate={shiftFrom}
           frequency={shiftedFrequency(routineFrequency, shiftFrom)}
           onAnswer={(shift) => void answerShift(shift)}
+        />
+      )}
+
+      {countOn && (
+        <StockCountSheet
+          // A count already on the day is what is being edited; otherwise
+          // start from the figure the user is correcting.
+          initialVials={
+            entries[countOn]?.find((entry) => entry.kind === "count")?.vials ??
+            status?.vials_on_hand
+          }
+          onSave={saveCount}
+          onClose={() => setCountOn(null)}
         />
       )}
 

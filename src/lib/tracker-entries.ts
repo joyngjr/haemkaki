@@ -32,7 +32,8 @@ type Base = {
   id: number;
   /**
    * What the fold charged the cupboard for this entry: positive for a refill,
-   * negative for a dose. From the API, so absent on an entry not yet written.
+   * negative for a dose, and for a count the correction it made. From the
+   * API, so absent on an entry not yet written.
    */
   appliedVials?: number;
 };
@@ -53,7 +54,12 @@ export type TrackerEntry =
    * `missedDateKey` is the planned day it was owed for — the one thing that
    * stops that day reading as missed.
    */
-  | (Base & { kind: "makeup"; missedDateKey: string; amount: DoseAmount });
+  | (Base & { kind: "makeup"; missedDateKey: string; amount: DoseAmount })
+  /**
+   * The vials actually at home, counted — how a wrong entry is corrected.
+   * The API takes it over whatever the entries before it add up to.
+   */
+  | (Base & { kind: "count"; vials: number });
 
 export type EntryMap = Record<string, TrackerEntry[]>;
 
@@ -74,7 +80,9 @@ export function vialLabel(vials: number) {
 
 /** The heading shown on an entry row, and the grouping the calendar dots use. */
 export function entryLabel(entry: TrackerEntry) {
-  return entry.kind === "refill" ? "Factor Refill" : "Factor Use";
+  if (entry.kind === "refill") return "Factor Refill";
+  if (entry.kind === "count") return "Stock Count";
+  return "Factor Use";
 }
 
 /** The size of a routine-sized dose, once the API has charged it. */
@@ -107,6 +115,8 @@ export function entryDetail(entry: TrackerEntry): string {
       return `Follow-up use after a bleed — ${vialLabel(entry.vials)}`;
     case "makeup":
       return `Missed dose on ${shortDate(fromKey(entry.missedDateKey))} - ${amountLabel(entry.amount, chargedVials(entry))}`;
+    case "count":
+      return `${vialLabel(entry.vials)} at home`;
   }
 }
 
@@ -205,6 +215,8 @@ function entryFromApi(event: ApiTrackingEvent): TrackerEntry | null {
         missedDateKey: event.missed_on ?? "",
         amount: amountFromApi(event.amount_source, event.amount_vials) ?? { source: "pending" },
       };
+    case "count":
+      return { ...base, kind: "count", vials: event.vials ?? 0 };
     default:
       // A kind this build does not know about. Dropping it is better than
       // rendering a blank row, and the next deploy picks it up.
@@ -250,6 +262,8 @@ export function entryToApi(entry: TrackerEntry, dateKey: string): TrackingEventD
         missed_on: entry.missedDateKey,
         amount: amountToApi(entry.amount),
       };
+    case "count":
+      return { kind: "count", occurred_on: dateKey, vials: entry.vials };
   }
 }
 

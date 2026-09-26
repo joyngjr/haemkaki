@@ -431,6 +431,7 @@ const ENTRY_LABEL: Record<
   // Not an entry at all — a planned day the ledger has nothing for.
   missed: { label: "Dose missed", mark: "missed" },
   refill: { label: "Refill", mark: "taken" },
+  count: { label: "Stock count", mark: "taken" },
 };
 
 /** The amount as the ledger charged it, and a dash for a dose of unknown size. */

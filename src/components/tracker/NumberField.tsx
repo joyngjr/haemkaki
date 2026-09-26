@@ -11,6 +11,7 @@ export function NumberField({
   value,
   onChange,
   maxLength = 2,
+  min = 1,
   max,
   hint,
   suffix,
@@ -27,6 +28,8 @@ export function NumberField({
    * and a field that can enter more only produces a 422 the user cannot act on.
    */
   maxLength?: number;
+  /** Smallest accepted value: 1 by default, 0 where none is a real answer (a stock count). */
+  min?: number;
   /** Largest accepted value, when the domain has one (day 31 of a month). */
   max?: number;
   hint?: string;
@@ -35,7 +38,7 @@ export function NumberField({
   confirmLabel: string;
   onConfirm: () => void;
 }) {
-  const valid = Number(value) > 0 && (max === undefined || Number(value) <= max);
+  const valid = value !== "" && Number(value) >= min && (max === undefined || Number(value) <= max);
 
   return (
     <>

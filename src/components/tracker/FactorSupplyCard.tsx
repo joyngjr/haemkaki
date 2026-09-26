@@ -9,7 +9,7 @@ import type { SupplyRow } from "@/lib/tracker-entries";
 import { cn } from "@/lib/utils";
 
 import { Sheet } from "./Sheet";
-import { QuestionIcon } from "./TrackerIcons";
+import { PencilIcon, QuestionIcon } from "./TrackerIcons";
 
 type FactorSupplyCardProps = {
   vialsRemaining: number;
@@ -23,6 +23,8 @@ type FactorSupplyCardProps = {
   order: OrderAdvice | null;
   isLoading: boolean;
   onShowHistory: () => void;
+  /** Opens the stock count, for when the recorded figure is wrong. */
+  onCorrect: () => void;
   className?: string;
 };
 
@@ -35,7 +37,8 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 /**
  * "Factor at home" — vials on hand and the order advice, exactly as the API
  * folded them from the ledger, the schedule, the buffer and the order day. The card counts
- * nothing itself; the "?" opens the fold's own working for the order.
+ * nothing itself; the "?" opens the fold's own working for the order, and
+ * the pencil beside it opens a stock count for when the figure is wrong.
  *
  * The advice is advice: the app places no orders and talks to no pharmacy.
  * It says how much to buy and by when, and the ledger deducts from whatever
@@ -54,6 +57,7 @@ export function FactorSupplyCard({
   order,
   isLoading,
   onShowHistory,
+  onCorrect,
   className,
 }: FactorSupplyCardProps) {
   const [showOrderHelp, setShowOrderHelp] = useState(false);
@@ -64,17 +68,32 @@ export function FactorSupplyCard({
     <Card className={cn("lg:p-6", className)}>
       <div className="flex items-center justify-between">
         <CardTitle>Factor at home</CardTitle>
-        <button
-          type="button"
-          onClick={() => setShowOrderHelp(true)}
-          aria-label="How the recommended order is calculated"
-          className={cn(
-            "-mr-1.5 grid h-11 w-11 place-items-center rounded-full text-ink-faint hover:text-ink-muted",
-            FOCUS_RING,
+        <div className="flex">
+          {!isLoading && (
+            <button
+              type="button"
+              onClick={onCorrect}
+              aria-label="Correct the vials at home"
+              className={cn(
+                "grid h-11 w-8 place-items-center rounded-full text-ink-faint hover:text-ink-muted",
+                FOCUS_RING,
+              )}
+            >
+              <PencilIcon className="h-[18px] w-[18px]" />
+            </button>
           )}
-        >
-          <QuestionIcon className="h-[18px] w-[18px]" />
-        </button>
+          <button
+            type="button"
+            onClick={() => setShowOrderHelp(true)}
+            aria-label="How the recommended order is calculated"
+            className={cn(
+              "grid h-11 w-8 place-items-center rounded-full text-ink-faint hover:text-ink-muted",
+              FOCUS_RING,
+            )}
+          >
+            <QuestionIcon className="h-[18px] w-[18px]" />
+          </button>
+        </div>
       </div>
 
       <div className="lg:flex lg:items-start lg:gap-8">

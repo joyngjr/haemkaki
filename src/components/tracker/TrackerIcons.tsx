@@ -78,6 +78,15 @@ export function QuestionIcon(props: IconProps) {
   );
 }
 
+export function PencilIcon(props: IconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M16.9 3.9a2.1 2.1 0 0 1 3 3L8.5 18.3 4 19.5l1.2-4.5Z" />
+      <path d="m14.6 6.2 3.1 3.1" />
+    </Glyph>
+  );
+}
+
 export function RepeatIcon(props: IconProps) {
   return (
     <Glyph {...props}>
