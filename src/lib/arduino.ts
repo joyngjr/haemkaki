@@ -2,10 +2,13 @@
  * The dose device: an Arduino Uno on USB, spoken to with the Web Serial API.
  *
  * The browser talks to the board directly; the server never sees it. The
- * board sends one line per event — `DOSE_TAKEN` when its button is pressed,
- * `VIALS:<n>` for what its display shows — and the page sends
- * `SET_VIALS:<n>`, `SET_DATE:<text>` and `DOSE_ALERT_ON`. Whichever profile
- * is active in the browser is the one a device dose is logged against.
+ * board sends one line per event — `DOSE_TAKEN` when its dose button is
+ * pressed, `VIALS:<n>` for what its display shows, after each press of its
+ * + and − — and the page sends `SET_VIALS:<n>`, `SET_DATE:<text>` and
+ * `DOSE_ALERT_ON`. What a `VIALS:` line means is `useDevice`'s call: it is
+ * answered with the app's figure until the board is in step, and filed as a
+ * stock count after. Whichever profile is active in the browser is the one a
+ * device dose or count is logged against.
  *
  * Only Chrome and Edge on desktop have the API, and only on HTTPS or
  * localhost. `isDeviceSupported` gates every caller, so the phone build never

@@ -33,6 +33,7 @@ import {
 } from "@/lib/tracker-dates";
 import {
   FACTOR_USE_KINDS,
+  recordCount,
   recordProphylaxis,
   supplyHistory,
   withEntry,
@@ -213,10 +214,12 @@ function TrackerPage({
   );
 
   /**
-   * The USB board. Its button means "I took my routine dose now", filed like
-   * Home's "Taken": one use per day, so a second press changes nothing. Its
-   * display follows the fold — vials at home and the next planned dose — and
-   * its reminder sounds while that dose is due and nothing is logged today.
+   * The USB board. Its dose button means "I took my routine dose now", filed
+   * like Home's "Taken": one use per day, so a second press changes nothing.
+   * Its + and − settle on a count, filed like the supply card's "Correct":
+   * today's stock count, one per day. Its display follows the fold — vials at
+   * home and the next planned dose — and its reminder sounds while that dose
+   * is due and nothing is logged today.
    */
   const todayKey = toKey(today);
   const usedToday = dayHasUse(entries, todayKey);
@@ -225,12 +228,17 @@ function TrackerPage({
       dayHasUse(current, todayKey) ? current : recordProphylaxis(current, todayKey, Date.now()),
     );
   }, [mutate, todayKey]);
+  const fileDeviceCount = useCallback(
+    (vials: number) => mutate((current) => recordCount(current, todayKey, vials, Date.now())),
+    [mutate, todayKey],
+  );
   const device = useDevice({
     todayKey,
     vials: status?.vials_on_hand,
     dateLabel: formatDeviceDate(status?.next_dose ? fromKey(status.next_dose.on) : today),
     doseDue: Boolean(status?.next_dose && status.next_dose.on <= todayKey && !usedToday),
     onDoseTaken: logDeviceDose,
+    onCount: fileDeviceCount,
   });
 
   /** Replace the entries on one day. */
@@ -322,7 +330,8 @@ function TrackerPage({
    */
   function saveCount(vials: number) {
     if (!countOn) return;
-    putEntry(countOn, { id: Date.now(), kind: "count", vials }, ["count"]);
+    const dateKey = countOn;
+    mutate((current) => recordCount(current, dateKey, vials, Date.now()));
     setCountOn(null);
   }
 

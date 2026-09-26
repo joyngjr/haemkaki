@@ -148,6 +148,20 @@ export function recordProphylaxis(entries: EntryMap, dateKey: string, id: number
   return withEntry(entries, dateKey, { id, kind: "prophylaxis" }, FACTOR_USE_KINDS);
 }
 
+/**
+ * Record the vials actually at home on a day. One count per day, so it
+ * replaces any count already there. Shared by the supply card's stock count
+ * and the dose device, whose + and − settle on a count the same way.
+ */
+export function recordCount(
+  entries: EntryMap,
+  dateKey: string,
+  vials: number,
+  id: number,
+): EntryMap {
+  return withEntry(entries, dateKey, { id, kind: "count", vials }, ["count"]);
+}
+
 export type SupplyRow = {
   id: number;
   dateKey: string;
