@@ -92,7 +92,7 @@ function ClaudeGuide({ ask, target }: { ask: string; target: string }) {
           In a new chat tap <b>+</b>, then <b>Connectors</b>, and switch HaemKaki on.
         </Step>
         <Step n={3}>
-          Attach your spreadsheet or paste the rows, and say: <i>&ldquo;{ask}&rdquo;</i>
+          Attach your file or paste your records, and say: <i>&ldquo;{ask}&rdquo;</i>
         </Step>
         <Step n={4}>
           Check the preview. The assistant writes only after you confirm, and can undo the import if
@@ -123,7 +123,7 @@ function ChatGptGuide({ ask }: { ask: string }) {
           In a new chat tap <b>+</b>, then <b>Developer mode</b>, and switch HaemKaki on.
         </Step>
         <Step n={4}>
-          Attach your spreadsheet or paste the rows, and say: <i>&ldquo;{ask}&rdquo;</i>
+          Attach your file or paste your records, and say: <i>&ldquo;{ask}&rdquo;</i>
         </Step>
         <Step n={5}>
           Check the preview. ChatGPT asks you to approve each change before it writes, and can undo
@@ -150,9 +150,9 @@ function GeminiGuide({ ask }: { ask: string }) {
       <CopyRow label="Command" value={GEMINI_ADD_COMMAND} />
       <ol start={3} className="mt-4 flex flex-col gap-2.5">
         <Step n={3}>
-          Run <code className="font-mono">gemini</code> in the folder with your spreadsheet, and
-          say: <i>&ldquo;{ask}&rdquo;</i> Name the file with <code className="font-mono">@</code>,
-          like <code className="font-mono">@doses.csv</code>.
+          Run <code className="font-mono">gemini</code> in the folder with your file, and say:{" "}
+          <i>&ldquo;{ask}&rdquo;</i> Name the file with <code className="font-mono">@</code>, like{" "}
+          <code className="font-mono">@doses.csv</code>.
         </Step>
         <Step n={4}>
           Check the preview. Gemini asks before each change it writes, and can undo the import if
@@ -231,8 +231,8 @@ function AssistantGuides({ ask, target }: { ask: string; target: string }) {
 }
 
 /**
- * How to connect an assistant to this server's MCP endpoint and import a
- * spreadsheet through it. The app never parses a file itself: the assistant
+ * How to connect an assistant to this server's MCP endpoint and import
+ * existing records through it. The app never parses a file itself: the assistant
  * reads it, previews what it would add, and writes only when the user says so.
  */
 export function ImportTracker() {
@@ -252,7 +252,9 @@ export function ImportTracker() {
       </h1>
       <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
         Bring the doses and refills you logged elsewhere into HaemKaki with an AI assistant. It
-        reads your spreadsheet, shows you what it would add, and writes only when you say so.
+        reads whatever records you already have, such as a spreadsheet, another app&rsquo;s export,
+        typed notes or a photo of your logbook. It shows you what it would add, and writes only when
+        you say so.
       </p>
 
       <div className="mt-5 flex flex-col gap-4">
@@ -284,7 +286,7 @@ export function ImportTracker() {
         <Callout tone="muted" icon={<NoteIcon />}>
           Refills, doses and treated bleeds come across. A dose you took late comes across as the
           day you took it. Amounts are counted in vials, so the assistant will ask how many IU a
-          vial holds if your sheet is in IU. Imported entries appear the next time the Tracker
+          vial holds if your records are in IU. Imported entries appear the next time the Tracker
           opens. There is no sign-in: anyone with this address can read and change every profile
           here, so only connect assistants you trust.
         </Callout>
