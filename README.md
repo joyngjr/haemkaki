@@ -1,20 +1,107 @@
-# HaemKaki — web app
+# :drop_of_blood: HaemKaki
 
-React + TypeScript + Vite + Tailwind. A mobile-first companion app for people
-with haemophilia: a home screen showing how covered you are and letting you log
-today's dose, a calendar tracker for doses, the routine and supply, and a
-resources section with an injection guide, a medical ID card and a map of
-nearby help.
+**:trophy: 2nd Runner Up — HackItRx 2026**  
+Organised by Open Government Products, the Alliance of Patients' Organisations Singapore and the
+Pharmaceutical Society of Singapore.
 
-On a phone those are three tabs. From `lg` (1024px) the web version puts
-everything on one page instead — no tabs or sidebar, just a top bar with the
-account switcher in the top right corner.
+HaemKaki is a mobile-first companion app for people living with haemophilia. It keeps track of
+prophylaxis doses and factor supply, helps plan around travel and illness, and makes sure a dose
+is never forgotten. Kaki, a friendly platelet mascot, shows how well covered you are at a glance.
 
-There is no authentication. A "profile" is just a name someone picks on the
-device, and anyone holding the phone can switch between everyone in a household.
-The one chosen last is remembered on the device.
+<br>
 
-## First-time setup
+## :star2: Features
+
+### :syringe: Prophylaxis Tracker
+
+- Tracks factor usage and works out how long your cover lasts from the schedule on your profile.
+- Manages your inventory and works out how much factor to buy, and by when.
+- Plans ahead for disruptions to your prophylaxis routine, such as travel or illness.
+
+### :airplane: Travel Aid
+
+- A downloadable Medical ID with translations, so carers abroad can read your diagnosis,
+  medication and emergency contacts.
+- Maps of haemophilia treatment centres across Southeast Asia.
+
+### :bell: Reminder System
+
+- A hardware device that attaches to the fridge, where prophylaxis is stored, and buzzes when it
+  is time for your next dose.
+
+### :sparkles: Ease of Use
+
+- An MCP server for importing data from the ways you already track, such as a spreadsheet, through
+  an AI assistant.
+- Quick log, which records a dose in one tap using the preferences stored on your profile.
+
+<br>
+
+## :wrench: Technical Implementation
+
+- The frontend (this repo) is built with React, TypeScript, Vite and Tailwind CSS, designed
+  mobile-first, and deployed on Vercel.
+- The [backend](https://github.com/joyngjr/hackitrx-backend) is a FastAPI service backed by
+  PostgreSQL and deployed on Railway. It works out cover, run-out dates and order advice from an
+  event ledger, rather than storing running totals.
+- The Medical ID is translated by a self-hosted LibreTranslate instance, proxied through the
+  backend, and exported as a PDF with jsPDF.
+- Treatment centre maps are drawn with Leaflet.
+- The MCP server lives on the backend at `/mcp`, so assistants such as Claude and ChatGPT can
+  import records with a dry run first.
+
+<br>
+
+## :whale: Setup Guide
+
+### Folder architecture
+
+HaemKaki is split across two repos. To run them together, clone both into one parent folder
+and put `docker-compose.yml` beside them:
+
+```
+haemkaki-project/            any name
+├── haemkaki/                this repo (hackitrx-frontend)
+├── haemkaki-backend/        the API (hackitrx-backend)
+└── docker-compose.yml       copied from haemkaki/docker-compose.yml
+```
+
+The folder names matter: `docker-compose.yml` builds from `./haemkaki` and `./haemkaki-backend`.
+
+### Run everything with Docker Compose
+
+You need [Docker](https://docs.docker.com/get-docker/) with Compose v2.
+
+```bash
+mkdir haemkaki-project && cd haemkaki-project
+git clone https://github.com/joyngjr/hackitrx-frontend.git haemkaki
+git clone https://github.com/joyngjr/hackitrx-backend.git haemkaki-backend
+cp haemkaki/docker-compose.yml .
+docker compose up --build
+```
+
+| Service        | Address                    | Notes                                                    |
+| -------------- | -------------------------- | -------------------------------------------------------- |
+| Frontend       | http://localhost:5173      | Vite dev server; edits in `haemkaki/` hot-reload         |
+| Backend        | http://localhost:8000/docs | FastAPI with `--reload`; edits in `app/` reload it       |
+| MCP server     | http://localhost:8000/mcp  | For Claude Code; Claude.ai and ChatGPT need a public URL |
+| Postgres       | localhost:5432             | User, password and database all `haemkaki`               |
+| LibreTranslate | inside Docker only         | The backend reaches it at `http://libretranslate:5000`   |
+
+Good to know:
+
+- **The first start is slow.** LibreTranslate downloads its language models into the `lt_models`
+  volume. Until they finish loading, translating the Medical ID fails with a 502. Everything else
+  works in the meantime, and later starts reuse the models.
+- **Nothing is seeded.** Add a profile from the profile button in the app (or in `/docs`) first.
+- **Postgres credentials** can be overridden with `POSTGRES_USER`, `POSTGRES_PASSWORD` and
+  `POSTGRES_DB` in a `.env` file beside `docker-compose.yml`.
+- **Starting fresh:** `docker compose down -v` deletes the database. It also deletes the
+  translation models, which will download again on the next start.
+- **After changing `package.json`,** run `docker compose up --build -V` so the container's
+  `node_modules` volume is rebuilt rather than reused.
+
+### Run the frontend alone
 
 ```bash
 npm install
@@ -22,35 +109,48 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:5173.
-
-`.env.local` needs one variable:
+Open http://localhost:5173. `.env.local` needs one variable:
 
 ```
 VITE_API_URL=http://localhost:8000
 ```
 
-Point it at the deployed Railway backend instead to run the frontend alone.
-The backend is a sibling repo:
-
-```bash
-cd ../haemkaki-backend && uvicorn app.main:app --reload
-```
-
-Or bring up frontend, backend and Postgres together from the parent directory:
-
-```bash
-docker compose up
-```
-
-That serves the frontend on 5173 and the backend on 8000.
+Point it at the deployed Railway backend instead if you are not running the API locally. To run the
+backend without Docker, see its
+[Run locally](https://github.com/joyngjr/hackitrx-backend#run-locally) section. It falls back to
+SQLite when `DATABASE_URL` is unset.
 
 Scripts: `npm run dev` (Vite dev server), `npm run build` (`tsc -b` then build),
 `npm run typecheck` (types only), `npm run lint` / `npm run lint:fix` (ESLint),
 `npm run format` (Prettier). `lint-staged` runs ESLint and Prettier on commit
 via Husky.
 
-## File organisation
+<br>
+
+## :link: Related Resources
+
+- Backend repo: [joyngjr/hackitrx-backend](https://github.com/joyngjr/hackitrx-backend). It
+  covers the API, the event ledger, dose schedules and the MCP server.
+- [MCP onboarding infosheet](https://github.com/joyngjr/hackitrx-backend/blob/main/MCP_ONBOARDING_INFOSHEET.md):
+  how to connect an assistant and import your existing records.
+
+<br>
+
+## :books: Developer Reference
+
+### How the app is laid out
+
+On a phone the app has three tabs: Home, which shows how covered you are and lets you log today's
+dose; a calendar tracker for doses, the routine and supply; and Resources, with an injection guide,
+the Medical ID card and a map of nearby help. From `lg` (1024px), the web version puts everything
+on one page instead. There are no tabs or sidebar, just a top bar with the account switcher in the
+top right corner.
+
+There is no authentication. A "profile" is just a name someone picks on the device, and anyone
+holding the phone can switch between everyone in a household. The device remembers the last one
+chosen.
+
+### File organisation
 
 ```
 src/
@@ -132,7 +232,7 @@ touches `import.meta.env`. Styling is Tailwind and mobile-first — unprefixed
 utilities are the phone layout, `sm:`/`md:` adapt upward. Use the `brand-*` and
 `sand-*` scales from `tailwind.config.js` rather than hard-coded hex.
 
-## Core features
+### Feature status
 
 | Feature                                                                                                         | State                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -153,7 +253,7 @@ utilities are the phone layout, `sm:`/`md:` adapt upward. Use the `brand-*` and
 | Medical ID                                                                                                      | Real: name, diagnosis, severity, DOB, medication, drug allergies, blood type, emergency contact, primary doctor — all from the profile                                                                                                                                                                       |
 | Tips — injection guide, find medical help map                                                                   | Static content                                                                                                                                                                                                                                                                                               |
 
-## Common issues
+### Common issues
 
 | Symptom                                            | Cause                                                          | Fix                                                                                                   |
 | -------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -166,7 +266,7 @@ utilities are the phone layout, `sm:`/`md:` adapt upward. Use the `brand-*` and
 | Home shows "Welcome" and no scene                  | There is no profile yet, or the profile list failed to load    | Add one from the profile button; the message names the API error if there was one                     |
 | A tracker popup sits behind the tab bar            | `AppLayout`'s tab bar is `z-40`                                | `Sheet`'s `tier` prop sets the stacking order; use it rather than a raw `z-*` class                   |
 
-## How the tracker persists
+### How the tracker persists
 
 Entries live in `/users/{id}/events`, one row per logged action.
 `useLedger` (`src/components/tracker/useLedger.ts`) owns the round trip: every
@@ -222,7 +322,7 @@ What still has no backend: a bleed as its own record — Home's "recent bleed"
 state is the most recent on-demand dose, which is what the tracker already
 draws the blood drop for.
 
-## Deploying
+### Deploying
 
 Vercel builds `main` and gives every pull request its own preview URL.
 `vercel.json` disables deployments for other branches and rewrites all routes to
