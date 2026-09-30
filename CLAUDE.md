@@ -1,4 +1,4 @@
-# haemkaki-frontend
+# haemkaki
 
 React + TypeScript + Vite + Tailwind CSS.
 
