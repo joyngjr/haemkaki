@@ -1,52 +1,73 @@
-# HaemKaki Frontend Guidance
+# HaemKaki frontend — agent guidance
 
-This file contains project guidance for coding agents working in
-`haemkaki/`.
+This is the single source of truth for coding agents working in this repo.
+`CLAUDE.md` imports it and Gemini CLI reads it via `.gemini/settings.json`; keep
+all agent rules here rather than in tool-specific files.
 
-## Scope and priorities
+## Scope
 
-- Focus implementation work on the frontend in this directory.
-- Treat `../haemkaki-backend/` as read-only reference code. Do not modify it.
-- Read the backend routers and schemas before building API-connected UI so that
-  request payloads, response models, and frontend TypeScript types stay aligned.
-- Prefer simple, hackathon-ready solutions with appropriate test coverage over
-  unnecessary abstraction.
-- Add tests for new components, utility functions, and API integrations when
-  changing or adding those areas.
+- This repo is the frontend only: React + TypeScript + Vite + Tailwind CSS.
+- The backend lives in a separate repo (`haemkaki-backend`, usually checked out
+  as a sibling directory). Treat it as read-only reference: read its routers and
+  schemas before building API-connected UI so request payloads, response models
+  and the TypeScript types in `src/lib/api.ts` stay aligned. Never modify it.
+- The backend serves interactive API docs at `/docs` when running locally.
+- Prefer simple, hackathon-ready solutions over abstraction.
 
-The backend's interactive API documentation is available at `/docs` when it is
-running locally.
+## Repo layout
 
-## Technology and conventions
+- `src/` — the app. Pages in `src/pages/`, shared pieces in
+  `src/components/<area>/`, non-React logic in `src/lib/`, context in
+  `src/state/`. Only `src/lib/api.ts` reads `import.meta.env`.
+- `docs/` — long-form project docs: `architecture.md`, `deploying.md`, and
+  `domain/` for haemophilia reference material.
+- `.agents/skills/` — agent skills (the domain-expert research skill).
+- `README.md` — setup, core features and common issues.
 
-- Stack: React, TypeScript, Vite, and Tailwind CSS.
-- Use TypeScript React function components.
-- Style with Tailwind utilities.
-- For conditional or merged classes, use `clsx`, `tailwind-merge`, or the
-  existing `cn` helper rather than manually concatenating class strings.
+See `docs/architecture.md` for the full `src/` tree and how the tracker persists.
 
-## Mobile-first UI requirements
+## Mobile-first design (hackathon priority)
 
-HaemKaki is a web app intended to feel like a mobile application, with a later
-native-app conversion in mind.
+This app must be built **mobile-first**. Most demo and judging traffic will be
+on phones, and the web app should look and feel like a mobile app, with a later
+native conversion in mind.
 
-- Design the unprefixed Tailwind styles for small screens (about 375px wide).
-- Keep the desktop presentation mobile-like when useful, for example with a
-  centered `max-w-md` container.
-- Make tap targets at least 44 by 44 pixels; use adequate padding rather than
-  relying on browser defaults.
-- Use single-column layouts as the baseline (`flex-col` or `grid-cols-1`).
-- Choose typography and spacing that remain comfortable on a small screen.
-- Never make functionality depend only on hover; all interactions must work by
-  tap or click.
-- When checking UI in a browser, verify approximately 375px and 390px mobile
-  viewports.
+- **Base styles = mobile.** Write unprefixed Tailwind utilities for the smallest
+  viewport (~375px wide), then layer in `sm:` / `md:` / `lg:` / `xl:` prefixes
+  only to adapt for larger screens. Never write desktop styles first and
+  retrofit mobile with overrides.
+- **Touch targets.** Interactive elements (buttons, links, inputs) should be at
+  least 44x44px. Add sufficient padding (`p-3`+) rather than relying on default
+  sizes.
+- **Layout defaults to single column.** Use `flex-col` / `grid-cols-1` as the
+  base, switching to multi-column only at `md:` and up.
+- **Typography and spacing scale down, not up.** Pick sizes that read well on a
+  small screen first (e.g. `text-base`, `p-4`), then increase at larger
+  breakpoints if needed.
+- **Avoid fixed widths/heights** that break on narrow viewports. Prefer
+  `w-full`, `max-w-*` and relative units. A centered `max-w-md` container is a
+  fine way to keep the desktop presentation mobile-like.
+- **No hover-only interactions.** Anything that matters must also work with tap.
+- **Test at mobile widths first.** When verifying a change in the browser,
+  check ~375px and ~390px viewports before checking desktop.
+
+## Stack conventions
+
+- Components: React function components with TypeScript.
+- Styling: Tailwind utility classes; use the `cn` helper from `src/lib/utils.ts`
+  (`clsx` + `tailwind-merge`) for conditional or merged class names rather than
+  string concatenation.
+- Use the `brand-*` and `sand-*` scales from `tailwind.config.js` rather than
+  hard-coded hex colours.
 
 ## Verification
 
-Before completing a frontend change, run the relevant tests plus:
+Before considering a change complete, run:
 
 ```bash
 npm run lint
 npm run typecheck
 ```
+
+There is no test runner in this project. Do not run or create tests (no test
+files, no Playwright or other browser automation).
