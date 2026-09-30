@@ -1,0 +1,76 @@
+# Runs the whole of HaemKaki locally: frontend, backend, Postgres and LibreTranslate.
+#
+# This file belongs one level ABOVE the two repos, not inside this one:
+#
+#   <any folder>/
+#   ├── haemkaki/             this repo (hackitrx-frontend)
+#   ├── haemkaki-backend/     the API (hackitrx-backend)
+#   └── docker-compose.yml    a copy of this file
+#
+# Then run `docker compose up --build` from that folder. See the README.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-haemkaki}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-haemkaki}
+      POSTGRES_DB: ${POSTGRES_DB:-haemkaki}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-haemkaki} -d ${POSTGRES_DB:-haemkaki}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./haemkaki-backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-haemkaki}:${POSTGRES_PASSWORD:-haemkaki}@db:5432/${POSTGRES_DB:-haemkaki}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+    volumes:
+      - ./haemkaki-backend/app:/app/app
+    depends_on:
+      db:
+        condition: service_healthy
+      libretranslate:
+        condition: service_started
+
+  # Medical ID translation, as on Railway. The first start downloads the
+  # models into lt_models; later starts reuse them.
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    environment:
+      LT_LOAD_ONLY: en,zh-Hans,zh-Hant,ms,id,th,vi,tl,ja,ko,hi
+      # One gunicorn worker: each one loads every model.
+      LT_THREADS: "1"
+    volumes:
+      - lt_models:/home/libretranslate/.local
+
+  frontend:
+    build:
+      context: ./haemkaki
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./haemkaki:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  lt_models:
