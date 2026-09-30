@@ -8,6 +8,8 @@ HaemKaki is a companion web app for people living with haemophilia. It keeps tra
 prophylaxis doses and factor supply, helps plan around travel and illness, and makes sure a dose
 is never forgotten. Kaki, a friendly platelet mascot, shows how well covered you are at a glance.
 
+Learn more about our product journey from our [Pitch Deck](Pitch%20Deck.pdf)!
+
 <br>
 
 ## :star2: Features
