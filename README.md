@@ -34,7 +34,7 @@ Point it at the deployed Railway backend instead to run the frontend alone.
 The backend is a sibling repo:
 
 ```bash
-cd ../hackitrx-backend && uvicorn app.main:app --reload
+cd ../haemkaki-backend && uvicorn app.main:app --reload
 ```
 
 Or bring up frontend, backend and Postgres together from the parent directory:
@@ -157,7 +157,7 @@ utilities are the phone layout, `sm:`/`md:` adapt upward. Use the `brand-*` and
 
 | Symptom                                            | Cause                                                          | Fix                                                                                                   |
 | -------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| "Could not reach the API. Is the backend running?" | No backend on `VITE_API_URL`                                   | Start `uvicorn app.main:app --reload` in `hackitrx-backend`, or point `.env.local` at the Railway URL |
+| "Could not reach the API. Is the backend running?" | No backend on `VITE_API_URL`                                   | Start `uvicorn app.main:app --reload` in `haemkaki-backend`, or point `.env.local` at the Railway URL |
 | CORS error in the console                          | Origin missing from the backend allow-list                     | Add it to `CORS_ORIGINS` in the backend `.env` and restart                                            |
 | Env var reads as `undefined`                       | Not prefixed `VITE_`, or the dev server was not restarted      | Rename to `VITE_*` and restart `npm run dev`                                                          |
 | Blank page on refresh at a sub-route               | SPA rewrite missing                                            | `vercel.json` rewrites all routes to `index.html`                                                     |

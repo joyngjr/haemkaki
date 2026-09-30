@@ -1,12 +1,12 @@
 # HaemKaki Frontend Guidance
 
 This file contains project guidance for coding agents working in
-`hackitrx-frontend/`.
+`haemkaki/`.
 
 ## Scope and priorities
 
 - Focus implementation work on the frontend in this directory.
-- Treat `../hackitrx-backend/` as read-only reference code. Do not modify it.
+- Treat `../haemkaki-backend/` as read-only reference code. Do not modify it.
 - Read the backend routers and schemas before building API-connected UI so that
   request payloads, response models, and frontend TypeScript types stay aligned.
 - Prefer simple, hackathon-ready solutions with appropriate test coverage over

@@ -1,25 +1,25 @@
 # HaemKaki Agent Guidelines
 
-Welcome to the HaemKaki project! As an agent assisting on this project, your primary focus is on the **frontend** (`hackitrx-frontend`). The user is a frontend developer and will not be modifying backend code.
+Welcome to the HaemKaki project! As an agent assisting on this project, your primary focus is on the **frontend** (`haemkaki`). The user is a frontend developer and will not be modifying backend code.
 
-However, you must read and understand the backend code (`hackitrx-backend`) to integrate the frontend seamlessly with the backend APIs.
+However, you must read and understand the backend code (`haemkaki-backend`) to integrate the frontend seamlessly with the backend APIs.
 
 ## General Project Rules
 
 - **Write Tests**: Since this hackathon spans an entire month, maintaining stability is important. Write test cases for new components, utility functions, and API integrations as they are developed.
 - **Keep it Simple**: Prioritize speed and hackathon-ready code without over-engineering, while maintaining good test coverage.
 - **Paths**:
-  - Frontend: `hackitrx-frontend/` (Your primary focus)
-  - Backend: `hackitrx-backend/` (Read-only reference)
+  - Frontend: `haemkaki/` (Your primary focus)
+  - Backend: `haemkaki-backend/` (Read-only reference)
 
 ## Backend Integration (Read-Only)
 
 - **Do not modify backend code.**
-- **Understand the API:** When building frontend features, always check the backend routers (e.g., `hackitrx-backend/app/routers/`) and schemas (`hackitrx-backend/app/schemas.py`) to understand the expected request payloads and response models.
+- **Understand the API:** When building frontend features, always check the backend routers (e.g., `haemkaki-backend/app/routers/`) and schemas (`haemkaki-backend/app/schemas.py`) to understand the expected request payloads and response models.
 - **Types:** Ensure the frontend's TypeScript interfaces and types align perfectly with the backend's Pydantic schemas and SQLModel definitions.
 - **Interactive Docs:** The backend provides interactive Swagger docs at `/docs` when run locally via `uvicorn app.main:app --reload`.
 
-## Frontend (`hackitrx-frontend`)
+## Frontend (`haemkaki`)
 
 **Stack:** React + TypeScript + Vite + Tailwind CSS.
 
