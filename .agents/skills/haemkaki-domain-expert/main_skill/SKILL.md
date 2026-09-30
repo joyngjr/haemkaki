@@ -32,23 +32,23 @@ review and validate before that knowledge is used in the codebase.
 The Firecrawl API key and other environment variables are stored in:
 
 ```
-haemkaki/.env
+.env.local
 ```
 
 Before making any Firecrawl calls, load the key:
 
 ```bash
 # Read the key from .env (strip surrounding quotes if present)
-export FIRECRAWL_API_KEY=$(grep '^FIRECRAWL_API_KEY=' haemkaki/.env | cut -d'=' -f2- | tr -d '"'"'"')
+export FIRECRAWL_API_KEY=$(grep '^FIRECRAWL_API_KEY=' .env.local | cut -d'=' -f2- | tr -d '"'"'"')
 ```
 
-If the variable is already set in the shell environment, use it directly. If `.env` is missing
+If the variable is already set in the shell environment, use it directly. If `.env.local` is missing
 or the key is blank, stop and tell the developer.
 
 For the full Firecrawl API reference, read:
 
 ```
-haemkaki/.agents/skills/haemkaki-domain-expert/firecrawl_skill/SKILL.md
+.agents/skills/haemkaki-domain-expert/firecrawl_skill/SKILL.md
 ```
 
 Read this file before making any API calls so you use the correct endpoint signatures,
@@ -63,7 +63,7 @@ Before doing anything, confirm:
 1. **What topic?** (e.g. "factor VIII prophylaxis dosing", "half-life of extended-release
    factor products", "inhibitor development in haemophilia A")
 2. **Which sources?**
-   - _Repo files_ — search `haemkaki/.agents/skills/haemkaki-domain-expert/references/` for existing medical documents.
+   - _Repo files_ — search `docs/domain/` for existing medical documents.
    - _Web_ — use Firecrawl to find and scrape authoritative sources autonomously.
    - _Both_ — combine both (default when neither is specified).
 3. **Output format**: `.md` (default) or `.csv` — take this from the developer's prompt.
@@ -77,11 +77,11 @@ proceed autonomously.
 
 ## 2 — Source 1: Repository files
 
-Scan `haemkaki/.agents/skills/haemkaki-domain-expert/references/` for existing medical documentation:
+Scan `docs/domain/` for existing medical documentation:
 
 ```bash
-# Find all markdown and text files under references/
-find haemkaki/.agents/skills/haemkaki-domain-expert/references -type f \( -name "*.md" -o -name "*.txt" -o -name "*.csv" \)
+# Find all markdown and text files under docs/domain/
+find docs/domain -type f \( -name "*.md" -o -name "*.txt" -o -name "*.csv" \)
 ```
 
 Then grep for topic keywords (e.g. `factor VIII`, `prophylaxis`, `haemophilia`, `inhibitor`,
@@ -94,7 +94,7 @@ so nothing clinical is lost or distorted.
 
 ## 3 — Source 2: Web via Firecrawl
 
-Read `haemkaki/.agents/skills/haemkaki-domain-expert/firecrawl_skill/SKILL.md` for the full API reference before calling any
+Read `.agents/skills/haemkaki-domain-expert/firecrawl_skill/SKILL.md` for the full API reference before calling any
 endpoint. The sections below are a working summary.
 
 ### 3a — Searching for sources (no URL provided)
@@ -172,7 +172,7 @@ appear without its source.
 Write a **comprehensive, structured summary file** to:
 
 ```
-haemkaki/.agents/skills/haemkaki-domain-expert/medical_info_summary/<kebab-case-topic>.<md|csv>
+docs/domain/<kebab-case-topic>.<md|csv>
 ```
 
 Create the folder if it does not exist.
@@ -190,7 +190,7 @@ Use this template exactly:
 > **Generated:** <ISO 8601 date>
 > **Sources consulted:**
 >
-> - [Repo] `haemkaki/.agents/skills/haemkaki-domain-expert/<source-folder>/<path>`
+> - [Repo] `docs/domain/<file>`
 > - [Web] <URL> — <site name / document title> [<citation key>]
 
 ---
@@ -295,7 +295,7 @@ After writing the file, report:
 
 Example:
 
-> "Summary written to `haemkaki/.agents/skills/haemkaki-domain-expert/medical_info_summary/factor-viii-prophylaxis.md`.
+> "Summary written to `docs/domain/factor-viii-prophylaxis.md`.
 > Read 1 repo file and scraped 4 web sources (WFH 2020, UKHCDO 2023, 2 FDA labels).
 > Found 1 ⚠️ conflict in trough target levels — see the _Treatment Protocols_ section.
 > Please confirm accuracy before using this in the app."
