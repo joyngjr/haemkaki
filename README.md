@@ -41,7 +41,7 @@ is never forgotten. Kaki, a friendly platelet mascot, shows how well covered you
 
 - The frontend (this repo) is built with React, TypeScript, Vite and Tailwind CSS, designed
   mobile-first, and deployed on Vercel.
-- The [backend](https://github.com/joyngjr/hackitrx-backend) is a FastAPI service backed by
+- The [backend](https://github.com/joyngjr/haemkaki-backend) is a FastAPI service backed by
   PostgreSQL and deployed on Railway. It works out cover, run-out dates and order advice from an
   event ledger, rather than storing running totals.
 - The Medical ID is translated by a self-hosted LibreTranslate instance, proxied through the
@@ -56,13 +56,15 @@ is never forgotten. Kaki, a friendly platelet mascot, shows how well covered you
 
 ### Folder architecture
 
+**Backend Repo:** https://github.com/joyngjr/haemkaki-backend
+
 HaemKaki is split across two repos. To run them together, clone both into one parent folder
 and put `docker-compose.yml` beside them:
 
 ```
-haemkaki-project/            any name
-├── haemkaki/                this repo (hackitrx-frontend)
-├── haemkaki-backend/        the API (hackitrx-backend)
+haemkaki-project/
+├── haemkaki/
+├── haemkaki-backend/
 └── docker-compose.yml       copied from haemkaki/docker-compose.yml
 ```
 
@@ -74,8 +76,8 @@ You need [Docker](https://docs.docker.com/get-docker/) with Compose v2.
 
 ```bash
 mkdir haemkaki-project && cd haemkaki-project
-git clone https://github.com/joyngjr/hackitrx-frontend.git haemkaki
-git clone https://github.com/joyngjr/hackitrx-backend.git haemkaki-backend
+git clone https://github.com/joyngjr/heamkaki
+git clone https://github.com/joyngjr/haemkaki-backend
 cp haemkaki/docker-compose.yml .
 docker compose up --build
 ```
